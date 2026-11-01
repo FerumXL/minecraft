@@ -61,3 +61,23 @@ tasks.downloadClient.onlyIf { false }
 tasks.downloadServer.dependsOn fetchLegacyMinecraftArtifacts
 tasks.downloadServer.onlyIf { false }
 
+// ForgeGradle 1.2's `build` output remains MCP-mapped in this workspace.
+// Produce a separate release jar with Minecraft references remapped to 1.7.10 runtime names.
+task remapReleaseJar(type: JavaExec) {
+    dependsOn jar
+    classpath = buildscript.configurations.classpath
+    main = 'net.md_5.specialsource.SpecialSource'
+
+    doFirst {
+        def mappings = new File(gradle.gradleUserHomeDir,
+                'caches/minecraft/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/srgs/mcp-notch.srg')
+        def output = new File(buildDir, "release/${archivesBaseName}-${version}.jar")
+        output.parentFile.mkdirs()
+        setArgs(['--in-jar', jar.archivePath.absolutePath,
+                 '--out-jar', output.absolutePath,
+                 '--srg-in', mappings.absolutePath])
+    }
+}
+
+build.dependsOn remapReleaseJar
+
