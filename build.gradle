@@ -1,17 +1,63 @@
 buildscript {
-    repositories { maven { url = 'https://maven.minecraftforge.net/' }; mavenCentral() }
-    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT' }
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
+    }
 }
+
 apply plugin: 'forge'
+
 version = '0.1.0'
 group = 'ru.ferumxl.mc112bridge'
 archivesBaseName = 'mc112bridge'
+
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
-minecraft { version = '1.7.10-10.13.4.1614-1.7.10'; runDir = 'run' }
+
+minecraft {
+    version = '1.7.10-10.13.4.1614-1.7.10'
+    runDir = 'run'
+}
+
 processResources {
     inputs.property 'version', project.version
     inputs.property 'mcversion', project.minecraft.version
-    from(sourceSets.main.resources.srcDirs) { include 'mcmod.info'; expand 'version': project.version, 'mcversion': project.minecraft.version }
-    from(sourceSets.main.resources.srcDirs) { exclude 'mcmod.info' }
+
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
 }
+
+// ForgeGradle 1.2 points at a retired HTTP endpoint for Minecraft 1.7.10.
+// Cache Mojang's original artifacts at the paths expected by ForgeGradle.
+task fetchLegacyMinecraftArtifacts {
+    doLast {
+        def cache = new File(gradle.gradleUserHomeDir, 'caches/minecraft')
+        def artifacts = [
+            ['https://launcher.mojang.com/v1/objects/e80d9b3bf5085002218d4be59e668bac718abbc6/client.jar', new File(cache, 'net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar'), '19fe84ab66a122651131258a094288bd\r\nfb13447628d6bf8de5cdecb9ef24a470'],
+            ['https://launcher.mojang.com/v1/objects/952438ac4e01b4d115c5fc38f891710c4941df29/server.jar', new File(cache, 'net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar'), 'a20d0a93c6e9cbf1d07db1a1f009aa7a\r\n07d67ba0c30e852c27ab2d9f9b234001'],
+            ['https://launchermeta.mojang.com/v1/packages/1863782e33ce7b584fc45b037325a1964e095d3e/1.7.10.json', new File(cache, 'assets/indexes/1.7.10.json'), null]
+        ]
+        artifacts.each { artifact ->
+            def target = artifact[1]
+            if (!target.isFile()) {
+                target.parentFile.mkdirs()
+                target.withOutputStream { output -> new URL(artifact[0]).withInputStream { input -> output << input } }
+            }
+            if (artifact[2] != null) new File(target.parentFile, target.name + '.md5').setText(artifact[2], 'UTF-8')
+        }
+    }
+}
+
+tasks.downloadClient.dependsOn fetchLegacyMinecraftArtifacts
+tasks.downloadClient.onlyIf { false }
+tasks.downloadServer.dependsOn fetchLegacyMinecraftArtifacts
+tasks.downloadServer.onlyIf { false }
+
