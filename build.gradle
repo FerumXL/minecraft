@@ -1,0 +1,17 @@
+buildscript {
+    repositories { maven { url = 'https://maven.minecraftforge.net/' }; mavenCentral() }
+    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT' }
+}
+apply plugin: 'forge'
+version = '0.1.0'
+group = 'ru.ferumxl.mc112bridge'
+archivesBaseName = 'mc112bridge'
+sourceCompatibility = 1.6
+targetCompatibility = 1.6
+minecraft { version = '1.7.10-10.13.4.1614-1.7.10'; runDir = 'run' }
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'mcversion', project.minecraft.version
+    from(sourceSets.main.resources.srcDirs) { include 'mcmod.info'; expand 'version': project.version, 'mcversion': project.minecraft.version }
+    from(sourceSets.main.resources.srcDirs) { exclude 'mcmod.info' }
+}
