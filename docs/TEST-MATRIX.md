@@ -1,15 +1,17 @@
-# Test matrix
+# Матрица проверок
 
-| Check | Who | Procedure | Expected result | Status |
+| Проверка | Кто | Сценарий | Ожидаемый результат | Статус |
 |---|---|---|---|---|
-| Java/launcher baseline | Codex | Inspect local Java and launcher profile | JDK/JRE 8 and Forge 1.7.10 profile | Found Java 8 and profile `ForgeOptiFine 1.7.10`; exact Forge build pending |
-| HBM baseline | Codex | Inspect local mods folder | Record exact HBM jar | Found `HBM-NTM-1.0.27_X5687.jar`; not loaded/tested |
-| Compile | Codex | Build with pinned Forge MDK/Gradle | Clean compile | Pending project bootstrap |
-| Dedicated inventory | Codex | Unit/integration test slot serialization and bounds | Slot persists; invalid indices rejected | Pending implementation |
-| Server authority | Codex | Multiplayer test swap packet with invalid slot/item data | Server rejects invalid requests; valid state syncs | Manual server test required |
-| Swap key | User | Load in Forge 1.7.10, change key binding, swap with empty/occupied offhand | Items exchange once and persist after relog | User test required |
-| Item rendering | User | Test first and third person, GUI open, invisible/armor states | Correct item and transform; no missing texture/crash | User test required |
-| Food use | User | Hold food in offhand and activate use | One consumption, correct hunger/saturation | User test required; support not yet claimed |
-| Torch placement | User | Try offhand torch on valid/invalid surfaces | Correct placement, no duplicate block/item | User test required; support not yet claimed |
-| HBM interoperability | User | Test representative HBM tools/items in both hands and reload world | No crash, duplication, desync, or unintended machine action | User test required; especially important |
-| Other mods | User | Enable full modpack; inspect startup and interaction logs | No registry, packet, or rendering conflicts | User test required |
+| Java и профиль запуска | Codex | Проверить Java и профиль TLauncher | Java 8 и Forge 1.7.10 | Найдены Java 8 и `ForgeOptiFine 1.7.10`; точная сборка Forge не установлена |
+| Версия HBM | Codex | Проверить локальную папку `mods` | Записать точную версию файла | Найден `HBM-NTM-1.0.27_X5687.jar`; загрузка вместе с модом не проверена |
+| Сборка мода | Codex | Собрать проект закреплённой конфигурацией Forge | Компиляция проходит без ошибок | Ожидает создания исходников и конфигурации сборки |
+| Перенос отдельного контента | Codex | Проверить регистрацию, рецепты, сохранение и загрузку добавленного контента | Нет дублирования ID и потери данных | Ожидает реализации |
+| Совместимость с HBM | Codex + пользователь | Запустить Forge 1.7.10 с HBM и модом, проверить запуск и журналы | Нет аварийного завершения, конфликтов регистрации и ошибок взаимодействия | Требуется проверка в игре |
+| Левая рука: обмен предметов | Пользователь | Положить предмет во второй слот, менять его клавишей, перезайти в мир | Обмен происходит один раз, слот сохраняется | Будет добавлено отдельной функцией; проверить в игре |
+| Левая рука: предметы | Пользователь | Проверить еду, размещение блоков/факелов и предметы HBM в левой руке | Нет дублирования, неверного расхода и рассинхронизации | Требуется проверка в игре; поддержка зависит от реализации конкретного предмета |
+| Многопользовательский режим | Пользователь | Проверить обмен и использование на выделенном сервере | Сервер авторитетен, клиент получает корректное состояние | Требуется проверка на сервере |
+| Полная сборка модов | Пользователь | Запустить мод вместе с используемыми модами и проверить игровые сценарии | Нет конфликтов и регрессий | Требуется проверка с фактической сборкой пользователя |
+
+## Ограничения проверки
+
+Проверка запуска TLauncher, визуального отображения и взаимодействия с HBM требует игрового клиента. Если это нельзя достоверно проверить автоматически, здесь будут инструкции и ожидаемый результат, чтобы пользователь мог выполнить сценарий и прислать журнал или описание ошибки.
