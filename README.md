@@ -1,30 +1,28 @@
-# Offhand 1710
+# Порт Minecraft 1.12.2 для Forge 1.7.10
 
-An experimental Forge 1.7.10 mod that adds a synchronized second-hand item slot.
+Цель проекта — перенести в Minecraft Forge 1.7.10 как можно больше возможностей Minecraft 1.12.2, если это можно реализовать модом без изменений самого движка. Это отдельный мод совместимости и контента, а не превращение 1.7.10 в точную копию 1.12.2.
 
-## Current status
+## Принципы переноса
 
-This repository is at the bootstrap/specification stage. The installed game has Java 8, a Forge 1.7.10 launcher profile, and HBM-NTM `1.0.27_X5687`. No source project or Git repository was present initially. Runtime integration with HBM has not been verified.
+- Добавлять предметы, блоки, рецепты, эффекты и другие возможности, которые можно реализовать через API Forge 1.7.10.
+- Для механик, зависящих от новых внутренних систем движка, искать ограниченную совместимую реализацию и явно описывать отличия.
+- Не заявлять полное совпадение или совместимость со всеми модами без проверки.
+- Сохранять совместимость с HBM как важную цель; тестировать конкретно на установленной версии `HBM-NTM-1.0.27_X5687`.
+- Добавлять левую руку и полноценное использование предметов в обеих руках как отдельное направление работ, а не как единственную цель проекта.
 
-## Initial scope
+## Что может потребовать изменений движка
 
-- A dedicated offhand inventory slot, separate from the hotbar.
-- A configurable key to swap the selected hotbar item with the offhand slot.
-- Server-authoritative slot changes and packet synchronization in multiplayer.
-- Render the item in first and third person.
-- A conservative use action for items explicitly marked as offhand-compatible.
-- Compatibility checks for food, torches, shields, and HBM items before claiming support.
+Некоторые функции 1.12.2 тесно связаны с внутренним устройством игры: состояния блоков и их регистрация, формат сетевого обмена, рендеринг и модель игрока, форматы сохранения и поведение базовых классов. Если мод не может безопасно добавить такую функцию через Forge API 1.7.10, она будет отмечена как ограничение либо отложена, а не представлена как готовый перенос.
 
-This is a mod for Forge 1.7.10, not a backport of Minecraft's 1.12.2 engine. Legacy mod APIs differ significantly; unsupported actions must fail safely rather than run twice on client and server.
+## Текущее состояние
 
-## Build environment
+Первая функция в исходниках — железный самородок: регистрация предмета, рецепты из/в слиток и переплавка железных инструментов и брони. Это ранний прототип; он ещё не собран и не проверен в игре. В среде обнаружены Java 8, Forge `1.7.10-10.13.4.1614` и HBM `1.0.27_X5687`.
 
-Use the Forge 1.7.10 MDK and ForgeGradle 1.2 with JDK 8. The exact Forge build will be pinned after confirming the installed profile's Forge version. A normal build is `gradlew build`; output should be under `build/libs/`.
+## Сборка
 
-## Installation
+Для Minecraft 1.7.10 используется ForgeGradle 1.2, Java 8 и Forge `1.7.10-10.13.4.1614`. Конфигурация сборки находится в `build.gradle`. Официальный MDK пока не удалось загрузить из-за TLS-ошибки среды; перед запуском Gradle нужно получить зависимости.
 
-Copy the built jar into the `mods` folder of a Forge 1.7.10 instance. Back up worlds before testing experimental builds. Do not install this jar into a different Minecraft version.
+## Проверки
 
-## Testing
+См. [`docs/TEST-MATRIX.md`](docs/TEST-MATRIX.md). Таблица разделяет автоматические проверки и сценарии, которые можно выполнить только в клиенте или на сервере с установленными модами.
 
-See [`docs/TEST-MATRIX.md`](docs/TEST-MATRIX.md) for automated and in-game checks. HBM compatibility is not claimed until tested against the listed installed version.
