@@ -10,7 +10,7 @@ buildscript {
 
 apply plugin: 'forge'
 
-version = '0.2.1'
+version = '0.3.0'
 group = 'ru.ferumxl.mc112bridge'
 archivesBaseName = 'mc112bridge'
 
@@ -100,4 +100,5 @@ task remapReleaseJar(type: JavaExec) {
 }
 
 build.dependsOn remapReleaseJar
+
 
