@@ -3,7 +3,10 @@ package ru.codex.offhand1710;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.Mod.EventHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.registry.GameRegistry;
+import cpw.mods.fml.common.SidedProxy;
+import cpw.mods.fml.common.network.NetworkRegistry;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
@@ -11,7 +14,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.4.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.5.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -27,6 +30,19 @@ public final class MC112Bridge {
     public static Block[] concretePowder = new Block[16];
     public static Block[] glazedTerracotta = new Block[16];
     public static Block magmaBlock;
+    public static final OffhandNetwork NETWORK = new OffhandNetwork();
+    @SidedProxy(clientSide = "ru.codex.offhand1710.client.ClientProxy",
+            serverSide = "ru.codex.offhand1710.CommonProxy")
+    public static CommonProxy proxy;
+
+    @EventHandler
+    public void preInitialize(FMLPreInitializationEvent event) {
+        NETWORK.register();
+        OffhandEvents events = new OffhandEvents();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(events);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(events);
+        proxy.preInitialize();
+    }
 
     @EventHandler
     public void initialize(FMLInitializationEvent event) {

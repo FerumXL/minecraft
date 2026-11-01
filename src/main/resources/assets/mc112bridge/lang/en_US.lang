@@ -1,4 +1,7 @@
 item.mc112bridge.iron_nugget.name=Iron Nugget
+key.categories.mc112bridge=Minecraft 1.12.2 port
+key.mc112bridge.swap_offhand=Swap with offhand
+key.mc112bridge.use_offhand=Use offhand item
 tile.mc112bridge.magma_block.name=Magma Block
 tile.mc112bridge.concrete_white.name=White Concrete
 tile.mc112bridge.concrete_powder_white.name=White Concrete Powder
