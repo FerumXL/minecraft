@@ -11,7 +11,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.2.1", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.3.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -25,6 +25,7 @@ public final class MC112Bridge {
     public static Item ironNugget;
     public static Block[] concrete = new Block[16];
     public static Block[] concretePowder = new Block[16];
+    public static Block[] glazedTerracotta = new Block[16];
 
     @EventHandler
     public void initialize(FMLInitializationEvent event) {
@@ -43,6 +44,7 @@ public final class MC112Bridge {
         addIronScrapSmelting();
         registerConcreteBlocks();
         registerConcreteRecipes();
+        registerGlazedTerracotta();
     }
 
     private void registerConcreteBlocks() {
@@ -64,6 +66,16 @@ public final class MC112Bridge {
                     Blocks.sand, Blocks.sand, Blocks.sand, Blocks.sand,
                     Blocks.gravel, Blocks.gravel, Blocks.gravel, Blocks.gravel,
                     new ItemStack(Items.dye, 1, LEGACY_DYE_DAMAGE[i]));
+        }
+    }
+
+    private void registerGlazedTerracotta() {
+        for (int i = 0; i < COLOR_NAMES.length; i++) {
+            String color = COLOR_NAMES[i];
+            glazedTerracotta[i] = new BlockGlazedTerracotta(color);
+            GameRegistry.registerBlock(glazedTerracotta[i], "glazed_terracotta_" + color);
+            GameRegistry.addSmelting(new ItemStack(Blocks.stained_hardened_clay, 1, i),
+                    new ItemStack(glazedTerracotta[i]), 0.1F);
         }
     }
 
