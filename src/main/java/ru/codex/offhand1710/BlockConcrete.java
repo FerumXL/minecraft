@@ -14,7 +14,8 @@ public final class BlockConcrete extends Block {
         super(powder ? Material.sand : Material.rock);
         this.texture = powder ? "concrete_powder_" + color : "concrete_" + color;
         setBlockName(MC112Bridge.MOD_ID + "." + texture);
-        setBlockTextureName(MC112Bridge.MOD_ID + ":blocks/" + texture);
+        // The block texture atlas adds the "blocks/" directory automatically.
+        setBlockTextureName(MC112Bridge.MOD_ID + ":" + texture);
         setCreativeTab(CreativeTabs.tabBlock);
         setHardness(powder ? 0.5F : 1.8F);
         setResistance(powder ? 0.5F : 6.0F);
