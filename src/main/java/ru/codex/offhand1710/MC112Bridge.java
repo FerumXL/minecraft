@@ -11,7 +11,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.3.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.4.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -26,6 +26,7 @@ public final class MC112Bridge {
     public static Block[] concrete = new Block[16];
     public static Block[] concretePowder = new Block[16];
     public static Block[] glazedTerracotta = new Block[16];
+    public static Block magmaBlock;
 
     @EventHandler
     public void initialize(FMLInitializationEvent event) {
@@ -45,6 +46,7 @@ public final class MC112Bridge {
         registerConcreteBlocks();
         registerConcreteRecipes();
         registerGlazedTerracotta();
+        registerMagmaBlock();
     }
 
     private void registerConcreteBlocks() {
@@ -77,6 +79,13 @@ public final class MC112Bridge {
             GameRegistry.addSmelting(new ItemStack(Blocks.stained_hardened_clay, 1, i),
                     new ItemStack(glazedTerracotta[i]), 0.1F);
         }
+    }
+
+    private void registerMagmaBlock() {
+        magmaBlock = new BlockMagma();
+        GameRegistry.registerBlock(magmaBlock, "magma_block");
+        GameRegistry.addShapedRecipe(new ItemStack(magmaBlock),
+                "mm", "mm", 'm', Items.magma_cream);
     }
 
     private void addIronScrapSmelting() {
