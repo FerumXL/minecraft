@@ -1,0 +1,3 @@
+[
+ {"modid":"mc112bridge","name":"Minecraft 1.12.2 Content for 1.7.10","description":"Adds selected Minecraft 1.12.2 content to Forge 1.7.10 where feasible without engine changes.","version":"${version}","mcversion":"${mcversion}","url":"https://github.com/FerumXL/minecraft","authorList":["FerumXL"],"dependencies":[]}
+]
