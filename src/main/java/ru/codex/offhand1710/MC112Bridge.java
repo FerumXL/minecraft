@@ -11,7 +11,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.2.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.2.1", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -53,7 +53,7 @@ public final class MC112Bridge {
 
             concretePowder[i] = new BlockConcretePowder(concrete[i],
                     MOD_ID + ".concrete_powder_" + color,
-                    MOD_ID + ":blocks/concrete_powder_" + color);
+                    MOD_ID + ":concrete_powder_" + color);
             GameRegistry.registerBlock(concretePowder[i], "concrete_powder_" + color);
         }
     }
