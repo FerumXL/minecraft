@@ -1,7 +1,6 @@
 item.mc112bridge.iron_nugget.name=Железный самородок
 key.categories.mc112bridge=Порт 1.12.2
-key.mc112bridge.swap_offhand=Обмен с левой рукой
-key.mc112bridge.use_offhand=Использовать предмет в левой руке
+key.mc112bridge.swap_offhand=Поменять предметы в руках
 tile.mc112bridge.magma_block.name=Магмовый блок
 tile.mc112bridge.concrete_white.name=Белый бетон
 tile.mc112bridge.concrete_powder_white.name=Белый бетонный порошок
@@ -51,4 +50,3 @@ tile.mc112bridge.glazed_terracotta_brown.name=Коричневая глазур�
 tile.mc112bridge.glazed_terracotta_green.name=Зелёная глазурованная керамика
 tile.mc112bridge.glazed_terracotta_red.name=Красная глазурованная керамика
 tile.mc112bridge.glazed_terracotta_black.name=Чёрная глазурованная керамика
-

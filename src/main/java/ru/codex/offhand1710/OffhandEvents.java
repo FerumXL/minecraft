@@ -4,31 +4,41 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import cpw.mods.fml.common.eventhandler.EventPriority;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent.PlayerRespawnEvent;
-import net.minecraft.block.Block;
+import cpw.mods.fml.common.gameevent.TickEvent;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.network.play.server.S23PacketBlockChange;
+import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 import net.minecraftforge.event.entity.EntityEvent;
+import net.minecraftforge.event.entity.EntityJoinWorldEvent;
+import net.minecraftforge.event.entity.player.PlayerDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 
 public final class OffhandEvents {
     private static final ConcurrentMap<UUID, Boolean> SWAP_REQUESTS = new ConcurrentHashMap<UUID, Boolean>();
-    private static final ConcurrentMap<UUID, Integer> USE_REQUESTS = new ConcurrentHashMap<UUID, Integer>();
+    private static final ConcurrentMap<UUID, OffhandMessages.UseRequest> USE_REQUESTS =
+            new ConcurrentHashMap<UUID, OffhandMessages.UseRequest>();
+    private static final ConcurrentMap<UUID, OffhandMessages.CreativeSet> CREATIVE_SETS =
+            new ConcurrentHashMap<UUID, OffhandMessages.CreativeSet>();
 
     public static void queueSwap(UUID playerId) {
         SWAP_REQUESTS.put(playerId, Boolean.TRUE);
     }
 
-    public static void queueUse(UUID playerId, int entityId) {
-        USE_REQUESTS.put(playerId, Integer.valueOf(entityId));
+    public static void queueUse(UUID playerId, OffhandMessages.UseRequest request) {
+        USE_REQUESTS.put(playerId, request);
+    }
+
+    public static void queueCreativeSet(UUID playerId, OffhandMessages.CreativeSet message) {
+        CREATIVE_SETS.put(playerId, message);
     }
 
     @SubscribeEvent
@@ -36,9 +46,43 @@ public final class OffhandEvents {
         OffhandInventory.register(event.entity);
     }
 
+    /** The container exists only after the player constructor; both sides add the slot when the player joins. */
+    @SubscribeEvent
+    public void onJoinWorld(EntityJoinWorldEvent event) {
+        if (event.entity instanceof EntityPlayer) {
+            OffhandContainer.addSlot((EntityPlayer) event.entity);
+        }
+    }
+
     @SubscribeEvent
     public void onPlayerClone(PlayerEvent.Clone event) {
+        // After a death without keepInventory the offhand was already dropped (onPlayerDrops), so this copies null.
         OffhandInventory.get(event.entityPlayer).copyFrom(OffhandInventory.get(event.original));
+    }
+
+    /**
+     * Fired only when keepInventory is off: the offhand item drops with the rest of the inventory, as in 1.12.2.
+     * Highest priority so mods that collect the drops (graves, corpses) get the offhand item too.
+     */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onPlayerDrops(PlayerDropsEvent event) {
+        EntityPlayer player = event.entityPlayer;
+        OffhandInventory offhand = OffhandInventory.get(player);
+        ItemStack stack = offhand.getStack();
+        if (stack == null) {
+            return;
+        }
+        // Same spread as InventoryPlayer.dropAllItems -> EntityPlayer.func_146097_a(stack, true, false).
+        EntityItem item = new EntityItem(player.worldObj, player.posX,
+                player.posY - 0.30000001192092896D + (double) player.getEyeHeight(), player.posZ, stack);
+        item.delayBeforeCanPickup = 40;
+        float strength = player.getRNG().nextFloat() * 0.5F;
+        float angle = player.getRNG().nextFloat() * (float) Math.PI * 2.0F;
+        item.motionX = (double) (-MathHelper.sin(angle) * strength);
+        item.motionZ = (double) (MathHelper.cos(angle) * strength);
+        item.motionY = 0.20000000298023224D;
+        event.drops.add(item);
+        offhand.setStack(null);
     }
 
     @SubscribeEvent
@@ -56,14 +100,18 @@ public final class OffhandEvents {
         if (event.phase != TickEvent.Phase.END || event.player.worldObj.isRemote) {
             return;
         }
-
-        UUID id = event.player.getUniqueID();
+        EntityPlayerMP player = (EntityPlayerMP) event.player;
+        UUID id = player.getUniqueID();
         if (SWAP_REQUESTS.remove(id) != null) {
-            swap((EntityPlayerMP) event.player);
+            swap(player);
         }
-        Integer entityId = USE_REQUESTS.remove(id);
-        if (entityId != null) {
-            useOffhand((EntityPlayerMP) event.player, entityId.intValue());
+        OffhandMessages.CreativeSet creative = CREATIVE_SETS.remove(id);
+        if (creative != null) {
+            creativeSet(player, creative.stack);
+        }
+        OffhandMessages.UseRequest use = USE_REQUESTS.remove(id);
+        if (use != null) {
+            useOffhand(player, use);
         }
     }
 
@@ -71,66 +119,110 @@ public final class OffhandEvents {
         OffhandInventory offhand = OffhandInventory.get(player);
         int slot = player.inventory.currentItem;
         ItemStack main = player.inventory.getStackInSlot(slot);
-        ItemStack other = offhand.getStack();
-        player.inventory.setInventorySlotContents(slot, other);
+        player.inventory.setInventorySlotContents(slot, offhand.getStack());
         offhand.setStack(main);
         player.inventory.markDirty();
         player.inventoryContainer.detectAndSendChanges();
         OffhandMessages.synchronize(player);
     }
 
-    private static void useOffhand(EntityPlayerMP player, int entityId) {
-        OffhandInventory offhand = OffhandInventory.get(player);
-        ItemStack stack = offhand.getStack();
-        if (stack == null || stack.stackSize <= 0) {
+    private static void creativeSet(EntityPlayerMP player, ItemStack stack) {
+        // Same trust and limits as vanilla's creative inventory packet.
+        if (!player.theItemInWorldManager.isCreative()) {
             return;
         }
-
-        World world = player.worldObj;
-        if (entityId >= 0) {
-            Entity target = world.getEntityByID(entityId);
-            if (target instanceof EntityLivingBase && player.getDistanceSqToEntity(target) <= 36.0D
-                    && player.canEntityBeSeen(target)) {
-                stack.getItem().itemInteractionForEntity(stack, player, (EntityLivingBase) target);
-            }
-        } else {
-            MovingObjectPosition hit = player.rayTrace(5.0D, 1.0F);
-            if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) {
-                int x = hit.blockX;
-                int y = hit.blockY;
-                int z = hit.blockZ;
-                int side = hit.sideHit;
-                float hx = (float) (hit.hitVec.xCoord - x);
-                float hy = (float) (hit.hitVec.yCoord - y);
-                float hz = (float) (hit.hitVec.zCoord - z);
-                boolean used = stack.getItem().onItemUseFirst(stack, player, world, x, y, z, side, hx, hy, hz);
-                if (!used) {
-                    int mainSlot = player.inventory.currentItem;
-                    ItemStack main = player.inventory.getStackInSlot(mainSlot);
-                    Block block = world.getBlock(x, y, z);
-                    player.inventory.setInventorySlotContents(mainSlot, stack);
-                    try {
-                        used = block.onBlockActivated(world, x, y, z, player, side, hx, hy, hz);
-                    } finally {
-                        stack = player.inventory.getStackInSlot(mainSlot);
-                        player.inventory.setInventorySlotContents(mainSlot, main);
-                    }
-                }
-                if (!used && stack != null) {
-                    stack.getItem().onItemUse(stack, player, world, x, y, z, side, hx, hy, hz);
-                }
-            } else {
-                ItemStack result = stack.getItem().onItemRightClick(stack, world, player);
-                if (result != null) {
-                    stack = result;
-                }
-            }
+        if (stack != null && (stack.getItemDamage() < 0 || stack.stackSize <= 0 || stack.stackSize > 64)) {
+            return;
         }
-
-        offhand.setStack(stack != null && stack.stackSize > 0 ? stack : null);
-        player.inventory.markDirty();
+        OffhandInventory.get(player).setStack(stack);
         player.inventoryContainer.detectAndSendChanges();
         OffhandMessages.synchronize(player);
     }
-}
 
+    /**
+     * The offhand turn of a right click (1.12.2 order: entity, then block, then use in the air).
+     *
+     * The offhand item is put into the selected hotbar slot for the duration of the call and the vanilla
+     * server logic runs on it, so blocks, buckets, leads, shears, spawn eggs and every other item behave
+     * exactly as in the main hand. Afterwards the hotbar slot gets its own item back and the offhand gets the
+     * result (smaller stack, filled bucket, nothing).
+     */
+    private static void useOffhand(EntityPlayerMP player, OffhandMessages.UseRequest request) {
+        OffhandInventory offhand = OffhandInventory.get(player);
+        if (offhand.getStack() == null || player.isUsingItem()) {
+            return;
+        }
+        World world = player.worldObj;
+        int slot = player.inventory.currentItem;
+        ItemStack main = player.inventory.mainInventory[slot];
+        ItemStack before = offhand.getStack();
+        int sizeBefore = before.stackSize;
+        player.inventory.mainInventory[slot] = before;
+
+        int flags = 0;
+        boolean startedUsing = false;
+        try {
+            boolean acted = false;
+            if (request.kind == OffhandMessages.USE_ENTITY) {
+                Entity target = world.getEntityByID(request.entityId);
+                // Same reach check as vanilla's entity interaction packet.
+                if (target != null && target != player) {
+                    double reach = player.canEntityBeSeen(target) ? 36.0D : 9.0D;
+                    if (player.getDistanceSqToEntity(target) < reach) {
+                        acted = player.interactWith(target);
+                    }
+                }
+            } else if (request.kind == OffhandMessages.USE_BLOCK) {
+                // Same reach and spawn protection checks as vanilla's block placement packet.
+                if (player.getDistanceSq(request.x + 0.5D, request.y + 0.5D, request.z + 0.5D) < 64.0D
+                        && !player.mcServer.isBlockProtected(world, request.x, request.y, request.z, player)) {
+                    acted = player.theItemInWorldManager.activateBlockOrUseItem(player, world,
+                            player.inventory.mainInventory[slot], request.x, request.y, request.z, request.side,
+                            request.hitX, request.hitY, request.hitZ);
+                    if (acted) {
+                        flags |= OffhandMessages.RESULT_SWING;
+                        ItemStack now = player.inventory.mainInventory[slot];
+                        if (now != null && (now.stackSize != sizeBefore || player.theItemInWorldManager.isCreative())) {
+                            flags |= OffhandMessages.RESULT_EQUIP;
+                        }
+                    }
+                    // As vanilla after a block placement packet: resend the clicked block and the one next to
+                    // the clicked face, so a wrong client-side prediction is undone.
+                    resendBlock(player, world, request.x, request.y, request.z);
+                    resendBlock(player, world, request.x + OFFSET_X[request.side & 7],
+                            request.y + OFFSET_Y[request.side & 7], request.z + OFFSET_Z[request.side & 7]);
+                }
+            }
+            if (!acted) {
+                ItemStack current = player.inventory.mainInventory[slot];
+                if (current != null && player.theItemInWorldManager.tryUseItem(player, world, current)) {
+                    flags |= OffhandMessages.RESULT_EQUIP;
+                }
+            }
+        } finally {
+            ItemStack after = player.inventory.mainInventory[slot];
+            player.inventory.mainInventory[slot] = main;
+            // Holding the button to eat, drink, draw a bow or block is not ported for the offhand yet:
+            // the use started on the hotbar slot would otherwise stick to the wrong item.
+            if (player.isUsingItem() && player.getItemInUse() == after) {
+                player.clearItemInUse();
+                startedUsing = true;
+            }
+            offhand.setStack(after != null && after.stackSize > 0 ? after : null);
+            // tryUseItem may have sent the hotbar slot while it held the offhand item; resend the real contents.
+            player.sendContainerToPlayer(player.inventoryContainer);
+            OffhandMessages.synchronize(player);
+        }
+        // Always answered: the client matches answers to the requests it already animated by prediction.
+        OffhandMessages.sendResult(player, request.sequence, startedUsing ? 0 : flags);
+    }
+
+    /** Neighbour of a block on side 0..5 (down, up, north, south, west, east); 6 and 7 mean "same block". */
+    private static final int[] OFFSET_X = {0, 0, 0, 0, -1, 1, 0, 0};
+    private static final int[] OFFSET_Y = {-1, 1, 0, 0, 0, 0, 0, 0};
+    private static final int[] OFFSET_Z = {0, 0, -1, 1, 0, 0, 0, 0};
+
+    private static void resendBlock(EntityPlayerMP player, World world, int x, int y, int z) {
+        player.playerNetServerHandler.sendPacket(new S23PacketBlockChange(x, y, z, world));
+    }
+}

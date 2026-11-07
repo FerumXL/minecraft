@@ -1,7 +1,6 @@
 item.mc112bridge.iron_nugget.name=Iron Nugget
 key.categories.mc112bridge=Minecraft 1.12.2 port
-key.mc112bridge.swap_offhand=Swap with offhand
-key.mc112bridge.use_offhand=Use offhand item
+key.mc112bridge.swap_offhand=Swap Item In Hands
 tile.mc112bridge.magma_block.name=Magma Block
 tile.mc112bridge.concrete_white.name=White Concrete
 tile.mc112bridge.concrete_powder_white.name=White Concrete Powder
@@ -51,4 +50,3 @@ tile.mc112bridge.glazed_terracotta_brown.name=Brown Glazed Terracotta
 tile.mc112bridge.glazed_terracotta_green.name=Green Glazed Terracotta
 tile.mc112bridge.glazed_terracotta_red.name=Red Glazed Terracotta
 tile.mc112bridge.glazed_terracotta_black.name=Black Glazed Terracotta
-
