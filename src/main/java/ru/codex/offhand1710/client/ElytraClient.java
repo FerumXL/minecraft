@@ -20,6 +20,9 @@ import ru.codex.offhand1710.OffhandMessages;
  * the tick the air drag and gravity vanilla added afterwards are replaced by the computed motion again.
  */
 public final class ElytraClient {
+    /** Not in 1.12.2 (asked for by the mod's author): gliding cannot climb above the build limit. */
+    private static final double MAX_HEIGHT = 256.0D;
+
     private boolean lastJump;
     private boolean simulating;
     private double savedX;
@@ -119,6 +122,9 @@ public final class ElytraClient {
         player.motionX *= 0.9900000095367432D;
         player.motionY *= 0.9800000190734863D;
         player.motionZ *= 0.9900000095367432D;
+        if (player.boundingBox.minY >= MAX_HEIGHT && player.motionY > 0.0D) {
+            player.motionY = 0.0D; // the ceiling of the glide; a rocket cannot push the player higher either
+        }
         savedX = player.motionX;
         savedY = player.motionY;
         savedZ = player.motionZ;

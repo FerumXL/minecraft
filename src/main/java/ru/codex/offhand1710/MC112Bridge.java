@@ -15,7 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.11.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.12.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -77,6 +77,7 @@ public final class MC112Bridge {
         Colors112.apply();
         Combat112.applyVanillaValues();
         Elytra112.register();
+        GameRegistry.registerWorldGenerator(new IglooGenerator(), 5);
         proxy.initialize();
     }
 

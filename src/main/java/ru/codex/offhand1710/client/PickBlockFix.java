@@ -5,6 +5,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityClientPlayerMP;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.common.ForgeHooks;
 import ru.codex.offhand1710.OffhandInventory;
 
@@ -17,6 +18,24 @@ import ru.codex.offhand1710.OffhandInventory;
  */
 public final class PickBlockFix {
     private static final int HOTBAR_START = 36;
+
+    /**
+     * A mouse press is read and acted on by vanilla later in the same tick, after the tick event below has already
+     * run, so it has to be taken here, where it can still be cancelled.
+     */
+    @SubscribeEvent
+    public void onMouse(MouseEvent event) {
+        Minecraft mc = Minecraft.getMinecraft();
+        EntityClientPlayerMP player = mc.thePlayer;
+        if (!event.buttonstate || player == null || mc.theWorld == null || mc.playerController == null
+                || mc.currentScreen != null || event.button - 100 != mc.gameSettings.keyBindPickBlock.getKeyCode()) {
+            return;
+        }
+        event.setCanceled(true);
+        if (!player.isUsingItem() && !OffhandInventory.get(player).isUsing()) {
+            pickBlock(mc, player);
+        }
+    }
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {

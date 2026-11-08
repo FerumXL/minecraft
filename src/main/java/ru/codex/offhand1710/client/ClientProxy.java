@@ -21,7 +21,9 @@ public final class ClientProxy extends CommonProxy {
         FMLCommonHandler.instance().bus().register(new OffhandKeyHandler());
         FMLCommonHandler.instance().bus().register(new OffhandUseHandler());
         FMLCommonHandler.instance().bus().register(new OffhandClientState());
-        FMLCommonHandler.instance().bus().register(new PickBlockFix());
+        PickBlockFix pickBlock = new PickBlockFix();
+        FMLCommonHandler.instance().bus().register(pickBlock);
+        MinecraftForge.EVENT_BUS.register(pickBlock);
         ElytraClient elytra = new ElytraClient();
         FMLCommonHandler.instance().bus().register(elytra);
         MinecraftForge.EVENT_BUS.register(elytra);

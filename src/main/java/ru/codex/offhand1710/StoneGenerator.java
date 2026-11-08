@@ -13,8 +13,9 @@ import net.minecraft.world.gen.feature.WorldGenMinable;
  * Granite, diorite and andesite in the overworld with the 1.12.2 default settings: veins of up to 33 blocks,
  * 10 attempts per chunk each, at heights 0-79, replacing stone. Not in superflat worlds.
  *
- * Positions are offset by 8 into the 2x2 chunk area that is guaranteed to exist while a chunk is populated,
- * so the veins never force neighbouring chunks to generate.
+ * Positions are NOT offset by 8 here: WorldGenMinable adds the 8 itself. A second offset pushes the veins past the
+ * 2x2 chunk area that exists while a chunk is populated, each vein then generates new chunks, and the chain of
+ * generations ends in a StackOverflowError.
  */
 public final class StoneGenerator implements IWorldGenerator {
     private static final int VEIN_SIZE = 33;
@@ -27,11 +28,15 @@ public final class StoneGenerator implements IWorldGenerator {
         if (world.provider.dimensionId != 0 || world.getWorldInfo().getTerrainType() == WorldType.FLAT) {
             return;
         }
-        int baseX = chunkX * 16 + 8;
-        int baseZ = chunkZ * 16 + 8;
+        long started = GenProbe.ENABLED ? System.nanoTime() : 0L;
+        int baseX = chunkX * 16;
+        int baseZ = chunkZ * 16;
         generateVeins(world, random, baseX, baseZ, new WorldGenMinable(PortedBlocks.granite, 0, VEIN_SIZE, Blocks.stone));
         generateVeins(world, random, baseX, baseZ, new WorldGenMinable(PortedBlocks.diorite, 0, VEIN_SIZE, Blocks.stone));
         generateVeins(world, random, baseX, baseZ, new WorldGenMinable(PortedBlocks.andesite, 0, VEIN_SIZE, Blocks.stone));
+        if (GenProbe.ENABLED) {
+            GenProbe.stone(System.nanoTime() - started);
+        }
     }
 
     private static void generateVeins(World world, Random random, int baseX, int baseZ, WorldGenMinable vein) {

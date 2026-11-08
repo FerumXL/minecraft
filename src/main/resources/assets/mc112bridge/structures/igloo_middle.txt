@@ -1,0 +1,15 @@
+0 0 1 stonebrick 0 none -
+1 0 0 stonebrick 0 none -
+1 0 1 ladder 0 side n
+1 0 2 stonebrick 0 none -
+2 0 1 stonebrick 0 none -
+0 1 1 stonebrick 0 none -
+1 1 0 stonebrick 0 none -
+1 1 1 ladder 0 side n
+1 1 2 stonebrick 0 none -
+2 1 1 stonebrick 0 none -
+0 2 1 stonebrick 0 none -
+1 2 0 stonebrick 0 none -
+1 2 1 ladder 0 side n
+1 2 2 stonebrick 0 none -
+2 2 1 stonebrick 0 none -
