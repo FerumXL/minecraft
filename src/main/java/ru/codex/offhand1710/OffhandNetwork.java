@@ -3,6 +3,8 @@ package ru.codex.offhand1710;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.common.network.NetworkRegistry;
+import ru.codex.offhand1710.client.ClientParticleHandler;
+import ru.codex.offhand1710.client.ClientSwingHandler;
 import ru.codex.offhand1710.client.ClientSyncHandler;
 import ru.codex.offhand1710.client.ClientUseResultHandler;
 
@@ -18,5 +20,10 @@ public final class OffhandNetwork {
         channel.registerMessage(OffhandMessages.CreativeSetHandler.class, OffhandMessages.CreativeSet.class, 4,
                 Side.SERVER);
         channel.registerMessage(OffhandMessages.ReleaseHandler.class, OffhandMessages.Release.class, 5, Side.SERVER);
+        channel.registerMessage(ClientSwingHandler.class, OffhandMessages.Swing.class, 6, Side.CLIENT);
+        channel.registerMessage(ClientParticleHandler.class, OffhandMessages.Particle.class, 7, Side.CLIENT);
+        channel.registerMessage(OffhandMessages.ElytraStartHandler.class, OffhandMessages.ElytraStart.class, 8, Side.SERVER);
+        channel.registerMessage(ru.codex.offhand1710.client.ClientElytraHandler.class, OffhandMessages.ElytraState.class, 9,
+                Side.CLIENT);
     }
 }

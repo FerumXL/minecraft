@@ -15,6 +15,7 @@ import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.item.EnumAction;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import ru.codex.offhand1710.ItemShield;
 import ru.codex.offhand1710.OffhandInventory;
 import net.minecraft.util.MathHelper;
 import net.minecraftforge.client.IItemRenderer.ItemRenderType;
@@ -154,12 +155,17 @@ public final class OffhandFirstPersonRenderer {
                     (float) (light % 65536), (float) (light / 65536));
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
 
-            GL11.glScalef(-1.0F, 1.0F, 1.0F);
-            GL11.glFrontFace(GL11.GL_CW);
-
             OffhandInventory offhand = OffhandInventory.get(player);
             boolean using = offhand.isUsing() && stack == offhand.getStack();
             EnumAction action = using ? stack.getItemUseAction() : EnumAction.none;
+            if (stack.getItem() instanceof ItemShield) {
+                GL11.glEnable(GL12.GL_RESCALE_NORMAL);
+                ShieldRenderer.renderFirstPersonLeft(equip, swing, using && action == EnumAction.block);
+                return;
+            }
+
+            GL11.glScalef(-1.0F, 1.0F, 1.0F);
+            GL11.glFrontFace(GL11.GL_CW);
             float sqrtSwing = MathHelper.sqrt_float(swing);
             if (using) {
                 if (action == EnumAction.eat || action == EnumAction.drink) {

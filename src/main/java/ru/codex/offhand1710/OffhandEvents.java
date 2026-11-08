@@ -124,6 +124,15 @@ public final class OffhandEvents {
             releaseUse(player);
         }
         tickUse(player);
+        OffhandInventory offhand = OffhandInventory.get(player);
+        if (offhand.shieldCooldown > 0) {
+            offhand.shieldCooldown--;
+        }
+    }
+
+    /** Ends the offhand held use without finishing or releasing it (shield broken or knocked down). */
+    static void stopOffhandUse(EntityPlayerMP player) {
+        endUse(player, 0);
     }
 
     /** EntityPlayer.onUpdate (1.7.10) for the offhand item in use. */
@@ -245,6 +254,15 @@ public final class OffhandEvents {
         if (offhand.getStack() == null || player.isUsingItem() || offhand.isUsing()) {
             return;
         }
+        if (request.kind == OffhandMessages.USE_AIR && Elytra112.useFirework(player, offhand.getStack())) {
+            if (offhand.getStack().stackSize <= 0) {
+                offhand.setStack(null);
+            }
+            player.inventoryContainer.detectAndSendChanges();
+            OffhandMessages.synchronize(player);
+            OffhandMessages.sendResult(player, request.sequence, OffhandMessages.RESULT_EQUIP);
+            return;
+        }
         World world = player.worldObj;
         int slot = player.inventory.currentItem;
         ItemStack main = player.inventory.mainInventory[slot];
@@ -315,6 +333,9 @@ public final class OffhandEvents {
             OffhandMessages.sendResult(player, request.sequence, OffhandMessages.RESULT_START_USE, offhand.useCount);
         } else {
             OffhandMessages.sendResult(player, request.sequence, flags);
+        }
+        if ((flags & OffhandMessages.RESULT_SWING) != 0) {
+            OffhandMessages.broadcastSwing(player); // the others see the left arm swing (1.12.2 swingArm)
         }
     }
 

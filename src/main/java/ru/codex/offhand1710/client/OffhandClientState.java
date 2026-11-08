@@ -23,10 +23,6 @@ public final class OffhandClientState {
     private static ItemStack itemToRender;
     private static float equippedProgress;
     private static float prevEquippedProgress;
-    private static boolean swinging;
-    private static int swingTicks;
-    private static float swingProgress;
-    private static float prevSwingProgress;
 
     /** The item drawn in first person; lags behind the real offhand item while it is lowered and raised. */
     public static ItemStack renderedStack() {
@@ -37,21 +33,37 @@ public final class OffhandClientState {
         return prevEquippedProgress + (equippedProgress - prevEquippedProgress) * partialTicks;
     }
 
+    /** Offhand swing of the local player (first person). */
     public static float swing(float partialTicks) {
-        float delta = swingProgress - prevSwingProgress;
-        if (delta < 0.0F) {
-            delta += 1.0F;
-        }
-        return prevSwingProgress + delta * partialTicks;
+        EntityPlayer player = Minecraft.getMinecraft().thePlayer;
+        return player == null ? 0.0F : OffhandInventory.get(player).swing(partialTicks);
     }
 
-    /** Same rule as EntityLivingBase.swingItem. */
+    /** Same rule as EntityLivingBase.swingItem, for any player in view. */
     public static void startSwing(EntityPlayer player) {
+        OffhandInventory offhand = OffhandInventory.get(player);
         int end = swingEnd(player);
-        if (!swinging || swingTicks >= end / 2 || swingTicks < 0) {
-            swingTicks = -1;
-            swinging = true;
+        if (!offhand.swinging || offhand.swingTicks >= end / 2 || offhand.swingTicks < 0) {
+            offhand.swingTicks = -1;
+            offhand.swinging = true;
         }
+    }
+
+    /** Same as EntityLivingBase.updateArmSwingProgress. */
+    private static void tickSwing(EntityPlayer player) {
+        OffhandInventory offhand = OffhandInventory.get(player);
+        offhand.prevSwingProgress = offhand.swingProgress;
+        int end = swingEnd(player);
+        if (offhand.swinging) {
+            ++offhand.swingTicks;
+            if (offhand.swingTicks >= end) {
+                offhand.swingTicks = 0;
+                offhand.swinging = false;
+            }
+        } else {
+            offhand.swingTicks = 0;
+        }
+        offhand.swingProgress = (float) offhand.swingTicks / (float) end;
     }
 
     /** Same as ItemRenderer.resetEquippedProgress: the item dips and comes back up. */
@@ -154,27 +166,17 @@ public final class OffhandClientState {
         if (player == null) {
             itemToRender = null;
             equippedProgress = prevEquippedProgress = 0.0F;
-            swinging = false;
-            swingTicks = 0;
-            swingProgress = prevSwingProgress = 0.0F;
             return;
         }
         if (mc.isGamePaused()) {
             return;
         }
 
-        prevSwingProgress = swingProgress;
-        int end = swingEnd(player);
-        if (swinging) {
-            ++swingTicks;
-            if (swingTicks >= end) {
-                swingTicks = 0;
-                swinging = false;
+        if (mc.theWorld != null) {
+            for (Object object : mc.theWorld.playerEntities) {
+                tickSwing((EntityPlayer) object);
             }
-        } else {
-            swingTicks = 0;
         }
-        swingProgress = (float) swingTicks / (float) end;
 
         prevEquippedProgress = equippedProgress;
         ItemStack current = OffhandInventory.get(player).getStack();
@@ -203,6 +205,10 @@ public final class OffhandClientState {
         }
         if (mc.theWorld != null) {
             tickUses(mc);
+        }
+        OffhandInventory own = OffhandInventory.get(player);
+        if (own.shieldCooldown > 0) {
+            own.shieldCooldown--;
         }
     }
 }

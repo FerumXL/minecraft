@@ -24,6 +24,8 @@ public final class OffhandMessages {
     public static final int RESULT_STOP_USE = 8;
     /** The held use finished (food eaten, potion drunk): final burst of eating particles. */
     public static final int RESULT_FINISHED = 16;
+    /** An axe knocked the shield down; UseResult.useCount holds the cooldown in ticks. */
+    public static final int RESULT_SHIELD_DISABLED = 32;
 
     private OffhandMessages() {
     }
@@ -197,6 +199,7 @@ public final class OffhandMessages {
         public ItemStack stack;
         /** Ticks left of the offhand held use, so other players see the eating / bow animation. */
         public int useCount;
+        public int shieldCooldown;
 
         public Sync() {
         }
@@ -207,6 +210,7 @@ public final class OffhandMessages {
             ItemStack stack = offhand.getStack();
             this.stack = stack == null ? null : stack.copy();
             this.useCount = offhand.useCount;
+            this.shieldCooldown = offhand.shieldCooldown;
         }
 
         @Override
@@ -214,6 +218,7 @@ public final class OffhandMessages {
             entityId = buffer.readInt();
             stack = ByteBufUtils.readItemStack(buffer);
             useCount = buffer.readInt();
+            shieldCooldown = buffer.readInt();
         }
 
         @Override
@@ -221,6 +226,7 @@ public final class OffhandMessages {
             buffer.writeInt(entityId);
             ByteBufUtils.writeItemStack(buffer, stack);
             buffer.writeInt(useCount);
+            buffer.writeInt(shieldCooldown);
         }
     }
 
@@ -253,6 +259,145 @@ public final class OffhandMessages {
     public static void synchronize(EntityPlayerMP player) {
         MC112Bridge.NETWORK.channel.sendToAllAround(new Sync(player),
                 new NetworkRegistry.TargetPoint(player.dimension, player.posX, player.posY, player.posZ, 128.0D));
+    }
+
+    /** Server -> clients: a player swung the offhand (the offhand version of the vanilla swing animation packet). */
+    public static final class Swing implements IMessage {
+        public int entityId;
+
+        public Swing() {
+        }
+
+        public Swing(int entityId) {
+            this.entityId = entityId;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+            entityId = buffer.readInt();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+            buffer.writeInt(entityId);
+        }
+    }
+
+    /** Client -> server: jump pressed while falling with an elytra. */
+    public static final class ElytraStart implements IMessage {
+        public ElytraStart() {
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+        }
+    }
+
+    public static final class ElytraStartHandler implements IMessageHandler<ElytraStart, IMessage> {
+        @Override
+        public IMessage onMessage(ElytraStart message, MessageContext context) {
+            // Network thread: the server tick of this player picks it up.
+            OffhandInventory.get(context.getServerHandler().playerEntity).elytraStartRequested = true;
+            return null;
+        }
+    }
+
+    /** Server -> clients: whether a player is gliding, and the length of a firework boost that just started. */
+    public static final class ElytraState implements IMessage {
+        public int entityId;
+        public boolean flying;
+        public int boost;
+
+        public ElytraState() {
+        }
+
+        public ElytraState(int entityId, boolean flying, int boost) {
+            this.entityId = entityId;
+            this.flying = flying;
+            this.boost = boost;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+            entityId = buffer.readInt();
+            flying = buffer.readBoolean();
+            boost = buffer.readInt();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+            buffer.writeInt(entityId);
+            buffer.writeBoolean(flying);
+            buffer.writeInt(boost);
+        }
+    }
+
+    public static final int PARTICLE_SWEEP = 0;
+    public static final int PARTICLE_DAMAGE = 1;
+
+    /** Server -> clients: the 1.12.2 particle packet (SPacketParticles) for the particles 1.7.10 does not have. */
+    public static final class Particle implements IMessage {
+        public int kind;
+        public double x;
+        public double y;
+        public double z;
+        public int count;
+        public float offsetX;
+        public float offsetY;
+        public float offsetZ;
+        public float speed;
+
+        public Particle() {
+        }
+
+        public Particle(int kind, double x, double y, double z, int count, float offsetX, float offsetY, float offsetZ,
+                float speed) {
+            this.kind = kind;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.count = count;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.offsetZ = offsetZ;
+            this.speed = speed;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+            kind = buffer.readByte();
+            x = buffer.readDouble();
+            y = buffer.readDouble();
+            z = buffer.readDouble();
+            count = buffer.readInt();
+            offsetX = buffer.readFloat();
+            offsetY = buffer.readFloat();
+            offsetZ = buffer.readFloat();
+            speed = buffer.readFloat();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+            buffer.writeByte(kind);
+            buffer.writeDouble(x);
+            buffer.writeDouble(y);
+            buffer.writeDouble(z);
+            buffer.writeInt(count);
+            buffer.writeFloat(offsetX);
+            buffer.writeFloat(offsetY);
+            buffer.writeFloat(offsetZ);
+            buffer.writeFloat(speed);
+        }
+    }
+
+    /** Sent to everyone around; the swinging player's own client ignores it (it has animated already). */
+    public static void broadcastSwing(EntityPlayerMP player) {
+        MC112Bridge.NETWORK.channel.sendToAllAround(new Swing(player.getEntityId()),
+                new NetworkRegistry.TargetPoint(player.dimension, player.posX, player.posY, player.posZ, 64.0D));
     }
 
     public static void sendResult(EntityPlayerMP player, int sequence, int flags) {

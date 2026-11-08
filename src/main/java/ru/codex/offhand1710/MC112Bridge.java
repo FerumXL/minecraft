@@ -15,7 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.8.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.11.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -43,6 +43,13 @@ public final class MC112Bridge {
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(events);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(events);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new PortedEvents());
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new ShieldMechanics());
+        Elytra112 elytra = new Elytra112();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(elytra);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(elytra);
+        Combat112 combat = new Combat112();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(combat);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(combat);
         proxy.preInitialize();
     }
 
@@ -67,6 +74,10 @@ public final class MC112Bridge {
         registerGlazedTerracotta();
         registerMagmaBlock();
         PortedBlocks.register();
+        Colors112.apply();
+        Combat112.applyVanillaValues();
+        Elytra112.register();
+        proxy.initialize();
     }
 
     private void registerConcreteBlocks() {

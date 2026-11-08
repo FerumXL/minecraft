@@ -22,6 +22,39 @@ public final class OffhandInventory implements IExtendedEntityProperties {
         return useCount > 0;
     }
 
+    /** Ticks left before a shield can be raised again after an axe hit. Not saved. */
+    public int shieldCooldown;
+
+    /** EntityLivingBase.ticksSinceLastSwing of 1.12.2 and the main hand item it was last compared with. Not saved. */
+    public int ticksSinceLastSwing;
+    public ItemStack lastMainHand;
+
+    /** Elytra flight (flag 7 and ticksElytraFlying of 1.12.2). Not saved. */
+    public boolean elytraFlying;
+    public volatile boolean elytraStartRequested;
+    public int elytraTicks;
+    public double elytraLastSpeed;
+    /** Client: ticks left of a firework boost, and the smoothed wing angles of AbstractClientPlayer. */
+    public int elytraBoost;
+    public float wingX;
+    public float wingY;
+    public float wingZ;
+
+    /** Offhand arm swing, client side only (as EntityLivingBase.isSwingInProgress and friends). */
+    public boolean swinging;
+    public int swingTicks;
+    public float swingProgress;
+    public float prevSwingProgress;
+
+    /** Same interpolation as EntityLivingBase.getSwingProgress. */
+    public float swing(float partialTicks) {
+        float delta = swingProgress - prevSwingProgress;
+        if (delta < 0.0F) {
+            delta += 1.0F;
+        }
+        return prevSwingProgress + delta * partialTicks;
+    }
+
     public static void register(Entity entity) {
         if (entity instanceof EntityPlayer && entity.getExtendedProperties(KEY) == null) {
             entity.registerExtendedProperties(KEY, new OffhandInventory());

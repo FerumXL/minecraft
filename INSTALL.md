@@ -2,7 +2,7 @@
 
 ## Последняя версия
 
-[Скачать mc112bridge-0.8.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.8.0/mc112bridge-0.8.0.jar)
+[Скачать mc112bridge-0.11.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.11.0/mc112bridge-0.11.0.jar)
 
 Что изменилось: [CHANGELOG.md](CHANGELOG.md).
 
@@ -14,6 +14,9 @@
 
 | Версия | Скачать | Состав |
 |---|---|---|
+| 0.10.0 | [mc112bridge-0.10.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.10.0/mc112bridge-0.10.0.jar) | Бой 1.9–1.12.2: перезарядка атаки, удар с размаха, значения оружия |
+| 0.9.0 | [mc112bridge-0.9.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.9.0/mc112bridge-0.9.0.jar) | Щит и палитра цветов 1.12.2 |
+| 0.8.0 | [mc112bridge-0.8.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.8.0/mc112bridge-0.8.0.jar) | Долгое использование левой рукой: еда, зелья, лук |
 | 0.7.0 | [mc112bridge-0.7.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.7.0/mc112bridge-0.7.0.jar) | Камни, призмарин, двери, заборы, песчаник, пурпур, тропа, баранина; исправлены ранние блоки |
 | 0.6.0 | [mc112bridge-0.6.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.6.0/mc112bridge-0.6.0.jar) | Левая рука как в 1.12.2 |
 | 0.5.0 | [mc112bridge-0.5.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.5.0/mc112bridge-0.5.0.jar) | Слот левой руки (клавиши G и V), текстура самородка |

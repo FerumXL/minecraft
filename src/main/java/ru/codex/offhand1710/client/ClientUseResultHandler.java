@@ -4,6 +4,8 @@ import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.item.ItemStack;
+import ru.codex.offhand1710.ItemShield;
 import ru.codex.offhand1710.OffhandInventory;
 import ru.codex.offhand1710.OffhandMessages;
 
@@ -18,6 +20,15 @@ public final class ClientUseResultHandler implements IMessageHandler<OffhandMess
                     return;
                 }
                 OffhandInventory offhand = OffhandInventory.get(mc.thePlayer);
+                if ((message.flags & OffhandMessages.RESULT_SHIELD_DISABLED) != 0) {
+                    // An axe knocked the shield down: lower it in whichever hand holds it.
+                    offhand.shieldCooldown = message.useCount;
+                    ItemStack main = mc.thePlayer.getItemInUse();
+                    if (mc.thePlayer.isUsingItem() && main != null && main.getItem() instanceof ItemShield) {
+                        mc.thePlayer.clearItemInUse();
+                    }
+                    return;
+                }
                 if ((message.flags & OffhandMessages.RESULT_START_USE) != 0) {
                     OffhandUseHandler.consumePredicted(message.sequence);
                     offhand.useCount = message.useCount;

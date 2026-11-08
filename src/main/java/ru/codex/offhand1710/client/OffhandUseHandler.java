@@ -254,6 +254,11 @@ public final class OffhandUseHandler {
                     mc.entityRenderer.itemRenderer.resetEquippedProgress2();
                     return true;
                 }
+                // A rocket boosting the glide is the main hand's action; the offhand does not act as well.
+                if (current.getItem() == net.minecraft.init.Items.fireworks
+                        && ru.codex.offhand1710.OffhandInventory.get(player).elytraFlying) {
+                    return true;
+                }
                 // Started eating, drinking, drawing a bow or blocking, or swung (fishing rod): the main hand acted.
                 if (player.isUsingItem()) {
                     return true;

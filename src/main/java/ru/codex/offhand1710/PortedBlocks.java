@@ -49,6 +49,7 @@ public final class PortedBlocks {
     public static Block grassPath;
     public static Item muttonRaw;
     public static Item muttonCooked;
+    public static Item shield;
 
     private static final String[] WOODS = {"spruce", "birch", "jungle", "acacia", "dark_oak"};
     private static final int[] PLANKS_META = {1, 2, 3, 4, 5};
@@ -105,6 +106,13 @@ public final class PortedBlocks {
         }
 
         registerSandstoneAndPurpur();
+
+        shield = new ItemShield();
+        GameRegistry.registerItem(shield, "shield");
+        // 1.12.2 recipe: any planks around an iron ingot.
+        GameRegistry.addRecipe(new ItemStack(shield), "WoW", "WWW", " W ",
+                'W', new ItemStack(Blocks.planks, 1, net.minecraftforge.oredict.OreDictionary.WILDCARD_VALUE),
+                'o', Items.iron_ingot);
 
         GameRegistry.registerWorldGenerator(new StoneGenerator(), 0);
         addRecipes();

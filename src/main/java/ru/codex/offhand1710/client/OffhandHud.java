@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.entity.RenderItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.MathHelper;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import org.lwjgl.opengl.GL11;
@@ -29,12 +30,46 @@ public final class OffhandHud {
         if (mc.thePlayer == null) {
             return;
         }
-        ItemStack stack = OffhandInventory.get(mc.thePlayer).getStack();
-        if (stack == null) {
-            return;
-        }
         int center = event.resolution.getScaledWidth() / 2;
         int bottom = event.resolution.getScaledHeight();
+        OffhandInventory offhand = OffhandInventory.get(mc.thePlayer);
+        ItemStack stack = offhand.getStack();
+        if (stack != null) {
+            drawOffhandSlot(mc, stack, center, bottom);
+        }
+        drawShieldCooldown(mc, offhand, stack, center, bottom, event.partialTicks);
+    }
+
+    /**
+     * The white cooldown sweep of 1.12.2 (RenderItem.renderItemOverlayIntoGUI) over every shield on the
+     * hotbar and in the offhand slot while an axe hit keeps the shield down.
+     */
+    private static void drawShieldCooldown(Minecraft mc, OffhandInventory offhand, ItemStack offhandStack, int center,
+            int bottom, float partialTicks) {
+        float left = ((float) offhand.shieldCooldown - partialTicks) / (float) ru.codex.offhand1710.ShieldMechanics.AXE_COOLDOWN;
+        if (left <= 0.0F) {
+            return;
+        }
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        for (int i = 0; i < 9; i++) {
+            ItemStack hotbar = mc.thePlayer.inventory.mainInventory[i];
+            if (hotbar != null && hotbar.getItem() instanceof ru.codex.offhand1710.ItemShield) {
+                cooldownRect(center - 90 + i * 20 + 2, bottom - 16 - 3, left);
+            }
+        }
+        if (offhandStack != null && offhandStack.getItem() instanceof ru.codex.offhand1710.ItemShield) {
+            cooldownRect(center - 91 - 26, bottom - 19, left);
+        }
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private static void cooldownRect(int x, int y, float left) {
+        int top = y + MathHelper.floor_float(16.0F * (1.0F - left));
+        Gui.drawRect(x, top, x + 16, top + MathHelper.ceiling_float_int(16.0F * left), 0x7FFFFFFF);
+    }
+
+    private static void drawOffhandSlot(Minecraft mc, ItemStack stack, int center, int bottom) {
         // 1.12.2: item at (center - 91 - 26, height - 19); the frame is 3 pixels left and up of the item.
         int x = center - 91 - 29;
         int y = bottom - 22;

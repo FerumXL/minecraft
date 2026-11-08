@@ -25,7 +25,10 @@ public final class OffhandMovementInput extends MovementInput {
         moveForward = base.moveForward;
         jump = base.jump;
         sneak = base.sneak;
-        if (OffhandInventory.get(player).isUsing() && !player.isRiding()) {
+        if (OffhandInventory.get(player).elytraFlying) {
+            moveStrafe = 0.0F; // the glide is steered by looking only (EntityLivingBase.travel of 1.12.2)
+            moveForward = 0.0F;
+        } else if (OffhandInventory.get(player).isUsing() && !player.isRiding()) {
             moveStrafe *= 0.2F;
             moveForward *= 0.2F;
         }

@@ -1,9 +1,14 @@
 package ru.codex.offhand1710.client;
 
+import cpw.mods.fml.common.FMLLog;
+import cpw.mods.fml.common.eventhandler.EventPriority;
+import cpw.mods.fml.relauncher.ReflectionHelper;
 import net.minecraft.block.Block;
-import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.renderer.entity.RenderPlayer;
+import net.minecraft.client.renderer.entity.RendererLivingEntity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.EnumAction;
@@ -17,6 +22,7 @@ import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import org.lwjgl.opengl.GL11;
+import ru.codex.offhand1710.ItemShield;
 import ru.codex.offhand1710.OffhandInventory;
 
 /**
@@ -39,6 +45,9 @@ public final class OffhandPlayerRenderer {
         OffhandInventory offhand = OffhandInventory.get(event.entityPlayer);
         ItemStack stack = offhand.getStack();
         int held = stack != null ? 1 : 0;
+        if (stack != null && offhand.isUsing() && stack.getItemUseAction() == EnumAction.block) {
+            held = 3; // blocking pose, as heldItemRight = 3 for a blocking main hand
+        }
         event.renderer.modelBipedMain.heldItemLeft = held;
         event.renderer.modelArmorChestplate.heldItemLeft = held;
         event.renderer.modelArmor.heldItemLeft = held;
@@ -51,18 +60,59 @@ public final class OffhandPlayerRenderer {
         }
     }
 
+    /**
+     * Puts the 1.12.2 pose additions (shield block turn, left arm swing) into this RenderPlayer's models, once,
+     * and only where they are still plain ModelBiped (a mod that replaced them keeps its own). Lowest priority
+     * and skipped for cancelled events, so the pose is only active when the player is really drawn.
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void beginPose(RenderPlayerEvent.Pre event) {
+        RenderPlayer renderer = event.renderer;
+        if (renderer.modelBipedMain.getClass() == ModelBiped.class) {
+            ModelBiped112 model = new ModelBiped112(0.0F);
+            try {
+                if (ReflectionHelper.getPrivateValue(RendererLivingEntity.class, renderer, "field_77045_g",
+                        "mainModel") == renderer.modelBipedMain) {
+                    ReflectionHelper.setPrivateValue(RendererLivingEntity.class, renderer, model, "field_77045_g",
+                            "mainModel");
+                    renderer.modelBipedMain = model;
+                }
+            } catch (RuntimeException e) {
+                FMLLog.warning("[mc112bridge] player model not replaced: %s", e);
+            }
+        }
+        if (renderer.modelArmorChestplate.getClass() == ModelBiped.class) {
+            renderer.modelArmorChestplate = new ModelBiped112(1.0F);
+        }
+        if (renderer.modelArmor.getClass() == ModelBiped.class) {
+            renderer.modelArmor = new ModelBiped112(0.5F);
+        }
+        setArmPose(event); // again, in case the models were just replaced
+        ModelBiped112.begin(event.entityPlayer, event.partialRenderTick);
+    }
+
+    @SubscribeEvent
+    public void endPose(RenderPlayerEvent.Post event) {
+        ModelBiped112.end();
+    }
+
     @SubscribeEvent
     public void renderOffhand(RenderPlayerEvent.Specials.Post event) {
         EntityPlayer player = event.entityPlayer;
         ItemStack stack = OffhandInventory.get(player).getStack();
-        if (stack == null || stack.getItem() == null || (player == Minecraft.getMinecraft().thePlayer
-                && Minecraft.getMinecraft().gameSettings.thirdPersonView == 0)) {
+        // No first-person check: the world never draws the local player's body in first person, and the
+        // inventory preview of the player must show the offhand item too.
+        if (stack == null || stack.getItem() == null) {
             return;
         }
 
         GL11.glPushMatrix();
         try {
             event.renderer.modelBipedMain.bipedLeftArm.postRender(0.0625F);
+            if (stack.getItem() instanceof ItemShield) {
+                ShieldRenderer.renderThirdPerson(true, ShieldRenderer.isOffhandBlocking(player, stack));
+                return;
+            }
             // Exact mirror of the vanilla right hand, item included (as the 1.12.2 left hand). Mirroring turns
             // the faces around, so the front face winding is flipped while the item is drawn.
             GL11.glScalef(-1.0F, 1.0F, 1.0F);

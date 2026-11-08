@@ -102,3 +102,10 @@ item.mc112bridge.chorus_fruit_popped.name=Прожаренный плод хор
 tile.mc112bridge.grass_path.name=Тропа
 item.mc112bridge.mutton_raw.name=Сырая баранина
 item.mc112bridge.mutton_cooked.name=Жареная баранина
+item.mc112bridge.shield.name=Щит
+
+item.modifiers.mainhand=Когда в ведущей руке:
+attribute.modifier.equals.0=%s %s
+attribute.name.generic.attackSpeed=Скорость атаки
+item.mc112bridge.elytra.name=Элитры
+death.attack.flyIntoWall=%1$s преобразовал кинетическую энергию во внутреннюю
