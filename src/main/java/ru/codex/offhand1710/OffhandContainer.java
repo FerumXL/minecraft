@@ -2,6 +2,7 @@ package ru.codex.offhand1710;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
+import net.minecraft.inventory.Slot;
 
 /**
  * Adds the offhand slot to the player's own inventory container (ContainerPlayer), on both sides.
@@ -29,6 +30,15 @@ public final class OffhandContainer {
         slot.slotNumber = container.inventorySlots.size();
         container.inventorySlots.add(slot);
         container.inventoryItemStacks.add(null);
+        // The crafting grid of ContainerPlayer in 1.12.2, moved aside for the slot.
+        Slot result = (Slot) container.inventorySlots.get(0);
+        result.xDisplayPosition = 154;
+        result.yDisplayPosition = 28;
+        for (int i = 0; i < 4; i++) {
+            Slot grid = (Slot) container.inventorySlots.get(1 + i);
+            grid.xDisplayPosition = 98 + i % 2 * 18;
+            grid.yDisplayPosition = 18 + i / 2 * 18;
+        }
     }
 
     public static SlotOffhand findSlot(Container container) {

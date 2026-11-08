@@ -25,5 +25,6 @@ public final class OffhandNetwork {
         channel.registerMessage(OffhandMessages.ElytraStartHandler.class, OffhandMessages.ElytraStart.class, 8, Side.SERVER);
         channel.registerMessage(ru.codex.offhand1710.client.ClientElytraHandler.class, OffhandMessages.ElytraState.class, 9,
                 Side.CLIENT);
+        channel.registerMessage(ru.codex.offhand1710.client.MoreMobsClient.LevitateHandler.class, OffhandMessages.Levitate.class, 10, Side.CLIENT);
     }
 }

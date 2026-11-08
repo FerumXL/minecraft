@@ -15,7 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.13.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.18.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -32,6 +32,11 @@ public final class MC112Bridge {
     public static Block[] glazedTerracotta = new Block[16];
     public static Block magmaBlock;
     public static final OffhandNetwork NETWORK = new OffhandNetwork();
+    private static MC112Bridge instance;
+
+    static MC112Bridge instance() {
+        return instance;
+    }
     @SidedProxy(clientSide = "ru.codex.offhand1710.client.ClientProxy",
             serverSide = "ru.codex.offhand1710.CommonProxy")
     public static CommonProxy proxy;
@@ -55,6 +60,7 @@ public final class MC112Bridge {
 
     @EventHandler
     public void initialize(FMLInitializationEvent event) {
+        instance = this;
         ironNugget = new Item()
                 .setUnlocalizedName(MOD_ID + ".iron_nugget")
                 .setTextureName(MOD_ID + ":iron_nugget")
@@ -84,6 +90,11 @@ public final class MC112Bridge {
         cpw.mods.fml.common.registry.EntityRegistry.registerGlobalEntityID(EntityElderGuardian.class, "ElderGuardian",
                 cpw.mods.fml.common.registry.EntityRegistry.findGlobalUniqueEntityId(), 13552826, 7632531);
         cpw.mods.fml.common.registry.EntityRegistry.registerModEntity(EntityElderGuardian.class, "ElderGuardian", 1, this, 80, 3, true);
+        Mobs112.register(this);
+        WorldGen112.register();
+        End112.register();
+        Items112.register(this, proxy);
+        GameRegistry.registerWorldGenerator(new MansionGenerator(), 9);
         MonumentGenerator monuments = new MonumentGenerator();
         GameRegistry.registerWorldGenerator(monuments, 6);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(monuments);

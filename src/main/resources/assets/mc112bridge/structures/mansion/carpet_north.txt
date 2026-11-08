@@ -1,0 +1,9 @@
+5 1 2
+0 0 0 carpet 0 none -
+1 0 0 carpet 14 none -
+1 0 1 carpet 14 none -
+2 0 0 carpet 14 none -
+2 0 1 carpet 14 none -
+3 0 0 carpet 14 none -
+3 0 1 carpet 14 none -
+4 0 0 carpet 0 none -

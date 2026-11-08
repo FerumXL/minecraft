@@ -14,6 +14,12 @@ import ru.codex.offhand1710.OffhandInventory;
 
 public final class ClientProxy extends CommonProxy {
     @Override
+    public Object getClientGuiElement(int id, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
+        net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
+        return id == ru.codex.offhand1710.Items112.GUI_BOX && tile instanceof ru.codex.offhand1710.BlockShulkerBox.Tile ? Items112Client.boxScreen(player.inventory, (ru.codex.offhand1710.BlockShulkerBox.Tile) tile) : null;
+    }
+
+    @Override
     public void preInitialize() {
         ClientRegistry.registerKeyBinding(OffhandKeyHandler.SWAP_KEY);
 
@@ -50,7 +56,16 @@ public final class ClientProxy extends CommonProxy {
 
     @Override
     public void initialize() {
+        Items112Client.register();
         MinecraftForgeClient.registerItemRenderer(PortedBlocks.shield, new ShieldRenderer());
+        EndRenderers.register();
+        DragonHeadRenderer dragonHead = new DragonHeadRenderer();
+        cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.BlockDragonHead.Tile.class, dragonHead);
+        MinecraftForgeClient.registerItemRenderer(net.minecraft.item.Item.getItemFromBlock(ru.codex.offhand1710.End112.dragonHead), dragonHead);
+        cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.End112.Crystal.class, new net.minecraft.client.renderer.tileentity.RenderEnderCrystal());
+        MobRenderers2.register();
+        MoreMobsClient.register();
+        FMLCommonHandler.instance().bus().register(new MoreMobsClient.Ticker());
         cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityGuardian.class, new RenderGuardian());
         cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityElderGuardian.class, new RenderGuardian());
     }

@@ -336,6 +336,28 @@ public final class OffhandMessages {
         }
     }
 
+    /** Server -> client: a shulker bullet hit this player. */
+    public static final class Levitate implements IMessage {
+        public int ticks;
+
+        public Levitate() {
+        }
+
+        public Levitate(int ticks) {
+            this.ticks = ticks;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+            ticks = buffer.readInt();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+            buffer.writeInt(ticks);
+        }
+    }
+
     public static final int PARTICLE_SWEEP = 0;
     public static final int PARTICLE_DAMAGE = 1;
 
