@@ -57,6 +57,8 @@ public final class ClientProxy extends CommonProxy {
     @Override
     public void initialize() {
         Items112Client.register();
+        Banner112Client.register();
+        Audit112.start();
         MinecraftForgeClient.registerItemRenderer(PortedBlocks.shield, new ShieldRenderer());
         EndRenderers.register();
         DragonHeadRenderer dragonHead = new DragonHeadRenderer();

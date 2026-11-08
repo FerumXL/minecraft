@@ -15,7 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.18.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.22.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -59,6 +59,17 @@ public final class MC112Bridge {
     }
 
     @EventHandler
+    public void serverStarting(cpw.mods.fml.common.event.FMLServerStartingEvent event) {
+        event.registerServerCommand(new Content119.CommandFill());
+        event.registerServerCommand(new Content119.CommandClone());
+        event.registerServerCommand(new Content120.CommandTeleport());
+        event.registerServerCommand(new Content120.CommandReplaceItem());
+        event.registerServerCommand(new Content120.CommandBlockData());
+        event.registerServerCommand(new Content120.CommandParticle());
+        event.registerServerCommand(new Content120.CommandExecute());
+    }
+
+    @EventHandler
     public void initialize(FMLInitializationEvent event) {
         instance = this;
         ironNugget = new Item()
@@ -94,6 +105,11 @@ public final class MC112Bridge {
         WorldGen112.register();
         End112.register();
         Items112.register(this, proxy);
+        Content119.register(this);
+        Banner112.register(this);
+        Content120.register(this);
+        Loot112.register();
+        Trades112.register();
         GameRegistry.registerWorldGenerator(new MansionGenerator(), 9);
         MonumentGenerator monuments = new MonumentGenerator();
         GameRegistry.registerWorldGenerator(monuments, 6);

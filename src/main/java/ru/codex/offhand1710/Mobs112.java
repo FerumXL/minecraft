@@ -84,12 +84,13 @@ public final class Mobs112 {
         EntityRegistry.addSpawn(EntityStray.class, 80, 4, 4, EnumCreatureType.monster, snow);
         EntityRegistry.addSpawn(EntityPolarBear.class, 1, 1, 2, EnumCreatureType.creature, snow);
         EntityRegistry.addSpawn(EntityRabbit.class, 10, 2, 3, EnumCreatureType.creature, snow);
-        EntityRegistry.addSpawn(EntityRabbit.class, 4, 2, 3, EnumCreatureType.creature, BiomeGenBase.plains, BiomeGenBase.desert,
+        EntityRegistry.addSpawn(EntityRabbit.class, 4, 2, 3, EnumCreatureType.creature, BiomeGenBase.getBiome(132), BiomeGenBase.desert,
                 BiomeGenBase.desertHills, BiomeGenBase.taiga, BiomeGenBase.taigaHills, BiomeGenBase.coldTaiga, BiomeGenBase.coldTaigaHills,
                 BiomeGenBase.megaTaiga, BiomeGenBase.megaTaigaHills);
 
         EntityRegistry.addSpawn(MoreMobs.Parrot.class, 40, 1, 2, EnumCreatureType.creature, BiomeGenBase.jungle, BiomeGenBase.jungleHills, BiomeGenBase.jungleEdge);
-        EntityRegistry.addSpawn(MoreMobs.Llama.class, 5, 4, 6, EnumCreatureType.creature, BiomeGenBase.extremeHills, BiomeGenBase.extremeHillsEdge, BiomeGenBase.extremeHillsPlus, BiomeGenBase.savanna, BiomeGenBase.savannaPlateau);
+        EntityRegistry.addSpawn(MoreMobs.Llama.class, 5, 4, 6, EnumCreatureType.creature, BiomeGenBase.extremeHills, BiomeGenBase.extremeHillsEdge, BiomeGenBase.extremeHillsPlus, BiomeGenBase.getBiome(131), BiomeGenBase.getBiome(162));
+        EntityRegistry.addSpawn(MoreMobs.Llama.class, 8, 4, 4, EnumCreatureType.creature, BiomeGenBase.savanna, BiomeGenBase.savannaPlateau, BiomeGenBase.getBiome(163), BiomeGenBase.getBiome(164));
         MinecraftForge.EVENT_BUS.register(new EntityStray.Arrows());
         MinecraftForge.EVENT_BUS.register(new Mobs112Events());
     }

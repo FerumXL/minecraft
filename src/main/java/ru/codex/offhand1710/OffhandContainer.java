@@ -29,6 +29,33 @@ public final class OffhandContainer {
         SlotOffhand slot = new SlotOffhand(new InventoryOffhand(player), INVENTORY_X, INVENTORY_Y);
         slot.slotNumber = container.inventorySlots.size();
         container.inventorySlots.add(slot);
+        // Curse of Binding: armor slots 5-8 of ContainerPlayer refuse to give the item back.
+        for (int i = 5; i <= 8; i++) {
+            final Slot armor = (Slot) container.inventorySlots.get(i);
+            Slot bound = new Slot(armor.inventory, armor.getSlotIndex(), armor.xDisplayPosition, armor.yDisplayPosition) {
+                @Override
+                public int getSlotStackLimit() {
+                    return armor.getSlotStackLimit();
+                }
+
+                @Override
+                public boolean isItemValid(net.minecraft.item.ItemStack stack) {
+                    return armor.isItemValid(stack);
+                }
+
+                @Override
+                public net.minecraft.util.IIcon getBackgroundIconIndex() {
+                    return armor.getBackgroundIconIndex();
+                }
+
+                @Override
+                public boolean canTakeStack(EntityPlayer taker) {
+                    return taker.capabilities.isCreativeMode || !Content119.isBound(getStack());
+                }
+            };
+            bound.slotNumber = i;
+            container.inventorySlots.set(i, bound);
+        }
         container.inventoryItemStacks.add(null);
         // The crafting grid of ContainerPlayer in 1.12.2, moved aside for the slot.
         Slot result = (Slot) container.inventorySlots.get(0);

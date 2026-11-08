@@ -394,7 +394,7 @@ public final class Combat112 {
             EntityLivingBase other = (EntityLivingBase) iterator.next();
             if (other != player && other != target && !player.isOnSameTeam(other) && player.getDistanceSqToEntity(other) < 9.0D) {
                 knockBack(other, 0.4F, (double) sin, (double) -cos);
-                other.attackEntityFrom(DamageSource.causePlayerDamage(player), 1.0F); // 1 + Sweeping Edge, absent in 1.7.10
+                other.attackEntityFrom(DamageSource.causePlayerDamage(player), 1.0F + Content119.sweepRatio(player.getHeldItem()) * (float) player.getEntityAttribute(SharedMonsterAttributes.attackDamage).getAttributeValue());
             }
         }
         playSound(player, "sweep");

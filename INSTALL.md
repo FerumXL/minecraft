@@ -2,7 +2,7 @@
 
 ## Последняя версия
 
-[Скачать mc112bridge-0.18.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.18.0/mc112bridge-0.18.0.jar)
+[Скачать mc112bridge-0.22.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.22.0/mc112bridge-0.22.0.jar)
 
 Что изменилось: [CHANGELOG.md](CHANGELOG.md).
 
@@ -14,6 +14,7 @@
 
 | Версия | Скачать | Состав |
 |---|---|---|
+| 0.18.0 | [mc112bridge-0.18.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.18.0/mc112bridge-0.18.0.jar) | Блоки и предметы: свёкла, ящики шалкера, стойки, кровати |
 | 0.13.0 | [mc112bridge-0.13.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.13.0/mc112bridge-0.13.0.jar) | Океанские монументы и стражи |
 | 0.12.0 | [mc112bridge-0.12.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.12.0/mc112bridge-0.12.0.jar) | Иглу, потолок элитр, исправление вылета при генерации |
 | 0.11.0 | [mc112bridge-0.11.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.11.0/mc112bridge-0.11.0.jar) | Элитры и разгон ракетами. Есть вылет при генерации чанков, исправлен в 0.12.0 |

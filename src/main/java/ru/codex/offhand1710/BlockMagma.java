@@ -36,7 +36,7 @@ public final class BlockMagma extends Block {
     /** Walking on it hurts, except fire-immune entities; sneaking players do not trigger walking in 1.7.10. */
     @Override
     public void onEntityWalking(World world, int x, int y, int z, Entity entity) {
-        if (!world.isRemote && !entity.isImmuneToFire() && entity instanceof EntityLivingBase) {
+        if (!world.isRemote && !entity.isImmuneToFire() && entity instanceof EntityLivingBase && !Content119.hasFrostWalker(entity)) {
             entity.attackEntityFrom(HOT_FLOOR, 1.0F);
         }
         super.onEntityWalking(world, x, y, z, entity);

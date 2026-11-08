@@ -69,7 +69,6 @@ public final class Items112 {
         beetrootSoup = item(new ItemSoup(6), "beetroot_soup", CreativeTabs.tabFood);
         GameRegistry.addShapedRecipe(new ItemStack(beetrootSoup), "OOO", "OOO", " B ", 'O', beetroot, 'B', Items.bowl);
         GameRegistry.addShapelessRecipe(new ItemStack(Items.dye, 1, 1), beetroot);
-        ChestGenHooks.addItem(ChestGenHooks.DUNGEON_CHEST, new WeightedRandomChestContent(new ItemStack(beetrootSeeds), 2, 4, 10));
 
         shulkerShell = item(new Item(), "shulker_shell", CreativeTabs.tabMaterials);
         for (int i = 0; i < 16; i++) {
@@ -198,6 +197,7 @@ public final class Items112 {
         ColoredBed(int color) {
             this.color = color;
             setHardness(0.2F);
+            setStepSound(soundTypeWood);
             setBlockName(MC112Bridge.MOD_ID + ".bed_" + MC112Bridge.COLOR_NAMES[color]);
         }
 
@@ -282,8 +282,9 @@ public final class Items112 {
             int x = MathHelper.floor_double(player.posX);
             int y = MathHelper.floor_double(player.boundingBox.minY - 0.2D);
             int z = MathHelper.floor_double(player.posZ);
-            if (player.worldObj.isRemote && player.worldObj.getBlock(x, y, z) instanceof BlockBed && !player.isSneaking() && player.motionY < 0.0D) {
-                OffhandInventory.get(player).bedBounce = -player.motionY * 0.6600000262260437D;
+            Block below = player.worldObj.getBlock(x, y, z);
+            if (player.worldObj.isRemote && !player.isSneaking() && player.motionY < 0.0D && (below instanceof BlockBed || below == Content119.slime)) {
+                OffhandInventory.get(player).bedBounce = -player.motionY * (below == Content119.slime ? 1.0D : 0.6600000262260437D);
             }
         }
 
@@ -292,6 +293,12 @@ public final class Items112 {
             int x = MathHelper.floor_double(event.entity.posX);
             int y = MathHelper.floor_double(event.entity.boundingBox.minY - 0.2D);
             int z = MathHelper.floor_double(event.entity.posZ);
+            if (event.entity.worldObj.getBlock(x, y, z) == Content119.slime) {
+                if (event.entity instanceof EntityPlayer && event.entity.worldObj.isRemote && !event.entity.isSneaking() && event.entity.motionY < 0.0D) {
+                    OffhandInventory.get((EntityPlayer) event.entity).bedBounce = -event.entity.motionY;
+                }
+                return;
+            }
             if (!(event.entity.worldObj.getBlock(x, y, z) instanceof BlockBed)) {
                 return;
             }

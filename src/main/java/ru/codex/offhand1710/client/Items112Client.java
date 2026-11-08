@@ -38,6 +38,7 @@ final class Items112Client {
             MinecraftForgeClient.registerItemRenderer(Item.getItemFromBlock(block), box);
         }
         RenderingRegistry.registerEntityRenderingHandler(EntityArmorStand112.class, new StandRenderer());
+        RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.Content119.EntityEndermite.class, new MiteRenderer());
     }
 
     static Object boxScreen(InventoryPlayer player, IInventory box) {
@@ -158,6 +159,60 @@ final class Items112Client {
             draw(color, 0.0F);
             GL11.glEnable(GL11.GL_CULL_FACE);
             GL11.glPopMatrix();
+        }
+    }
+
+    /** ModelEnderMite, reconstructed from memory of 1.8. */
+    private static final class MiteModel extends ModelBase {
+        private static final int[][] SIZE = {{4, 3, 2}, {6, 4, 5}, {3, 3, 1}, {1, 2, 1}};
+        private static final int[][] UV = {{0, 0}, {0, 5}, {0, 14}, {0, 18}};
+        private final ModelRenderer[] parts = new ModelRenderer[4];
+
+        MiteModel() {
+            float z = -3.5F;
+            for (int i = 0; i < 4; i++) {
+                parts[i] = new ModelRenderer(this, UV[i][0], UV[i][1]);
+                parts[i].addBox((float) SIZE[i][0] * -0.5F, 0.0F, (float) SIZE[i][2] * -0.5F, SIZE[i][0], SIZE[i][1], SIZE[i][2]);
+                parts[i].setRotationPoint(0.0F, (float) (24 - SIZE[i][1]), z);
+                if (i < 3) {
+                    z += (float) (SIZE[i][2] + SIZE[i + 1][2]) * 0.5F;
+                }
+            }
+        }
+
+        @Override
+        public void render(Entity entity, float limb, float amount, float age, float yaw, float pitch, float scale) {
+            setRotationAngles(limb, amount, age, yaw, pitch, scale, entity);
+            for (ModelRenderer part : parts) {
+                part.render(scale);
+            }
+        }
+
+        @Override
+        public void setRotationAngles(float limb, float amount, float age, float yaw, float pitch, float scale, Entity entity) {
+            for (int i = 0; i < 4; i++) {
+                float wave = age * 0.9F + (float) i * 0.15F * (float) Math.PI;
+                parts[i].rotateAngleY = (float) Math.cos(wave) * (float) Math.PI * 0.01F * (float) (1 + Math.abs(i - 2));
+                parts[i].rotationPointX = (float) Math.sin(wave) * (float) Math.PI * 0.1F * (float) Math.abs(i - 2);
+            }
+        }
+    }
+
+    private static final class MiteRenderer extends net.minecraft.client.renderer.entity.RenderLiving {
+        private static final ResourceLocation TEXTURE = new ResourceLocation(DOMAIN, "textures/entity/endermite.png");
+
+        MiteRenderer() {
+            super(new MiteModel(), 0.3F);
+        }
+
+        @Override
+        protected ResourceLocation getEntityTexture(Entity entity) {
+            return TEXTURE;
+        }
+
+        @Override
+        protected float getDeathMaxRotation(net.minecraft.entity.EntityLivingBase entity) {
+            return 180.0F;
         }
     }
 

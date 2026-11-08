@@ -39,7 +39,6 @@ public final class BlockShulkerBox extends BlockContainer {
         setBlockTextureName(MC112Bridge.MOD_ID + ":shulker_top_" + Items112.textureColor(color));
         setCreativeTab(CreativeTabs.tabDecorations);
         setHardness(2.0F);
-        setResistance(10.0F);
     }
 
     @Override

@@ -594,10 +594,8 @@ public final class MoreMobs {
                 motionZ += (dz / distance * 0.15D - motionZ) * 0.2D;
                 if (distance < 0.8D) {
                     target.attackEntityFrom(DamageSource.causeIndirectMagicDamage(this, owner).setProjectile(), 4.0F);
-                    if (target instanceof EntityPlayerMP) {
-                        MC112Bridge.NETWORK.channel.sendTo(new OffhandMessages.Levitate(200), (EntityPlayerMP) target);
-                    } else {
-                        target.motionY += 0.9D;
+                    if (target instanceof net.minecraft.entity.EntityLivingBase) {
+                        ((net.minecraft.entity.EntityLivingBase) target).addPotionEffect(new net.minecraft.potion.PotionEffect(Content120.levitation.id, 200, 0));
                     }
                     playSound(SOUND + "shulker_bullet.hit", 1.0F, 1.0F);
                     setDead();

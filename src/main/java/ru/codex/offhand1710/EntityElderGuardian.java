@@ -71,7 +71,7 @@ public class EntityElderGuardian extends EntityGuardian {
     protected void dropFewItems(boolean byPlayer, int looting) {
         super.dropFewItems(byPlayer, looting);
         if (byPlayer) {
-            dropItem(Item.getItemFromBlock(Blocks.sponge), 1);
+            dropItem(Item.getItemFromBlock(Content120.wetSponge), 1);
         }
     }
 }

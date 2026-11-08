@@ -1,4 +1,32 @@
 {
+  "block.slime.break": {
+    "category": "block",
+    "sounds": ["mob/slime/big1", "mob/slime/big2", "mob/slime/big3", "mob/slime/big4"]
+  },
+  "block.slime.step": {
+    "category": "block",
+    "sounds": ["mob/slime/small1", "mob/slime/small2", "mob/slime/small3", "mob/slime/small4", "mob/slime/small5"]
+  },
+  "block.slime.place": {
+    "category": "block",
+    "sounds": ["mob/slime/big1", "mob/slime/big2", "mob/slime/big3", "mob/slime/big4"]
+  },
+  "entity.endermite.ambient": {
+    "category": "hostile",
+    "sounds": ["mob/silverfish/say1", "mob/silverfish/say2", "mob/silverfish/say3", "mob/silverfish/say4"]
+  },
+  "entity.endermite.hurt": {
+    "category": "hostile",
+    "sounds": ["mob/silverfish/hit1", "mob/silverfish/hit2", "mob/silverfish/hit3"]
+  },
+  "entity.endermite.death": {
+    "category": "hostile",
+    "sounds": ["mob/silverfish/kill"]
+  },
+  "entity.endermite.step": {
+    "category": "hostile",
+    "sounds": ["mob/silverfish/step1", "mob/silverfish/step2", "mob/silverfish/step3", "mob/silverfish/step4"]
+  },
   "entity.armorstand.place": {
     "category": "neutral",
     "sounds": ["dig/stone1", "dig/stone2", "dig/stone3", "dig/stone4"]

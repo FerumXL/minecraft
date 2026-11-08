@@ -95,7 +95,7 @@ final class MonumentShim {
         static final Bs AIR = new Bs(Blocks.air, 0);
         static final Bs WATER = new Bs(Blocks.water, 0);
         static final Bs GOLD = new Bs(Blocks.gold_block, 0);
-        static final Bs WET_SPONGE = new Bs(Blocks.sponge, 0);
+        static final Bs WET_SPONGE = new Bs(Content120.wetSponge, 0);
         static final Bs LANTERN = new Bs(PortedBlocks.seaLantern, 0);
 
         final Block block;
