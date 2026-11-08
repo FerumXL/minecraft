@@ -109,3 +109,5 @@ attribute.modifier.equals.0=%s %s
 attribute.name.generic.attackSpeed=Скорость атаки
 item.mc112bridge.elytra.name=Элитры
 death.attack.flyIntoWall=%1$s преобразовал кинетическую энергию во внутреннюю
+entity.Guardian.name=Страж
+entity.ElderGuardian.name=Древний страж

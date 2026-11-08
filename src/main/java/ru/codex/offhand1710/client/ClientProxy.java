@@ -51,6 +51,8 @@ public final class ClientProxy extends CommonProxy {
     @Override
     public void initialize() {
         MinecraftForgeClient.registerItemRenderer(PortedBlocks.shield, new ShieldRenderer());
+        cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityGuardian.class, new RenderGuardian());
+        cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityElderGuardian.class, new RenderGuardian());
     }
 
     public static void scheduleOffhandSync(final int entityId, final ItemStack stack, final int useCount,

@@ -109,3 +109,5 @@ attribute.modifier.equals.0=%s %s
 attribute.name.generic.attackSpeed=Attack Speed
 item.mc112bridge.elytra.name=Elytra
 death.attack.flyIntoWall=%1$s experienced kinetic energy
+entity.Guardian.name=Guardian
+entity.ElderGuardian.name=Elder Guardian

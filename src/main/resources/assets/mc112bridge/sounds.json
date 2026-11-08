@@ -75,5 +75,21 @@
       {"name": "entity/player/attack/weak3", "volume": 0.7},
       {"name": "entity/player/attack/weak4", "volume": 0.7}
     ]
-  }
+  },
+  "entity.elder_guardian.ambient": {"sounds":[{"name":"mob/guardian/elder_idle1"},{"name":"mob/guardian/elder_idle2"},{"name":"mob/guardian/elder_idle3"},{"name":"mob/guardian/elder_idle4"}],"category":"hostile"},
+  "entity.elder_guardian.ambient_land": {"sounds":[{"name":"mob/guardian/land_idle1"},{"name":"mob/guardian/land_idle2"},{"name":"mob/guardian/land_idle3"},{"name":"mob/guardian/land_idle4"}],"category":"hostile"},
+  "entity.elder_guardian.curse": {"sounds":[{"name":"mob/guardian/curse"}],"category":"hostile"},
+  "entity.elder_guardian.death": {"sounds":[{"name":"mob/guardian/elder_death"}],"category":"hostile"},
+  "entity.elder_guardian.death_land": {"sounds":[{"name":"mob/guardian/land_death"}],"category":"hostile"},
+  "entity.elder_guardian.flop": {"sounds":[{"name":"mob/guardian/flop1"},{"name":"mob/guardian/flop2"},{"name":"mob/guardian/flop3"},{"name":"mob/guardian/flop4"}],"category":"hostile"},
+  "entity.elder_guardian.hurt": {"sounds":[{"name":"mob/guardian/elder_hit1"},{"name":"mob/guardian/elder_hit2"},{"name":"mob/guardian/elder_hit3"},{"name":"mob/guardian/elder_hit4"}],"category":"hostile"},
+  "entity.elder_guardian.hurt_land": {"sounds":[{"name":"mob/guardian/land_hit1"},{"name":"mob/guardian/land_hit2"},{"name":"mob/guardian/land_hit3"},{"name":"mob/guardian/land_hit4"}],"category":"hostile"},
+  "entity.guardian.ambient": {"sounds":[{"name":"entity/guardian/ambient1","volume":0.1},{"name":"entity/guardian/ambient2","volume":0.1},{"name":"entity/guardian/ambient3","volume":0.1},{"name":"entity/guardian/ambient4","volume":0.1}],"category":"hostile"},
+  "entity.guardian.ambient_land": {"sounds":[{"name":"mob/guardian/land_idle1"},{"name":"mob/guardian/land_idle2"},{"name":"mob/guardian/land_idle3"},{"name":"mob/guardian/land_idle4"}],"category":"hostile"},
+  "entity.guardian.attack": {"sounds":[{"name":"mob/guardian/attack_loop"}],"category":"hostile"},
+  "entity.guardian.death": {"sounds":[{"name":"mob/guardian/guardian_death"}],"category":"hostile"},
+  "entity.guardian.death_land": {"sounds":[{"name":"mob/guardian/land_death"}],"category":"hostile"},
+  "entity.guardian.flop": {"sounds":[{"name":"mob/guardian/flop1"},{"name":"mob/guardian/flop2"},{"name":"mob/guardian/flop3"},{"name":"mob/guardian/flop4"}],"category":"hostile"},
+  "entity.guardian.hurt": {"sounds":[{"name":"mob/guardian/guardian_hit1"},{"name":"mob/guardian/guardian_hit2"},{"name":"mob/guardian/guardian_hit3"},{"name":"mob/guardian/guardian_hit4"}],"category":"hostile"},
+  "entity.guardian.hurt_land": {"sounds":[{"name":"mob/guardian/land_hit1"},{"name":"mob/guardian/land_hit2"},{"name":"mob/guardian/land_hit3"},{"name":"mob/guardian/land_hit4"}],"category":"hostile"}
 }

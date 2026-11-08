@@ -15,7 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.12.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.13.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -78,6 +78,15 @@ public final class MC112Bridge {
         Combat112.applyVanillaValues();
         Elytra112.register();
         GameRegistry.registerWorldGenerator(new IglooGenerator(), 5);
+        cpw.mods.fml.common.registry.EntityRegistry.registerGlobalEntityID(EntityGuardian.class, "Guardian",
+                cpw.mods.fml.common.registry.EntityRegistry.findGlobalUniqueEntityId(), 5931634, 15826224);
+        cpw.mods.fml.common.registry.EntityRegistry.registerModEntity(EntityGuardian.class, "Guardian", 0, this, 80, 3, true);
+        cpw.mods.fml.common.registry.EntityRegistry.registerGlobalEntityID(EntityElderGuardian.class, "ElderGuardian",
+                cpw.mods.fml.common.registry.EntityRegistry.findGlobalUniqueEntityId(), 13552826, 7632531);
+        cpw.mods.fml.common.registry.EntityRegistry.registerModEntity(EntityElderGuardian.class, "ElderGuardian", 1, this, 80, 3, true);
+        MonumentGenerator monuments = new MonumentGenerator();
+        GameRegistry.registerWorldGenerator(monuments, 6);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(monuments);
         proxy.initialize();
     }
 
