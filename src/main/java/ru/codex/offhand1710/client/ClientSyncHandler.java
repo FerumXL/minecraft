@@ -8,7 +8,7 @@ import ru.codex.offhand1710.OffhandMessages;
 public final class ClientSyncHandler implements IMessageHandler<OffhandMessages.Sync, IMessage> {
     @Override
     public IMessage onMessage(OffhandMessages.Sync message, MessageContext context) {
-        ClientProxy.scheduleOffhandSync(message.entityId, message.stack);
+        ClientProxy.scheduleOffhandSync(message.entityId, message.stack, message.useCount);
         return null;
     }
 }

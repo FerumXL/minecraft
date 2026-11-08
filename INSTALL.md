@@ -2,7 +2,7 @@
 
 ## Последняя версия
 
-[Скачать mc112bridge-0.7.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.7.0/mc112bridge-0.7.0.jar)
+[Скачать mc112bridge-0.8.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.8.0/mc112bridge-0.8.0.jar)
 
 Что изменилось: [CHANGELOG.md](CHANGELOG.md).
 
@@ -14,6 +14,7 @@
 
 | Версия | Скачать | Состав |
 |---|---|---|
+| 0.7.0 | [mc112bridge-0.7.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.7.0/mc112bridge-0.7.0.jar) | Камни, призмарин, двери, заборы, песчаник, пурпур, тропа, баранина; исправлены ранние блоки |
 | 0.6.0 | [mc112bridge-0.6.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.6.0/mc112bridge-0.6.0.jar) | Левая рука как в 1.12.2 |
 | 0.5.0 | [mc112bridge-0.5.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.5.0/mc112bridge-0.5.0.jar) | Слот левой руки (клавиши G и V), текстура самородка |
 | 0.4.0 | [mc112bridge-0.4.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.4.0/mc112bridge-0.4.0.jar) | Магмовый блок |

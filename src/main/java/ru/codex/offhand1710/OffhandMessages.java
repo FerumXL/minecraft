@@ -18,6 +18,12 @@ public final class OffhandMessages {
     /** Bits of UseResult: which first-person animation the client plays for the offhand. */
     public static final int RESULT_SWING = 1;
     public static final int RESULT_EQUIP = 2;
+    /** The offhand started a held use (food, potion, bow...); UseResult.useCount holds its duration. */
+    public static final int RESULT_START_USE = 4;
+    /** The held use ended (released, finished or cancelled). */
+    public static final int RESULT_STOP_USE = 8;
+    /** The held use finished (food eaten, potion drunk): final burst of eating particles. */
+    public static final int RESULT_FINISHED = 16;
 
     private OffhandMessages() {
     }
@@ -112,25 +118,51 @@ public final class OffhandMessages {
     public static final class UseResult implements IMessage {
         public int sequence;
         public int flags;
+        public int useCount;
 
         public UseResult() {
         }
 
-        public UseResult(int sequence, int flags) {
+        public UseResult(int sequence, int flags, int useCount) {
             this.sequence = sequence;
             this.flags = flags;
+            this.useCount = useCount;
         }
 
         @Override
         public void fromBytes(ByteBuf buffer) {
             sequence = buffer.readInt();
             flags = buffer.readByte();
+            useCount = buffer.readInt();
         }
 
         @Override
         public void toBytes(ByteBuf buffer) {
             buffer.writeInt(sequence);
             buffer.writeByte(flags);
+            buffer.writeInt(useCount);
+        }
+    }
+
+    /** Client -> server: the use button was released while the offhand item was in use (shoot the bow). */
+    public static final class Release implements IMessage {
+        public Release() {
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+        }
+    }
+
+    public static final class ReleaseHandler implements IMessageHandler<Release, IMessage> {
+        @Override
+        public IMessage onMessage(Release message, MessageContext context) {
+            OffhandEvents.queueRelease(context.getServerHandler().playerEntity.getUniqueID());
+            return null;
         }
     }
 
@@ -163,26 +195,32 @@ public final class OffhandMessages {
     public static final class Sync implements IMessage {
         public int entityId;
         public ItemStack stack;
+        /** Ticks left of the offhand held use, so other players see the eating / bow animation. */
+        public int useCount;
 
         public Sync() {
         }
 
         public Sync(EntityPlayerMP player) {
             entityId = player.getEntityId();
-            ItemStack stack = OffhandInventory.get(player).getStack();
+            OffhandInventory offhand = OffhandInventory.get(player);
+            ItemStack stack = offhand.getStack();
             this.stack = stack == null ? null : stack.copy();
+            this.useCount = offhand.useCount;
         }
 
         @Override
         public void fromBytes(ByteBuf buffer) {
             entityId = buffer.readInt();
             stack = ByteBufUtils.readItemStack(buffer);
+            useCount = buffer.readInt();
         }
 
         @Override
         public void toBytes(ByteBuf buffer) {
             buffer.writeInt(entityId);
             ByteBufUtils.writeItemStack(buffer, stack);
+            buffer.writeInt(useCount);
         }
     }
 
@@ -218,6 +256,10 @@ public final class OffhandMessages {
     }
 
     public static void sendResult(EntityPlayerMP player, int sequence, int flags) {
-        MC112Bridge.NETWORK.channel.sendTo(new UseResult(sequence, flags), player);
+        sendResult(player, sequence, flags, 0);
+    }
+
+    public static void sendResult(EntityPlayerMP player, int sequence, int flags, int useCount) {
+        MC112Bridge.NETWORK.channel.sendTo(new UseResult(sequence, flags, useCount), player);
     }
 }

@@ -51,8 +51,20 @@ public final class OffhandUseHandler {
         }
         Minecraft mc = Minecraft.getMinecraft();
         EntityClientPlayerMP player = mc.thePlayer;
-        if (player == null || mc.theWorld == null || mc.playerController == null || mc.currentScreen != null
-                || OffhandInventory.get(player).getStack() == null || player.isUsingItem()) {
+        if (player == null || mc.theWorld == null || mc.playerController == null || mc.currentScreen != null) {
+            return;
+        }
+        OffhandInventory offhand = OffhandInventory.get(player);
+        if (offhand.isUsing()) {
+            try {
+                holdOffhandUse(mc, offhand);
+            } catch (Exception e) {
+                broken = true;
+                FMLLog.severe("[mc112bridge] offhand right click disabled: %s", e);
+            }
+            return;
+        }
+        if (offhand.getStack() == null || player.isUsingItem()) {
             return;
         }
         try {
@@ -69,6 +81,33 @@ public final class OffhandUseHandler {
             // Without access to the delay field vanilla would click a second time; fall back to vanilla only.
             broken = true;
             FMLLog.severe("[mc112bridge] offhand right click disabled: %s", e);
+        }
+    }
+
+    private static Field leftClickCounter;
+
+    /**
+     * While the offhand item is in use, as Minecraft.runTick does for an item in use: releasing the use button
+     * stops it (a bow shoots), clicks of both buttons are swallowed, and block breaking pauses.
+     */
+    private static void holdOffhandUse(Minecraft mc, OffhandInventory offhand) throws IllegalAccessException {
+        KeyBinding use = mc.gameSettings.keyBindUseItem;
+        if (!use.getIsKeyPressed()) {
+            MC112Bridge.NETWORK.channel.sendToServer(new OffhandMessages.Release());
+            offhand.useCount = 0;
+        }
+        while (use.isPressed()) {
+            // swallowed
+        }
+        while (mc.gameSettings.keyBindAttack.isPressed()) {
+            // swallowed
+        }
+        delayField().setInt(mc, 4);
+        if (leftClickCounter == null) {
+            leftClickCounter = ReflectionHelper.findField(Minecraft.class, "field_71429_W", "leftClickCounter");
+        }
+        if (leftClickCounter.getInt(mc) < 2) {
+            leftClickCounter.setInt(mc, 2);
         }
     }
 

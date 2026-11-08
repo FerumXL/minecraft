@@ -12,8 +12,10 @@ import net.minecraft.client.entity.EntityClientPlayerMP;
 import net.minecraft.client.renderer.EntityRenderer;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.item.EnumAction;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import ru.codex.offhand1710.OffhandInventory;
 import net.minecraft.util.MathHelper;
 import net.minecraftforge.client.IItemRenderer.ItemRenderType;
 import net.minecraftforge.client.event.RenderHandEvent;
@@ -155,9 +157,31 @@ public final class OffhandFirstPersonRenderer {
             GL11.glScalef(-1.0F, 1.0F, 1.0F);
             GL11.glFrontFace(GL11.GL_CW);
 
+            OffhandInventory offhand = OffhandInventory.get(player);
+            boolean using = offhand.isUsing() && stack == offhand.getStack();
+            EnumAction action = using ? stack.getItemUseAction() : EnumAction.none;
             float sqrtSwing = MathHelper.sqrt_float(swing);
-            GL11.glTranslatef(-MathHelper.sin(sqrtSwing * PI) * 0.4F, MathHelper.sin(sqrtSwing * PI * 2.0F) * 0.2F,
-                    -MathHelper.sin(swing * PI) * 0.2F);
+            if (using) {
+                if (action == EnumAction.eat || action == EnumAction.drink) {
+                    // Eating / drinking: the item comes to the mouth and bobs.
+                    float left = (float) offhand.useCount - partialTicks + 1.0F;
+                    float done = 1.0F - left / (float) stack.getMaxItemUseDuration();
+                    float ease = 1.0F - done;
+                    ease = ease * ease * ease;
+                    ease = ease * ease * ease;
+                    ease = ease * ease * ease;
+                    float lift = 1.0F - ease;
+                    GL11.glTranslatef(0.0F, MathHelper.abs(MathHelper.cos(left / 4.0F * PI) * 0.1F)
+                            * (float) ((double) done > 0.2D ? 1 : 0), 0.0F);
+                    GL11.glTranslatef(lift * 0.6F, -lift * 0.5F, 0.0F);
+                    GL11.glRotatef(lift * 90.0F, 0.0F, 1.0F, 0.0F);
+                    GL11.glRotatef(lift * 10.0F, 1.0F, 0.0F, 0.0F);
+                    GL11.glRotatef(lift * 30.0F, 0.0F, 0.0F, 1.0F);
+                }
+            } else {
+                GL11.glTranslatef(-MathHelper.sin(sqrtSwing * PI) * 0.4F, MathHelper.sin(sqrtSwing * PI * 2.0F) * 0.2F,
+                        -MathHelper.sin(swing * PI) * 0.2F);
+            }
             GL11.glTranslatef(0.7F * 0.8F, -0.65F * 0.8F - (1.0F - equip) * 0.6F, -0.9F * 0.8F);
             GL11.glRotatef(45.0F, 0.0F, 1.0F, 0.0F);
             GL11.glEnable(GL12.GL_RESCALE_NORMAL);
@@ -167,17 +191,53 @@ public final class OffhandFirstPersonRenderer {
             GL11.glRotatef(-swingRoot * 20.0F, 0.0F, 0.0F, 1.0F);
             GL11.glRotatef(-swingRoot * 80.0F, 1.0F, 0.0F, 0.0F);
             GL11.glScalef(0.4F, 0.4F, 0.4F);
+            if (using && action == EnumAction.block) {
+                GL11.glTranslatef(-0.5F, 0.2F, 0.0F);
+                GL11.glRotatef(30.0F, 0.0F, 1.0F, 0.0F);
+                GL11.glRotatef(-80.0F, 1.0F, 0.0F, 0.0F);
+                GL11.glRotatef(60.0F, 0.0F, 1.0F, 0.0F);
+            } else if (using && action == EnumAction.bow) {
+                // Drawing a bow: the bow is raised and pulled towards the player.
+                GL11.glRotatef(-18.0F, 0.0F, 0.0F, 1.0F);
+                GL11.glRotatef(-12.0F, 0.0F, 1.0F, 0.0F);
+                GL11.glRotatef(-8.0F, 1.0F, 0.0F, 0.0F);
+                GL11.glTranslatef(-0.9F, 0.2F, 0.0F);
+                float drawn = (float) stack.getMaxItemUseDuration() - ((float) offhand.useCount - partialTicks + 1.0F);
+                float pull = drawn / 20.0F;
+                pull = (pull * pull + pull * 2.0F) / 3.0F;
+                if (pull > 1.0F) {
+                    pull = 1.0F;
+                }
+                if (pull > 0.1F) {
+                    GL11.glTranslatef(0.0F, MathHelper.sin((drawn - 0.1F) * 1.3F) * 0.01F * (pull - 0.1F), 0.0F);
+                }
+                GL11.glTranslatef(0.0F, 0.0F, pull * 0.1F);
+                GL11.glRotatef(-335.0F, 0.0F, 0.0F, 1.0F);
+                GL11.glRotatef(-50.0F, 0.0F, 1.0F, 0.0F);
+                GL11.glTranslatef(0.0F, 0.5F, 0.0F);
+                GL11.glScalef(1.0F, 1.0F, 1.0F + pull * 0.2F);
+                GL11.glTranslatef(0.0F, -0.5F, 0.0F);
+                GL11.glRotatef(50.0F, 0.0F, 1.0F, 0.0F);
+                GL11.glRotatef(335.0F, 0.0F, 0.0F, 1.0F);
+            }
             Item item = stack.getItem();
             if (item.shouldRotateAroundWhenRendering()) {
                 GL11.glRotatef(180.0F, 0.0F, 1.0F, 0.0F);
             }
 
-            if (item.requiresMultipleRenderPasses()) {
-                for (int pass = 0; pass < item.getRenderPasses(stack.getItemDamage()); pass++) {
-                    renderPass(mc, player, stack, pass);
+            ItemInUseOverride inUse = using ? ItemInUseOverride.apply(player, stack) : null;
+            try {
+                if (item.requiresMultipleRenderPasses()) {
+                    for (int pass = 0; pass < item.getRenderPasses(stack.getItemDamage()); pass++) {
+                        renderPass(mc, player, stack, pass);
+                    }
+                } else {
+                    renderPass(mc, player, stack, 0);
                 }
-            } else {
-                renderPass(mc, player, stack, 0);
+            } finally {
+                if (inUse != null) {
+                    inUse.restore(player);
+                }
             }
         } finally {
             GL11.glFrontFace(GL11.GL_CCW);

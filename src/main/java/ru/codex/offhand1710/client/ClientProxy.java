@@ -35,14 +35,20 @@ public final class ClientProxy extends CommonProxy {
         }
     }
 
-    public static void scheduleOffhandSync(final int entityId, final ItemStack stack) {
+    public static void scheduleOffhandSync(final int entityId, final ItemStack stack, final int useCount) {
         Minecraft.getMinecraft().func_152344_a(new Runnable() {
             @Override
             public void run() {
                 Minecraft minecraft = Minecraft.getMinecraft();
                 Entity entity = minecraft.theWorld == null ? null : minecraft.theWorld.getEntityByID(entityId);
                 if (entity instanceof EntityPlayer) {
-                    OffhandInventory.get((EntityPlayer) entity).setStack(stack == null ? null : stack.copy());
+                    OffhandInventory offhand = OffhandInventory.get((EntityPlayer) entity);
+                    offhand.setStack(stack == null ? null : stack.copy());
+                    // Other players: the animation follows the server. The local player follows UseResult,
+                    // only a stop is taken from here too.
+                    if (entity != minecraft.thePlayer || useCount == 0) {
+                        offhand.useCount = useCount;
+                    }
                 }
             }
         });

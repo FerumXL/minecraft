@@ -10,6 +10,18 @@ public final class OffhandInventory implements IExtendedEntityProperties {
     public static final String KEY = "mc112bridge.offhand";
     private ItemStack stack;
 
+    /**
+     * Ticks left while the offhand item is being used (eating, drinking, drawing a bow), 0 when not in use.
+     * Authoritative on the server; on clients it drives the animation. Not saved.
+     */
+    public int useCount;
+    /** The offhand stack the use started with; the use stops if the offhand item is replaced. Server only. */
+    public ItemStack useStack;
+
+    public boolean isUsing() {
+        return useCount > 0;
+    }
+
     public static void register(Entity entity) {
         if (entity instanceof EntityPlayer && entity.getExtendedProperties(KEY) == null) {
             entity.registerExtendedProperties(KEY, new OffhandInventory());

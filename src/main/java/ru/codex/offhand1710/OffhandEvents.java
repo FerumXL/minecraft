@@ -17,6 +17,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.server.S23PacketBlockChange;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
+import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraftforge.event.entity.EntityEvent;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.player.PlayerDropsEvent;
@@ -39,6 +40,12 @@ public final class OffhandEvents {
 
     public static void queueCreativeSet(UUID playerId, OffhandMessages.CreativeSet message) {
         CREATIVE_SETS.put(playerId, message);
+    }
+
+    private static final ConcurrentMap<UUID, Boolean> RELEASES = new ConcurrentHashMap<UUID, Boolean>();
+
+    public static void queueRelease(UUID playerId) {
+        RELEASES.put(playerId, Boolean.TRUE);
     }
 
     @SubscribeEvent
@@ -113,6 +120,92 @@ public final class OffhandEvents {
         if (use != null) {
             useOffhand(player, use);
         }
+        if (RELEASES.remove(id) != null) {
+            releaseUse(player);
+        }
+        tickUse(player);
+    }
+
+    /** EntityPlayer.onUpdate (1.7.10) for the offhand item in use. */
+    private static void tickUse(EntityPlayerMP player) {
+        OffhandInventory offhand = OffhandInventory.get(player);
+        if (offhand.useCount <= 0) {
+            return;
+        }
+        ItemStack stack = offhand.getStack();
+        if (stack == null || stack != offhand.useStack) {
+            endUse(player, 0); // the offhand item was swapped or taken away
+            return;
+        }
+        int count = ForgeEventFactory.onItemUseTick(player, stack, offhand.useCount);
+        if (count <= 0) {
+            finishUse(player);
+            return;
+        }
+        int slot = player.inventory.currentItem;
+        ItemStack main = player.inventory.mainInventory[slot];
+        player.inventory.mainInventory[slot] = stack;
+        try {
+            stack.getItem().onUsingTick(stack, player, count);
+        } finally {
+            player.inventory.mainInventory[slot] = main;
+        }
+        offhand.useCount = count - 1;
+        if (offhand.useCount == 0) {
+            finishUse(player);
+        }
+    }
+
+    /** EntityPlayer.onItemUseFinish: eat the food, drink the potion or milk... */
+    private static void finishUse(EntityPlayerMP player) {
+        OffhandInventory offhand = OffhandInventory.get(player);
+        ItemStack stack = offhand.useStack;
+        int slot = player.inventory.currentItem;
+        ItemStack main = player.inventory.mainInventory[slot];
+        player.inventory.mainInventory[slot] = stack;
+        ItemStack result;
+        try {
+            result = stack.onFoodEaten(player.worldObj, player);
+            result = ForgeEventFactory.onItemUseFinish(player, stack, 0, result);
+        } finally {
+            player.inventory.mainInventory[slot] = main;
+        }
+        offhand.setStack(result != null && result.stackSize > 0 ? result : null);
+        endUse(player, OffhandMessages.RESULT_FINISHED);
+    }
+
+    /** EntityPlayer.stopUsingItem: the button was released (a bow shoots). */
+    private static void releaseUse(EntityPlayerMP player) {
+        OffhandInventory offhand = OffhandInventory.get(player);
+        ItemStack stack = offhand.useStack;
+        if (offhand.useCount <= 0 || stack == null) {
+            return;
+        }
+        if (stack != offhand.getStack()) {
+            endUse(player, 0);
+            return;
+        }
+        int slot = player.inventory.currentItem;
+        ItemStack main = player.inventory.mainInventory[slot];
+        player.inventory.mainInventory[slot] = stack;
+        try {
+            if (!ForgeEventFactory.onUseItemStop(player, stack, offhand.useCount)) {
+                stack.onPlayerStoppedUsing(player.worldObj, player, offhand.useCount);
+            }
+        } finally {
+            player.inventory.mainInventory[slot] = main;
+        }
+        offhand.setStack(stack.stackSize > 0 ? stack : null);
+        endUse(player, 0);
+    }
+
+    private static void endUse(EntityPlayerMP player, int extraFlags) {
+        OffhandInventory offhand = OffhandInventory.get(player);
+        offhand.useCount = 0;
+        offhand.useStack = null;
+        player.inventoryContainer.detectAndSendChanges();
+        OffhandMessages.synchronize(player);
+        OffhandMessages.sendResult(player, 0, OffhandMessages.RESULT_STOP_USE | extraFlags);
     }
 
     private static void swap(EntityPlayerMP player) {
@@ -149,7 +242,7 @@ public final class OffhandEvents {
      */
     private static void useOffhand(EntityPlayerMP player, OffhandMessages.UseRequest request) {
         OffhandInventory offhand = OffhandInventory.get(player);
-        if (offhand.getStack() == null || player.isUsingItem()) {
+        if (offhand.getStack() == null || player.isUsingItem() || offhand.isUsing()) {
             return;
         }
         World world = player.worldObj;
@@ -160,7 +253,7 @@ public final class OffhandEvents {
         player.inventory.mainInventory[slot] = before;
 
         int flags = 0;
-        boolean startedUsing = false;
+        int useTicks = 0;
         try {
             boolean acted = false;
             if (request.kind == OffhandMessages.USE_ENTITY) {
@@ -202,19 +295,27 @@ public final class OffhandEvents {
         } finally {
             ItemStack after = player.inventory.mainInventory[slot];
             player.inventory.mainInventory[slot] = main;
-            // Holding the button to eat, drink, draw a bow or block is not ported for the offhand yet:
-            // the use started on the hotbar slot would otherwise stick to the wrong item.
+            // A held use (food, potion, bow) was started on the hotbar slot that held the offhand item. Vanilla
+            // would drop it next tick (the selected item is not the one in use), so it moves to the offhand.
             if (player.isUsingItem() && player.getItemInUse() == after) {
+                useTicks = player.getItemInUseCount();
                 player.clearItemInUse();
-                startedUsing = true;
             }
             offhand.setStack(after != null && after.stackSize > 0 ? after : null);
+            if (useTicks > 0 && offhand.getStack() == after) {
+                offhand.useCount = useTicks;
+                offhand.useStack = after;
+            }
             // tryUseItem may have sent the hotbar slot while it held the offhand item; resend the real contents.
             player.sendContainerToPlayer(player.inventoryContainer);
             OffhandMessages.synchronize(player);
         }
         // Always answered: the client matches answers to the requests it already animated by prediction.
-        OffhandMessages.sendResult(player, request.sequence, startedUsing ? 0 : flags);
+        if (offhand.isUsing()) {
+            OffhandMessages.sendResult(player, request.sequence, OffhandMessages.RESULT_START_USE, offhand.useCount);
+        } else {
+            OffhandMessages.sendResult(player, request.sequence, flags);
+        }
     }
 
     /** Neighbour of a block on side 0..5 (down, up, north, south, west, east); 6 and 7 mean "same block". */

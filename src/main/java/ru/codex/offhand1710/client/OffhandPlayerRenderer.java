@@ -6,6 +6,7 @@ import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
+import net.minecraft.item.EnumAction;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -35,10 +36,19 @@ public final class OffhandPlayerRenderer {
      */
     @SubscribeEvent
     public void setArmPose(RenderPlayerEvent.Pre event) {
-        int held = OffhandInventory.get(event.entityPlayer).getStack() != null ? 1 : 0;
+        OffhandInventory offhand = OffhandInventory.get(event.entityPlayer);
+        ItemStack stack = offhand.getStack();
+        int held = stack != null ? 1 : 0;
         event.renderer.modelBipedMain.heldItemLeft = held;
         event.renderer.modelArmorChestplate.heldItemLeft = held;
         event.renderer.modelArmor.heldItemLeft = held;
+        // Drawing a bow in the offhand: the aiming pose. RenderPlayer only ever sets aimedBow to true for the
+        // main hand and resets it after drawing, so setting it here lasts for this player only.
+        if (stack != null && offhand.isUsing() && stack.getItemUseAction() == EnumAction.bow) {
+            event.renderer.modelBipedMain.aimedBow = true;
+            event.renderer.modelArmorChestplate.aimedBow = true;
+            event.renderer.modelArmor.aimedBow = true;
+        }
     }
 
     @SubscribeEvent
@@ -61,12 +71,19 @@ public final class OffhandPlayerRenderer {
             applyHeldTransform(stack);
 
             Item item = stack.getItem();
-            if (item.requiresMultipleRenderPasses()) {
-                for (int pass = 0; pass < item.getRenderPasses(stack.getItemDamage()); pass++) {
-                    renderPass(player, stack, pass);
+            ItemInUseOverride inUse = ItemInUseOverride.apply(player, stack);
+            try {
+                if (item.requiresMultipleRenderPasses()) {
+                    for (int pass = 0; pass < item.getRenderPasses(stack.getItemDamage()); pass++) {
+                        renderPass(player, stack, pass);
+                    }
+                } else {
+                    renderPass(player, stack, 0);
                 }
-            } else {
-                renderPass(player, stack, 0);
+            } finally {
+                if (inUse != null) {
+                    inUse.restore(player);
+                }
             }
         } finally {
             GL11.glFrontFace(GL11.GL_CCW);

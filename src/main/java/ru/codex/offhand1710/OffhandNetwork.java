@@ -17,5 +17,6 @@ public final class OffhandNetwork {
         channel.registerMessage(ClientUseResultHandler.class, OffhandMessages.UseResult.class, 3, Side.CLIENT);
         channel.registerMessage(OffhandMessages.CreativeSetHandler.class, OffhandMessages.CreativeSet.class, 4,
                 Side.SERVER);
+        channel.registerMessage(OffhandMessages.ReleaseHandler.class, OffhandMessages.Release.class, 5, Side.SERVER);
     }
 }

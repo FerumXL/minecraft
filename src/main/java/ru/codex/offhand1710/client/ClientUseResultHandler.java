@@ -4,6 +4,7 @@ import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
 import net.minecraft.client.Minecraft;
+import ru.codex.offhand1710.OffhandInventory;
 import ru.codex.offhand1710.OffhandMessages;
 
 public final class ClientUseResultHandler implements IMessageHandler<OffhandMessages.UseResult, IMessage> {
@@ -13,7 +14,24 @@ public final class ClientUseResultHandler implements IMessageHandler<OffhandMess
             @Override
             public void run() {
                 Minecraft mc = Minecraft.getMinecraft();
-                if (OffhandUseHandler.consumePredicted(message.sequence) || mc.thePlayer == null) {
+                if (mc.thePlayer == null) {
+                    return;
+                }
+                OffhandInventory offhand = OffhandInventory.get(mc.thePlayer);
+                if ((message.flags & OffhandMessages.RESULT_START_USE) != 0) {
+                    OffhandUseHandler.consumePredicted(message.sequence);
+                    offhand.useCount = message.useCount;
+                    OffhandClientState.startUse(offhand.getStack());
+                    return;
+                }
+                if ((message.flags & OffhandMessages.RESULT_STOP_USE) != 0) {
+                    if ((message.flags & OffhandMessages.RESULT_FINISHED) != 0) {
+                        OffhandClientState.finishUse(mc.thePlayer);
+                    }
+                    offhand.useCount = 0;
+                    return;
+                }
+                if (OffhandUseHandler.consumePredicted(message.sequence)) {
                     return; // already animated when the click was predicted on the client
                 }
                 if ((message.flags & OffhandMessages.RESULT_SWING) != 0) {
