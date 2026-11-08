@@ -1,0 +1,11 @@
+{
+  "item.shovel.flatten": {
+    "category": "block",
+    "sounds": [
+      "item/shovel/flatten1",
+      "item/shovel/flatten2",
+      "item/shovel/flatten3",
+      "item/shovel/flatten4"
+    ]
+  }
+}

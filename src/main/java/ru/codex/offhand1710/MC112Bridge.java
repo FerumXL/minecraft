@@ -13,8 +13,9 @@ import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
+import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.6.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.7.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -41,6 +42,7 @@ public final class MC112Bridge {
         OffhandEvents events = new OffhandEvents();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(events);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(events);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new PortedEvents());
         proxy.preInitialize();
     }
 
@@ -51,6 +53,7 @@ public final class MC112Bridge {
                 .setTextureName(MOD_ID + ":iron_nugget")
                 .setCreativeTab(CreativeTabs.tabMaterials);
         GameRegistry.registerItem(ironNugget, "iron_nugget");
+        OreDictionary.registerOre("nuggetIron", ironNugget);
 
         // Match the vanilla 1.12.2 conversion recipes without replacing vanilla items.
         GameRegistry.addShapelessRecipe(new net.minecraft.item.ItemStack(ironNugget, 9),
@@ -58,22 +61,21 @@ public final class MC112Bridge {
         GameRegistry.addShapedRecipe(new net.minecraft.item.ItemStack(Items.iron_ingot),
                 "nnn", "nnn", "nnn", 'n', ironNugget);
 
-        addIronScrapSmelting();
+        addNuggetSmelting();
         registerConcreteBlocks();
         registerConcreteRecipes();
         registerGlazedTerracotta();
         registerMagmaBlock();
+        PortedBlocks.register();
     }
 
     private void registerConcreteBlocks() {
         for (int i = 0; i < COLOR_NAMES.length; i++) {
             String color = COLOR_NAMES[i];
-            concrete[i] = new BlockConcrete(color, false);
+            concrete[i] = new BlockConcrete(color, i);
             GameRegistry.registerBlock(concrete[i], "concrete_" + color);
 
-            concretePowder[i] = new BlockConcretePowder(concrete[i],
-                    MOD_ID + ".concrete_powder_" + color,
-                    MOD_ID + ":concrete_powder_" + color);
+            concretePowder[i] = new BlockConcretePowder(concrete[i], color, i);
             GameRegistry.registerBlock(concretePowder[i], "concrete_powder_" + color);
         }
     }
@@ -90,7 +92,7 @@ public final class MC112Bridge {
     private void registerGlazedTerracotta() {
         for (int i = 0; i < COLOR_NAMES.length; i++) {
             String color = COLOR_NAMES[i];
-            glazedTerracotta[i] = new BlockGlazedTerracotta(color);
+            glazedTerracotta[i] = new BlockGlazedTerracotta(color, i);
             GameRegistry.registerBlock(glazedTerracotta[i], "glazed_terracotta_" + color);
             GameRegistry.addSmelting(new ItemStack(Blocks.stained_hardened_clay, 1, i),
                     new ItemStack(glazedTerracotta[i]), 0.1F);
@@ -104,16 +106,29 @@ public final class MC112Bridge {
                 "mm", "mm", 'm', Items.magma_cream);
     }
 
-    private void addIronScrapSmelting() {
-        net.minecraft.item.ItemStack nugget = new net.minecraft.item.ItemStack(ironNugget);
-        GameRegistry.addSmelting(Items.iron_sword, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_pickaxe, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_shovel, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_axe, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_hoe, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_helmet, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_chestplate, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_leggings, nugget, 0.1F);
-        GameRegistry.addSmelting(Items.iron_boots, nugget, 0.1F);
+    /**
+     * 1.12.2 furnace recipes: iron tools, iron and chainmail armor and iron horse armor give an iron nugget;
+     * the golden ones give a gold nugget (0.1 experience each).
+     */
+    private void addNuggetSmelting() {
+        ItemStack iron = new ItemStack(ironNugget);
+        Item[] ironItems = {
+                Items.iron_pickaxe, Items.iron_shovel, Items.iron_axe, Items.iron_hoe, Items.iron_sword,
+                Items.iron_helmet, Items.iron_chestplate, Items.iron_leggings, Items.iron_boots,
+                Items.iron_horse_armor,
+                Items.chainmail_helmet, Items.chainmail_chestplate, Items.chainmail_leggings, Items.chainmail_boots
+        };
+        for (Item item : ironItems) {
+            GameRegistry.addSmelting(item, iron, 0.1F);
+        }
+        ItemStack gold = new ItemStack(Items.gold_nugget);
+        Item[] goldItems = {
+                Items.golden_pickaxe, Items.golden_shovel, Items.golden_axe, Items.golden_hoe, Items.golden_sword,
+                Items.golden_helmet, Items.golden_chestplate, Items.golden_leggings, Items.golden_boots,
+                Items.golden_horse_armor
+        };
+        for (Item item : goldItems) {
+            GameRegistry.addSmelting(item, gold, 0.1F);
+        }
     }
 }
