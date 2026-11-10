@@ -1,0 +1,13 @@
+* text=auto eol=lf
+
+# Windows scripts keep CRLF so cmd.exe parses them correctly
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.jar binary
+*.png binary
+*.ogg binary
+*.nbt binary
+*.class binary
+*.zip binary

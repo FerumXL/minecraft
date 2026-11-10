@@ -238,7 +238,7 @@ public final class MansionGenerator implements IWorldGenerator {
     private ChunkProviderGenerate probe;
     private long probeSeed;
 
-    private static boolean isGrid(World world, int chunkX, int chunkZ) {
+    static boolean isGrid(World world, int chunkX, int chunkZ) {
         int regionX = (chunkX < 0 ? chunkX - 79 : chunkX) / 80;
         int regionZ = (chunkZ < 0 ? chunkZ - 79 : chunkZ) / 80;
         Random random = world.setRandomSeed(regionX, regionZ, SEED);

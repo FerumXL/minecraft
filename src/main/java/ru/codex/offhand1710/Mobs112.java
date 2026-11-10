@@ -121,6 +121,9 @@ public final class Mobs112 {
             player.addPotionEffect(new PotionEffect(Potion.regeneration.id, 900, 1));
             player.addPotionEffect(new PotionEffect(Potion.field_76444_x.id, 100, 1));
             player.worldObj.playSoundAtEntity(player, MC112Bridge.MOD_ID + ":item.totem.use", 1.0F, 1.0F);
+            if (player instanceof net.minecraft.entity.player.EntityPlayerMP) {
+                Data112.trigger((net.minecraft.entity.player.EntityPlayerMP) player, "used_totem");
+            }
         }
     }
 

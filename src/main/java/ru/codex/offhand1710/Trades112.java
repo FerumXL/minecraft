@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.Random;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -43,12 +46,19 @@ public final class Trades112 {
     private Trades112() {
     }
 
+    private static final class State {
+        final Map<MerchantRecipe, Integer> uses = new IdentityHashMap<MerchantRecipe, Integer>();
+        boolean pending;
+        boolean trading;
+    }
+
     private static final class Trade {
         String kind;
         ItemStack first;
         int low;
         int high;
         ItemStack second;
+        String structure;
         int low2;
         int high2;
     }
@@ -84,6 +94,10 @@ public final class Trades112 {
                     trade.first = stack(p[4], p[5]);
                     trade.low = Integer.parseInt(p[6]);
                     trade.high = Integer.parseInt(p[7]);
+                } else if ("MAP".equals(p[3])) {
+                    trade.structure = p[4];
+                    trade.low = Integer.parseInt(p[5]);
+                    trade.high = Integer.parseInt(p[6]);
                 } else if ("PROC".equals(p[3])) {
                     trade.first = stack(p[4], p[5]);
                     trade.low = Integer.parseInt(p[6]);
@@ -116,7 +130,7 @@ public final class Trades112 {
         return low >= high ? low : low + random.nextInt(high - low + 1);
     }
 
-    private static void add(Trade t, MerchantRecipeList list, Random random) {
+    private static void add(Trade t, MerchantRecipeList list, Random random, EntityVillager villager) {
         ItemStack emerald = new ItemStack(Items.emerald);
         if ("BUY".equals(t.kind)) {
             ItemStack buy = t.first.copy();
@@ -151,7 +165,12 @@ public final class Trades112 {
             list.add(new MerchantRecipe(new ItemStack(Items.book), new ItemStack(Items.emerald, Math.min(price, 64)),
                     Items.enchanted_book.getEnchantedItemStack(new EnchantmentData(e, level))));
         }
-        // MAP (explorer maps of the cartographer) is not available: 1.7.10 has no decorated maps.
+        if ("MAP".equals(t.kind)) {
+            ItemStack map = Maps112.explorerMap(villager.worldObj, t.structure, (int) villager.posX, (int) villager.posZ);
+            if (map != null) {
+                list.add(new MerchantRecipe(new ItemStack(Items.emerald, roll(random, t.low, t.high)), new ItemStack(Items.compass), map));
+            }
+        }
     }
 
     private static MerchantRecipeList list(EntityVillager villager) {
@@ -184,7 +203,7 @@ public final class Trades112 {
         List<List<Trade>> levels = careers.get(Math.min(career - 1, careers.size() - 1));
         if (level - 1 < levels.size()) {
             for (Trade trade : levels.get(level - 1)) {
-                add(trade, list, villager.worldObj.rand);
+                add(trade, list, villager.worldObj.rand, villager);
             }
         }
     }
@@ -217,6 +236,55 @@ public final class Trades112 {
             }
         }
 
+        private final Map<EntityVillager, State> states = new WeakHashMap<EntityVillager, State>();
+
+        /**
+         * EntityVillager.useRecipe of 1.12.2 refreshes after the first use of any trade or with a chance of 1 in 5,
+         * 1.7.10 only after the last trade in the list. Uses are noticed here and the vanilla decision is replaced.
+         */
+        private void watch(EntityVillager villager) {
+            State state = states.get(villager);
+            if (state == null) {
+                state = new State();
+                states.put(villager, state);
+            }
+            boolean trading = villager.isTrading();
+            MerchantRecipeList list = list(villager);
+            if ((trading || state.trading) && list != null) {
+                boolean used = false;
+                boolean refresh = false;
+                for (Object o : list) {
+                    MerchantRecipe recipe = (MerchantRecipe) o;
+                    int uses = ReflectionHelper.<Integer, MerchantRecipe>getPrivateValue(MerchantRecipe.class, recipe, "toolUses", "field_77400_d");
+                    Integer known = state.uses.get(recipe);
+                    int old = known == null ? uses : known;
+                    state.uses.put(recipe, uses);
+                    while (old < uses) {
+                        old++;
+                        used = true;
+                        refresh |= old == 1 || villager.worldObj.rand.nextInt(5) == 0;
+                    }
+                }
+                if (used && villager.getCustomer() instanceof net.minecraft.entity.player.EntityPlayerMP) {
+                    Data112.trigger((net.minecraft.entity.player.EntityPlayerMP) villager.getCustomer(), "villager_trade");
+                }
+                if (refresh) {
+                    state.pending = true;
+                    ReflectionHelper.setPrivateValue(EntityVillager.class, villager, Integer.valueOf(40), "timeUntilReset", "field_70961_j");
+                    if (villager.getCustomer() != null) {
+                        ReflectionHelper.setPrivateValue(EntityVillager.class, villager, villager.getCustomer().getCommandSenderName(), "lastBuyingPlayer", "field_82189_bL");
+                    }
+                }
+                if (used) {
+                    ReflectionHelper.setPrivateValue(EntityVillager.class, villager, Boolean.valueOf(state.pending), "needsInitilization", "field_70959_by");
+                    if (!state.pending) {
+                        ReflectionHelper.setPrivateValue(EntityVillager.class, villager, Integer.valueOf(0), "timeUntilReset", "field_70961_j");
+                    }
+                }
+            }
+            state.trading = trading;
+        }
+
         /** Runs just before EntityVillager.updateAITasks would add a random vanilla trade. */
         @SubscribeEvent
         public void onUpdate(LivingUpdateEvent event) {
@@ -224,12 +292,17 @@ public final class Trades112 {
                 return;
             }
             EntityVillager villager = (EntityVillager) event.entityLiving;
+            watch(villager);
             boolean pending = ReflectionHelper.<Boolean, EntityVillager>getPrivateValue(EntityVillager.class, villager, "needsInitilization", "field_70959_by");
             int timer = ReflectionHelper.<Integer, EntityVillager>getPrivateValue(EntityVillager.class, villager, "timeUntilReset", "field_70961_j");
             if (!pending || timer != 1 || villager.isTrading() || villager.getProfession() >= TABLE.size()) {
                 return;
             }
             ReflectionHelper.setPrivateValue(EntityVillager.class, villager, Boolean.FALSE, "needsInitilization", "field_70959_by");
+            State state = states.get(villager);
+            if (state != null) {
+                state.pending = false;
+            }
             MerchantRecipeList list = list(villager);
             if (list != null) {
                 for (Object o : list) {

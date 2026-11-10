@@ -2,18 +2,19 @@
 
 ## Последняя версия
 
-[Скачать mc112bridge-0.22.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.22.0/mc112bridge-0.22.0.jar)
+[Скачать mc112bridge-0.29.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.29.0/mc112bridge-0.29.0.jar)
 
 Что изменилось: [CHANGELOG.md](CHANGELOG.md).
 
 Для Forge **1.7.10-10.13.4.1614**. Закрой игру, помести JAR в папку `.minecraft/mods` профиля Forge и запусти Minecraft. В папке mods должен быть только один файл `mc112bridge-*.jar`. С версии 0.6.0 левая рука работает как в 1.12.2: слот в инвентаре, F меняет предметы в руках, ПКМ использует левую руку, если основная ничего не сделала. В 0.5.0 были клавиши G (обмен) и V (использование).
 
-Сборка из исходников: `gradlew.bat build --offline` (Java 8, ForgeGradle 1.2). Для игры нужен `build/release/mc112bridge-<версия>.jar`, а не `build/libs`.
+Сборка из исходников: сначала `python tools/fetch-assets.py` (восстанавливает 984 файла Mojang из установленного 1.12.2, по умолчанию из `%APPDATA%\.minecraft`), затем `gradlew.bat build --offline` (Java 8, ForgeGradle 1.2). Для игры нужен `build/release/mc112bridge-<версия>.jar`, а не `build/libs`. Без шага с fetch-assets не будет достижений, книги рецептов и части текстур.
 
 ## Архив тестовых версий
 
 | Версия | Скачать | Состав |
 |---|---|---|
+| 0.22.0 | [mc112bridge-0.22.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.22.0/mc112bridge-0.22.0.jar) | Лодки, баннеры, слизь, наблюдатель, чары, торговля 1.8 |
 | 0.18.0 | [mc112bridge-0.18.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.18.0/mc112bridge-0.18.0.jar) | Блоки и предметы: свёкла, ящики шалкера, стойки, кровати |
 | 0.13.0 | [mc112bridge-0.13.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.13.0/mc112bridge-0.13.0.jar) | Океанские монументы и стражи |
 | 0.12.0 | [mc112bridge-0.12.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.12.0/mc112bridge-0.12.0.jar) | Иглу, потолок элитр, исправление вылета при генерации |

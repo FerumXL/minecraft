@@ -14,6 +14,16 @@ import net.minecraft.world.World;
  * cooldown after an axe hit. Blocking itself is in ShieldMechanics; drawing in client.ShieldRenderer.
  */
 public final class ItemShield extends Item {
+    /** ItemShield.getItemStackDisplayName: a decorated shield is named after its colour. */
+    @Override
+    public String getItemStackDisplayName(net.minecraft.item.ItemStack stack) {
+        if (stack.hasTagCompound() && stack.getTagCompound().hasKey("BlockEntityTag")) {
+            int base = stack.getTagCompound().getCompoundTag("BlockEntityTag").getInteger("Base") & 15;
+            return net.minecraft.util.StatCollector.translateToLocal("item.shield." + Banner112.COLOR_KEYS[15 - base] + ".name");
+        }
+        return super.getItemStackDisplayName(stack);
+    }
+
     public ItemShield() {
         setMaxStackSize(1);
         setMaxDamage(336);

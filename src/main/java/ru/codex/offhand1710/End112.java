@@ -674,7 +674,7 @@ public final class End112 implements IWorldGenerator {
     private ChunkProviderEnd probe;
     private long probeSeed;
 
-    private static boolean isGrid(World world, int chunkX, int chunkZ) {
+    static boolean isGrid(World world, int chunkX, int chunkZ) {
         int regionX = (chunkX < 0 ? chunkX - 19 : chunkX) / 20;
         int regionZ = (chunkZ < 0 ? chunkZ - 19 : chunkZ) / 20;
         Random random = world.setRandomSeed(regionX, regionZ, SEED);

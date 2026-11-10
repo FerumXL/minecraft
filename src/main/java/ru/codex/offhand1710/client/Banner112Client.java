@@ -15,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelBase;
 import net.minecraft.client.model.ModelRenderer;
 import net.minecraft.client.renderer.entity.Render;
+import net.minecraft.client.renderer.entity.RenderItem;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 import net.minecraft.entity.Entity;
@@ -50,13 +51,105 @@ final class Banner112Client {
                 return texture;
             }
         });
+        RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.Brew112.TippedArrow.class, new net.minecraft.client.renderer.entity.RenderArrow() {
+            private final ResourceLocation texture = new ResourceLocation(DOMAIN, "textures/entity/projectiles/tipped_arrow.png");
+
+            @Override
+            protected ResourceLocation getEntityTexture(net.minecraft.entity.projectile.EntityArrow arrow) {
+                return texture;
+            }
+        });
+        RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.Brew112.ThrownLingering.class, new net.minecraft.client.renderer.entity.RenderSnowball(ru.codex.offhand1710.Brew112.lingering, 16384));
+        RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.Brew112.DragonFireball.class, new net.minecraft.client.renderer.entity.RenderSnowball(ru.codex.offhand1710.Brew112.dragonBreath));
+        RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.Brew112.Cloud.class, new Render() {
+            @Override
+            public void doRender(Entity entity, double x, double y, double z, float yaw, float partial) {
+            }
+
+            @Override
+            protected ResourceLocation getEntityTexture(Entity entity) {
+                return null;
+            }
+        });
         BannerRenderer banners = new BannerRenderer();
         ClientRegistry.bindTileEntitySpecialRenderer(Banner112.BannerTile.class, banners);
         MinecraftForgeClient.registerItemRenderer(Banner112.banner, banners);
     }
 
-    /** bpj. */
-    private static final class BoatModel extends ModelBase {
+    private static final int MAX_CACHED = 256;
+    private static final ResourceLocation FALLBACK = new ResourceLocation(DOMAIN, "textures/entity/banner/base.png");
+    private static final Map<String, ResourceLocation> CACHE = new HashMap<String, ResourceLocation>();
+
+    private static BufferedImage read(String path) throws IOException {
+        InputStream in = Minecraft.getMinecraft().getResourceManager().getResource(new ResourceLocation(DOMAIN, path)).getInputStream();
+        try {
+            return ImageIO.read(in);
+        } finally {
+            in.close();
+        }
+    }
+
+    private static void layer(BufferedImage result, BufferedImage base, String mask, int color) throws IOException {
+        BufferedImage image = read(mask);
+        BufferedImage painted = new BufferedImage(result.getWidth(), result.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        int cr = color >> 16 & 255;
+        int cg = color >> 8 & 255;
+        int cb = color & 255;
+        for (int y = 0; y < result.getHeight(); y++) {
+            for (int x = 0; x < result.getWidth(); x++) {
+                int m = image.getRGB(x, y);
+                if ((m & 0xFF000000) != 0) {
+                    int b = base.getRGB(x, y);
+                    painted.setRGB(x, y, (m & 0xFF0000) << 8 | ((b >> 16 & 255) * cr / 255) << 16 | ((b >> 8 & 255) * cg / 255) << 8 | (b & 255) * cb / 255);
+                }
+            }
+        }
+        Graphics g = result.getGraphics();
+        g.drawImage(painted, 0, 0, null);
+        g.dispose();
+    }
+
+    /** BannerTextures with LayeredColorMaskTexture, for banners and shields. */
+    static ResourceLocation layered(String basePath, String maskDir, int baseColor, NBTTagList patterns) {
+        StringBuilder key = new StringBuilder(basePath).append(baseColor);
+        int count = patterns == null ? 0 : Math.min(patterns.tagCount(), Banner112.MAX_PATTERNS);
+        for (int i = 0; i < count; i++) {
+            NBTTagCompound entry = patterns.getCompoundTagAt(i);
+            key.append(entry.getString("Pattern")).append(entry.getInteger("Color") & 15).append(';');
+        }
+        String name = key.toString();
+        ResourceLocation found = CACHE.get(name);
+        if (found != null) {
+            return found;
+        }
+        if (CACHE.size() >= MAX_CACHED) {
+            return FALLBACK;
+        }
+        ResourceLocation location = FALLBACK;
+        try {
+            BufferedImage base = read(basePath);
+            BufferedImage result = new BufferedImage(base.getWidth(), base.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics g = result.getGraphics();
+            g.drawImage(base, 0, 0, null);
+            g.dispose();
+            layer(result, base, maskDir + "base.png", Banner112.COLOR_VALUES[baseColor & 15]);
+            for (int i = 0; i < count; i++) {
+                NBTTagCompound entry = patterns.getCompoundTagAt(i);
+                Banner112.Pattern pattern = Banner112.byCode(entry.getString("Pattern"));
+                if (pattern != null) {
+                    layer(result, base, maskDir + pattern.name + ".png", Banner112.COLOR_VALUES[entry.getInteger("Color") & 15]);
+                }
+            }
+            location = new ResourceLocation(DOMAIN, "layered/" + CACHE.size());
+            Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(result));
+        } catch (IOException e) {
+            location = FALLBACK;
+        }
+        CACHE.put(name, location);
+        return location;
+    }
+
+    /** bpj. */    private static final class BoatModel extends ModelBase {
         final ModelRenderer[] hull = new ModelRenderer[5];
         final ModelRenderer[] paddles = new ModelRenderer[2];
         final ModelRenderer mask;
@@ -184,82 +277,8 @@ final class Banner112Client {
 
     /** TileEntityBannerRenderer with BannerTextures and LayeredColorMaskTexture. */
     private static final class BannerRenderer extends TileEntitySpecialRenderer implements IItemRenderer {
-        private static final int MAX_CACHED = 256;
-        private static final ResourceLocation FALLBACK = new ResourceLocation(DOMAIN, "textures/entity/banner/base.png");
         private final BannerModel model = new BannerModel();
-        private final Map<String, ResourceLocation> cache = new HashMap<String, ResourceLocation>();
-        private final float scale = 0.6666667F;
-
-        private static BufferedImage read(String path) throws IOException {
-            InputStream in = Minecraft.getMinecraft().getResourceManager().getResource(new ResourceLocation(DOMAIN, path)).getInputStream();
-            try {
-                return ImageIO.read(in);
-            } finally {
-                in.close();
-            }
-        }
-
-        private static void layer(BufferedImage result, BufferedImage base, String pattern, int color) throws IOException {
-            BufferedImage mask = read("textures/entity/banner/" + pattern + ".png");
-            BufferedImage painted = new BufferedImage(result.getWidth(), result.getHeight(), BufferedImage.TYPE_INT_ARGB);
-            int cr = color >> 16 & 255;
-            int cg = color >> 8 & 255;
-            int cb = color & 255;
-            for (int y = 0; y < result.getHeight(); y++) {
-                for (int x = 0; x < result.getWidth(); x++) {
-                    int m = mask.getRGB(x, y);
-                    if ((m & 0xFF000000) != 0) {
-                        int b = base.getRGB(x, y);
-                        int r = (b >> 16 & 255) * cr / 255;
-                        int g = (b >> 8 & 255) * cg / 255;
-                        int bl = (b & 255) * cb / 255;
-                        painted.setRGB(x, y, (m & 0xFF0000) << 8 | r << 16 | g << 8 | bl);
-                    }
-                }
-            }
-            Graphics g = result.getGraphics();
-            g.drawImage(painted, 0, 0, null);
-            g.dispose();
-        }
-
-        private ResourceLocation texture(int baseColor, NBTTagList patterns) {
-            StringBuilder key = new StringBuilder("b").append(baseColor);
-            int count = patterns == null ? 0 : Math.min(patterns.tagCount(), Banner112.MAX_PATTERNS);
-            for (int i = 0; i < count; i++) {
-                NBTTagCompound entry = patterns.getCompoundTagAt(i);
-                key.append(entry.getString("Pattern")).append(entry.getInteger("Color") & 15).append(';');
-            }
-            String name = key.toString();
-            ResourceLocation found = cache.get(name);
-            if (found != null) {
-                return found;
-            }
-            if (cache.size() >= MAX_CACHED) {
-                return FALLBACK;
-            }
-            ResourceLocation location = FALLBACK;
-            try {
-                BufferedImage base = read("textures/entity/banner_base.png");
-                BufferedImage result = new BufferedImage(base.getWidth(), base.getHeight(), BufferedImage.TYPE_INT_ARGB);
-                Graphics g = result.getGraphics();
-                g.drawImage(base, 0, 0, null);
-                g.dispose();
-                layer(result, base, "base", Banner112.COLOR_VALUES[baseColor & 15]);
-                for (int i = 0; i < count; i++) {
-                    NBTTagCompound entry = patterns.getCompoundTagAt(i);
-                    Banner112.Pattern pattern = Banner112.byCode(entry.getString("Pattern"));
-                    if (pattern != null) {
-                        layer(result, base, pattern.name, Banner112.COLOR_VALUES[entry.getInteger("Color") & 15]);
-                    }
-                }
-                location = new ResourceLocation(DOMAIN, "banner/" + name.hashCode() + "_" + cache.size());
-                Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(result));
-            } catch (IOException e) {
-                location = FALLBACK;
-            }
-            cache.put(name, location);
-            return location;
-        }
+                private final float scale = 0.6666667F;
 
         private void drawModel(ResourceLocation texture) {
             Minecraft.getMinecraft().getTextureManager().bindTexture(texture);
@@ -299,7 +318,7 @@ final class Banner112Client {
             }
             float time = (float) (tile.xCoord * 7 + tile.yCoord * 9 + tile.zCoord * 13) + (float) tile.getWorldObj().getTotalWorldTime() + partial;
             model.slate.rotateAngleX = (-0.0125F + 0.01F * MathHelper.cos(time * 3.1415927F * 0.02F)) * 3.1415927F;
-            drawModel(texture(banner.base, banner.patterns));
+            drawModel(layered("textures/entity/banner_base.png", "textures/entity/banner/", banner.base, banner.patterns));
             GL11.glPopMatrix();
         }
 
@@ -310,25 +329,72 @@ final class Banner112Client {
 
         @Override
         public boolean shouldUseRenderHelper(ItemRenderType type, ItemStack stack, ItemRendererHelper helper) {
-            return true;
+            return helper == ItemRendererHelper.EQUIPPED_BLOCK || helper == ItemRendererHelper.ENTITY_ROTATION || helper == ItemRendererHelper.ENTITY_BOBBING
+                    || (helper == ItemRendererHelper.BLOCK_3D && type == ItemRenderType.ENTITY);
         }
 
+        // Display transforms of models/item/banner.json: translation in pixels, rotation, scale.
+        private static final float[] FIRST = {0, 0, 0, 0, 90, 0, 0.375F, 0.375F, 0.375F};
+        private static final float[] THIRD = {0, 2, 0.5F, 0, 90, 0, 0.375F, 0.375F, 0.375F};
+        private static final float[] GUI = {0, -3.25F, 0, 30, 20, 0, 0.5325F, 0.5325F, 0.5325F};
+
         @Override
-        public void renderItem(ItemRenderType type, ItemStack stack, Object... data) {
-            NBTTagList patterns = null;
+        public void renderItem(ItemRenderType type, final ItemStack stack, Object... data) {
+            NBTTagList list = null;
             if (stack.hasTagCompound() && stack.getTagCompound().hasKey("BlockEntityTag")) {
-                patterns = stack.getTagCompound().getCompoundTag("BlockEntityTag").getTagList("Patterns", 10);
+                list = stack.getTagCompound().getCompoundTag("BlockEntityTag").getTagList("Patterns", 10);
             }
-            GL11.glPushMatrix();
-            if (type == ItemRenderType.EQUIPPED || type == ItemRenderType.EQUIPPED_FIRST_PERSON) {
-                GL11.glTranslatef(0.5F, 0.5F, 0.5F);
-            }
-            GL11.glScalef(0.55F, 0.55F, 0.55F);
-            GL11.glTranslatef(0.0F, -0.41F, 0.0F);
+            final ResourceLocation texture = layered("textures/entity/banner_base.png", "textures/entity/banner/", stack.getItemDamage(), list);
             model.stand.showModel = true;
             model.slate.rotateAngleX = 0.0F;
-            drawModel(texture(stack.getItemDamage(), patterns));
+            Runnable body = new Runnable() {
+                @Override
+                public void run() {
+                    drawModel(texture);
+                }
+            };
+            GL11.glPushMatrix();
+            switch (type) {
+                case INVENTORY:
+                    ShieldRenderer.renderInventory(GUI, body);
+                    break;
+                case EQUIPPED_FIRST_PERSON:
+                    // Undoes the 1.7.10 first person scale and turn, as the shield does.
+                    GL11.glTranslatef(0.5F, 0.5F, 0.5F);
+                    GL11.glScalef(2.5F, 2.5F, 2.5F);
+                    GL11.glRotatef(-45.0F, 0.0F, 1.0F, 0.0F);
+                    ShieldRenderer.applyDisplay(FIRST, false);
+                    body.run();
+                    break;
+                case EQUIPPED:
+                    // Back to the right arm, then LayerHeldItem and the display transform.
+                    GL11.glTranslatef(0.5F, 0.5F, 0.5F);
+                    GL11.glRotatef(-20.0F, 0.0F, 0.0F, 1.0F);
+                    GL11.glRotatef(90.0F, 1.0F, 0.0F, 0.0F);
+                    GL11.glRotatef(-60.0F, 0.0F, 0.0F, 1.0F);
+                    GL11.glScalef(1.0F / 0.375F, 1.0F / 0.375F, 1.0F / 0.375F);
+                    GL11.glTranslatef(-0.25F, -0.1875F, 0.1875F);
+                    GL11.glTranslatef(0.0625F, -0.4375F, -0.0625F);
+                    GL11.glRotatef(-90.0F, 1.0F, 0.0F, 0.0F);
+                    GL11.glRotatef(180.0F, 0.0F, 1.0F, 0.0F);
+                    GL11.glTranslatef(0.0625F, 0.125F, -0.625F);
+                    ShieldRenderer.applyDisplay(THIRD, false);
+                    body.run();
+                    break;
+                default:
+                    if (RenderItem.renderInFrame) {
+                        GL11.glTranslatef(0.0F, 0.25F + 0.25F, 0.0F);
+                    } else {
+                        // Ground transform of banner.json: scale 0.25, translation 1/16. Forge has scaled by 0.5
+                        // (an item drawn as a 3D block), the other half is here. The foot of the pole is half a
+                        // unit under the origin, that is 0.125 of a block: exactly the height of the item entity's
+                        // position over its bottom in 1.7.10, so the pole stands on the ground as it does in 1.12
+                        // and no translation is left.
+                        GL11.glScalef(0.5F, 0.5F, 0.5F);
+                    }
+                    body.run();
+                    break;
+            }
             GL11.glPopMatrix();
-        }
-    }
+        }    }
 }

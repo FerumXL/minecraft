@@ -69,7 +69,7 @@ public final class Audit112 {
     }
 
     static void start() {
-        if (STAGE != null) {
+        if ("new".equals(STAGE) || "reload".equals(STAGE)) {
             Audit112 audit = new Audit112();
             FMLCommonHandler.instance().bus().register(audit);
         }
@@ -166,6 +166,16 @@ public final class Audit112 {
         }
     }
 
+    private int glowCount() {
+        int n = 0;
+        for (Object o : mc.theWorld.loadedEntityList) {
+            if (ru.codex.offhand1710.Maps112.isGlowing((Entity) o)) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private void shot(String name) {
         log("SHOT " + name + " screen=" + mc.currentScreen);
         ScreenShotHelper.saveScreenshot(mc.mcDataDir, "audit-" + name + ".png", mc.displayWidth, mc.displayHeight, mc.getFramebuffer());
@@ -206,6 +216,36 @@ public final class Audit112 {
             case 4:
                 shot("food");
                 mc.displayGuiScreen(null);
+                ru.codex.offhand1710.client.Client122.leftHand = true;
+                ru.codex.offhand1710.client.Client122.subtitles = true;
+                mc.theWorld.playSound(mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ, "random.click", 1.0F, 1.0F, false);
+                break;
+            case 5:
+                // captions live 3 s (Client122), so they are counted one step (2 s) after the sound, not at step 9
+                log((ru.codex.offhand1710.client.Client122.captionCount() > 0 ? "PASS" : "FAIL") + " subtitles captions=" + ru.codex.offhand1710.client.Client122.captionCount());
+                shot("left");
+                log("GLOW drawn=" + ru.codex.offhand1710.client.GlowOutline.lastDrawn + " fbo=" + net.minecraft.client.renderer.OpenGlHelper.isFramebufferEnabled() + " flagged=" + glowCount());
+                ru.codex.offhand1710.client.DataClient.openAdvancements();
+                break;
+            case 6:
+                shot("adv");
+                mc.displayGuiScreen(null);
+                mc.thePlayer.sendChatMessage("/gamemode 0");
+                break;
+            case 7:
+                ru.codex.offhand1710.client.DataClient.openBook();
+                mc.displayGuiScreen(new net.minecraft.client.gui.inventory.GuiInventory(mc.thePlayer));
+                break;
+            case 8:
+                shot("book");
+                mc.displayGuiScreen(null);
+                mc.thePlayer.sendChatMessage("/gamemode 1");
+                break;
+            case 9:
+                mc.displayGuiScreen(null);
+                log("PASS stopsound ran stopped=" + ru.codex.offhand1710.client.Client122.stop("|"));
+                ru.codex.offhand1710.client.Client122.leftHand = false;
+                ru.codex.offhand1710.client.Client122.subtitles = false;
                 break;
             default:
                 wantShots = false;
@@ -246,6 +286,17 @@ public final class Audit112 {
         serverTicks++;
         WorldServer world = MinecraftServer.getServer().worldServers[0];
         observerWatch(world);
+        if (!player.capabilities.allowFlying || !player.capabilities.isFlying) {
+            player.capabilities.allowFlying = true;
+            player.capabilities.isFlying = true;
+            player.sendPlayerAbilities();
+        }
+        if (tradeVillager != null && tradeTick != 0 && serverTicks == tradeTick + 3) {
+            tradeVillager.useRecipe((net.minecraft.village.MerchantRecipe) tradeVillager.getRecipes(player).get(0));
+        }
+        if (tradeVillager != null && tradeTick != 0 && serverTicks == tradeTick + 6) {
+            tradeVillager.setCustomer(null);
+        }
         int cx = (int) Math.floor(player.posX);
         int cz = (int) Math.floor(player.posZ);
         if (step == 0 && serverTicks > 100) {
@@ -263,6 +314,40 @@ public final class Audit112 {
             step = 2;
             shotDelay = 1;
             wantShots = true;
+        } else if (step == 3 && dataCheck) {
+            dataCheck = false;
+            boolean adv = ru.codex.offhand1710.Data112.isDone(player, "minecraft:story/mine_stone") || ru.codex.offhand1710.Data112.isDone(player, "minecraft:story/root");
+            result("advancement from inventory", adv, "root=" + ru.codex.offhand1710.Data112.isDone(player, "minecraft:story/root") + " stone=" + ru.codex.offhand1710.Data112.isDone(player, "minecraft:story/mine_stone"));
+            result("recipe unlocked by advancement", ru.codex.offhand1710.Data112.knowsRecipe(player, "minecraft:stone_pickaxe") || ru.codex.offhand1710.client.DataClient.knownCount() > 0, "known=" + ru.codex.offhand1710.client.DataClient.knownCount());
+            result("function ran", world.getBlock(funcX, fy + 15, funcZ) == Blocks.gold_block, "");
+            MinecraftServer.getServer().getCommandManager().executeCommand(player, "recipe give " + player.getCommandSenderName() + " *");
+            player.inventory.mainInventory[20] = new ItemStack(Blocks.planks, 4, 0);
+            player.openContainer = player.inventoryContainer;
+            boolean filled = ru.codex.offhand1710.Data112.fill(player, "minecraft:crafting_table");
+            result("recipe book fills grid", filled && player.inventoryContainer.getSlot(1).getHasStack(), "");
+            player.inventoryContainer.getSlot(1).putStack(null);
+        } else if (step == 3 && cartCheck) {
+            cartCheck = false;
+            result("bought map has marker", boughtMap != null && ru.codex.offhand1710.Maps112.hasMarker(world, boughtMap), "");
+        } else if (step == 3 && mapStack != null) {
+            result("map marker", ru.codex.offhand1710.Maps112.hasMarker(world, mapStack), "");
+            mapStack = null;
+            result("glow flag on server", glowPig != null && ru.codex.offhand1710.Maps112.isGlowing(glowPig), "");
+        } else if (step == 3 && brX != 0 && genIndex == 0) {
+            net.minecraft.tileentity.TileEntityBrewingStand st = (net.minecraft.tileentity.TileEntityBrewingStand) world.getTileEntity(brX, fy, brZ);
+            ItemStack made = st.getStackInSlot(0);
+            result("brew result lingering", made != null && made.getItem() == ru.codex.offhand1710.Brew112.lingering, String.valueOf(made) + " other=" + st.getStackInSlot(1) + " ing=" + st.getStackInSlot(3));
+            brX = 0;
+            ru.codex.offhand1710.Brew112.Cloud cloud = (ru.codex.offhand1710.Brew112.Cloud) net.minecraft.entity.EntityList.createEntityByName("mc112bridge.AreaEffectCloud", world);
+            result("cloud created", cloud != null && cloud.radius() == 3.0F, "");
+        } else if (step == 3 && pistonRetract) {
+            pistonRetract = false;
+            result("slime pull", world.getBlock(pX + 1, fy, pZ) == ru.codex.offhand1710.Content119.slime && world.getBlock(pX + 1, fy + 1, pZ) == Blocks.planks && world.getBlock(pX + 2, fy, pZ) == Blocks.air && world.getBlock(pX, fy, pZ) == Blocks.sticky_piston, world.getBlock(pX + 1, fy, pZ) + " " + world.getBlock(pX + 2, fy, pZ));
+        } else if (step == 3 && tradeVillager != null && genIndex == 0) {
+            result("title on client", ru.codex.offhand1710.client.TitleOverlay.currentTitle().startsWith("Audit"), ru.codex.offhand1710.client.TitleOverlay.currentTitle());
+            int lvl = tradeVillager.getEntityData().getInteger("CareerLevel");
+            result("trades refresh after first use", lvl >= 3, "level=" + lvl);
+            tradeVillager = null;
         } else if (step == 3) {
         if (levelVillager != null && genIndex == 0) {
             boolean pending = cpw.mods.fml.relauncher.ReflectionHelper.<Boolean, net.minecraft.entity.passive.EntityVillager>getPrivateValue(net.minecraft.entity.passive.EntityVillager.class, levelVillager, "needsInitilization", "field_70959_by");
@@ -485,6 +570,8 @@ public final class Audit112 {
     }
     private net.minecraft.entity.passive.EntityVillager levelVillager;
     private int levelCount;
+    private net.minecraft.entity.passive.EntityVillager tradeVillager;
+    private int tradeTick;
 
     private void observerWatch(WorldServer world) {
         if (obsState == 1 && world.getBlock(obsX, obsY, obsZ) == ru.codex.offhand1710.Content119.observer && (world.getBlockMetadata(obsX, obsY, obsZ) & 8) != 0) {
@@ -500,6 +587,9 @@ public final class Audit112 {
         int filled = 0;
         for (int a = 0; a < 3; a++) for (int b = 0; b < 3; b++) for (int c = 0; c < 3; c++) if (world.getBlock(x + a, fy + b, cz + c) == ru.codex.offhand1710.Content119.slime) filled++;
         result("/fill", filled == 27, "filled=" + filled);
+        chainSetup(world, x, cz);
+        brewSetup(world, x, cz + 30);
+        pistonSetup(world, x, cz - 14);
         MinecraftServer.getServer().getCommandManager().executeCommand(player, "clone " + x + " " + fy + " " + cz + " " + (x + 2) + " " + (fy + 2) + " " + (cz + 2) + " " + (x + 5) + " " + fy + " " + cz);
         int cloned = 0;
         for (int a = 0; a < 3; a++) for (int b = 0; b < 3; b++) for (int c = 0; c < 3; c++) if (world.getBlock(x + 5 + a, fy + b, cz + c) == ru.codex.offhand1710.Content119.slime) cloned++;
@@ -586,6 +676,24 @@ public final class Audit112 {
         ItemStack done = CraftingManager.getInstance().findMatchingRecipe(bgrid, world);
         String code = done == null ? "null" : done.getTagCompound().getCompoundTag("BlockEntityTag").getTagList("Patterns", 10).getCompoundTagAt(0).getString("Pattern");
         result("banner pattern code", "ts".equals(code), code);
+        player.inventory.mainInventory[player.inventory.currentItem] = done;
+        player.inventoryContainer.detectAndSendChanges();
+        net.minecraft.inventory.InventoryCrafting sgrid = new net.minecraft.inventory.InventoryCrafting(new net.minecraft.inventory.Container() {
+            @Override
+            public boolean canInteractWith(net.minecraft.entity.player.EntityPlayer p) {
+                return false;
+            }
+        }, 3, 3);
+        sgrid.setInventorySlotContents(0, new ItemStack(ru.codex.offhand1710.PortedBlocks.shield));
+        sgrid.setInventorySlotContents(1, done);
+        ItemStack decorated = CraftingManager.getInstance().findMatchingRecipe(sgrid, world);
+        result("shield pattern", decorated != null && decorated.getTagCompound().getCompoundTag("BlockEntityTag").getTagList("Patterns", 10).tagCount() == 1 && decorated.getTagCompound().getCompoundTag("BlockEntityTag").getInteger("Base") == 15, String.valueOf(decorated));
+        player.inventory.mainInventory[(player.inventory.currentItem + 1) % 9] = decorated;
+        int[] monument = ru.codex.offhand1710.Content121.locate(world, "Monument", cx, cz);
+        int[] mansion = ru.codex.offhand1710.Content121.locate(world, "Mansion", cx, cz);
+        result("/locate", monument != null && mansion != null, (monument == null ? "null" : monument[0] + "," + monument[1]) + " mansion " + (mansion == null ? "null" : mansion[0] + "," + mansion[1]));
+        MinecraftServer.getServer().getCommandManager().executeCommand(player, "title " + player.getCommandSenderName() + " times 0 3000 0");
+        MinecraftServer.getServer().getCommandManager().executeCommand(player, "title " + player.getCommandSenderName() + " title Audit");
         // A placed banner with a pattern, seen by the screenshot in front of the player
         int by = BASE_Y + 1;
         for (int i = 0; i < 3; i++) {
@@ -618,7 +726,143 @@ public final class Audit112 {
         result("recipe " + name, out != null && out.getItem() == expected, String.valueOf(out));
     }
 
+    private int chX;
+    private int chZ;
+
+    private int pX;
+    private int pZ;
+    private boolean pistonRetract;
+
+    private void pistonSetup(WorldServer world, int x, int z) {
+        pX = x;
+        pZ = z;
+        world.setBlock(pX, fy, pZ, Blocks.sticky_piston, 5, 2);
+        world.setBlock(pX + 1, fy, pZ, ru.codex.offhand1710.Content119.slime, 0, 2);
+        world.setBlock(pX + 1, fy + 1, pZ, Blocks.planks, 0, 2);
+        world.setBlock(pX - 1, fy, pZ, Blocks.redstone_block, 0, 3);
+    }
+
+    private void pistonRelease(WorldServer world) {
+        result("slime push", world.getBlock(pX + 2, fy, pZ) == ru.codex.offhand1710.Content119.slime && world.getBlock(pX + 2, fy + 1, pZ) == Blocks.planks && world.getBlock(pX + 1, fy + 1, pZ) == Blocks.air && world.getBlock(pX + 1, fy, pZ) == Blocks.piston_head, "");
+        world.setBlock(pX - 1, fy, pZ, Blocks.air, 0, 3);
+        pistonRetract = true;
+    }
+
+    private int brX;
+    private int brZ;
+    private net.minecraft.entity.monster.EntityZombie cloudTarget;
+
+    private void brewSetup(WorldServer world, int x, int z) {
+        brX = x;
+        brZ = z;
+        world.setBlock(brX, fy, brZ, Blocks.brewing_stand, 0, 2);
+        net.minecraft.tileentity.TileEntityBrewingStand st = (net.minecraft.tileentity.TileEntityBrewingStand) world.getTileEntity(brX, fy, brZ);
+        st.setInventorySlotContents(0, new ItemStack(Items.potionitem, 1, 16386));
+        st.setInventorySlotContents(1, new ItemStack(Items.potionitem, 1, 8193));
+        st.setInventorySlotContents(3, new ItemStack(ru.codex.offhand1710.Brew112.dragonBreath));
+        // Vanilla brewing still works
+        world.setBlock(brX + 2, fy, brZ, Blocks.brewing_stand, 0, 2);
+        net.minecraft.tileentity.TileEntityBrewingStand v = (net.minecraft.tileentity.TileEntityBrewingStand) world.getTileEntity(brX + 2, fy, brZ);
+        v.setInventorySlotContents(0, new ItemStack(Items.potionitem, 1, 0));
+        v.setInventorySlotContents(3, new ItemStack(Items.nether_wart));
+        ru.codex.offhand1710.Brew112.ThrownLingering shot = (ru.codex.offhand1710.Brew112.ThrownLingering) net.minecraft.entity.EntityList.createEntityByName("mc112bridge.LingeringPotion", world);
+        result("lingering entity created", shot != null, "");
+    }
+
+    private void brewCheck(WorldServer world) {
+        net.minecraft.tileentity.TileEntityBrewingStand st = (net.minecraft.tileentity.TileEntityBrewingStand) world.getTileEntity(brX, fy, brZ);
+        net.minecraft.tileentity.TileEntityBrewingStand v = (net.minecraft.tileentity.TileEntityBrewingStand) world.getTileEntity(brX + 2, fy, brZ);
+        ItemStack a = st.getStackInSlot(0);
+        result("brew lingering (needs 400 ticks)", st.getBrewTime() > 0 || (a != null && a.getItem() == ru.codex.offhand1710.Brew112.lingering), "time=" + st.getBrewTime() + " " + a);
+        result("brew vanilla started", v.getBrewTime() > 0 || v.getStackInSlot(0).getItemDamage() != 0, "time=" + v.getBrewTime());
+    }
+
+    private void chainSetup(WorldServer world, int x, int z) {
+        chX = x + 3;
+        chZ = z + 12;
+        int y = fy;
+        net.minecraft.block.Block rep = ru.codex.offhand1710.Content122.repeating;
+        net.minecraft.block.Block ch = ru.codex.offhand1710.Content122.chain;
+        world.setBlock(chX, y, chZ, rep, 5, 2);
+        world.setBlock(chX + 1, y, chZ, ch, 5, 2);
+        setCmd(world, chX, y, chZ, "setblock " + chX + " " + (y + 3) + " " + chZ + " minecraft:gold_block");
+        setCmd(world, chX + 1, y, chZ, "setblock " + (chX + 1) + " " + (y + 3) + " " + chZ + " minecraft:diamond_block");
+        world.setBlock(chX, y, chZ + 3, Blocks.command_block, 0, 2);
+        world.setBlock(chX + 1, y, chZ + 3, ch, 5, 2);
+        ((net.minecraft.tileentity.TileEntityCommandBlock) world.getTileEntity(chX, y, chZ + 3)).func_145993_a().func_145752_a("say impulse");
+        setCmd(world, chX + 1, y, chZ + 3, "setblock " + (chX + 1) + " " + (y + 3) + " " + (chZ + 3) + " minecraft:emerald_block");
+        Blocks.command_block.updateTick(world, chX, y, chZ + 3, world.rand);
+        result("chain after impulse", world.getBlock(chX + 1, y + 3, chZ + 3) == Blocks.emerald_block, "");
+    }
+
+    private void setCmd(WorldServer world, int x, int y, int z, String command) {
+        ru.codex.offhand1710.Content122.ModeTile tile = (ru.codex.offhand1710.Content122.ModeTile) world.getTileEntity(x, y, z);
+        tile.auto = true;
+        tile.func_145993_a().func_145752_a(command);
+    }
+
+    private boolean dataCheck;
+    private int markerTick;
+    private boolean cartCheck;
+    private ItemStack boughtMap;
+    private int funcX;
+    private int funcZ;
+    private ItemStack mapStack;
+    private net.minecraft.entity.passive.EntityPig glowPig;
+
     private void functionalCheck(WorldServer world, EntityPlayerMP player) {
+        int cx0 = (int) player.posX;
+        int cz0 = (int) player.posZ;
+        pistonRelease(world);
+        brewCheck(world);
+        net.minecraft.entity.passive.EntityVillager carto = new net.minecraft.entity.passive.EntityVillager(world, 1);
+        carto.setLocationAndAngles(player.posX + 3.0D, player.posY, player.posZ, 0.0F, 0.0F);
+        world.spawnEntityInWorld(carto);
+        carto.getEntityData().setInteger("Career", 2);
+        carto.getEntityData().setInteger("CareerLevel", 3);
+        ru.codex.offhand1710.Trades112.advance(carto);
+        int maps = 0;
+        for (Object o : carto.getRecipes(player)) {
+            net.minecraft.village.MerchantRecipe r = (net.minecraft.village.MerchantRecipe) o;
+            if (r.getItemToSell().getItem() == Items.filled_map) {
+                maps++;
+                boughtMap = r.getItemToSell().copy();
+            }
+        }
+        result("cartographer sells monument and mansion maps", maps == 2, "maps=" + maps);
+        if (boughtMap != null) {
+            player.inventory.mainInventory[30] = boughtMap;
+            cartCheck = true;
+        }
+        result("data loaded", ru.codex.offhand1710.Data112.ADVANCEMENTS.size() > 400 && ru.codex.offhand1710.Data112.RECIPES.size() > 400, ru.codex.offhand1710.Data112.ADVANCEMENTS.size() + " " + ru.codex.offhand1710.Data112.RECIPES.size());
+        player.inventory.mainInventory[21] = new ItemStack(Blocks.cobblestone);
+        player.inventory.mainInventory[22] = new ItemStack(Blocks.crafting_table);
+        try {
+            java.io.File dir = new java.io.File(world.getSaveHandler().getWorldDirectory(), "data/functions/test");
+            dir.mkdirs();
+            Files.write("# comment\nsetblock " + cx0 + " " + (fy + 15) + " " + cz0 + " minecraft:gold_block\n", new java.io.File(dir, "hello.mcfunction"), Charset.forName("UTF-8"));
+        } catch (IOException e) {
+            log("FAIL function file " + e);
+        }
+        MinecraftServer.getServer().getCommandManager().executeCommand(player, "function test:hello");
+        dataCheck = true;
+        funcX = cx0;
+        funcZ = cz0;
+        ItemStack map = ru.codex.offhand1710.Maps112.explorerMap(world, "Monument", cx0, cz0);
+        result("explorer map", map != null && map.getItem() == Items.filled_map, String.valueOf(map));
+        if (map != null) {
+            mapStack = map;
+            player.inventory.mainInventory[4] = map;
+        }
+        net.minecraft.entity.passive.EntityPig pig = new net.minecraft.entity.passive.EntityPig(world);
+        world.setBlock((int) player.posX + 1, (int) player.posY - 4, (int) player.posZ + 6, Blocks.stone, 0, 2);
+        pig.setLocationAndAngles((int) player.posX + 1.5D, (int) player.posY - 3.0D, (int) player.posZ + 6.5D, 0.0F, 0.0F);
+        pig.func_110163_bv();
+        pig.setPositionAndUpdate((int) player.posX + 1.5D, (int) player.posY - 3.0D, (int) player.posZ + 6.5D);
+        world.spawnEntityInWorld(pig);
+        pig.addPotionEffect(new net.minecraft.potion.PotionEffect(ru.codex.offhand1710.Content120.glowing.id, 2000, 0));
+        glowPig = pig;
+        result("repeating and chain", world.getBlock(chX, fy + 3, chZ) == Blocks.gold_block && world.getBlock(chX + 1, fy + 3, chZ) == Blocks.diamond_block, "");
         result("observer pulse", obsState == 2 && (world.getBlockMetadata(obsX, obsY, obsZ) & 8) == 0, "state=" + obsState + " meta=" + world.getBlockMetadata(obsX, obsY, obsZ));
         int ice = 0;
         for (int a = -3; a <= 3; a++) for (int b = -3; b <= 3; b++) if (world.getBlock(waterX + a, fy, waterZ + b) == ru.codex.offhand1710.Content119.frostedIce) ice++;
@@ -655,6 +899,11 @@ public final class Audit112 {
             ru.codex.offhand1710.Trades112.advance(v);
             int second = v.getRecipes(player).size();
             boolean career = v.getEntityData().getInteger("Career") >= 1 && v.getEntityData().getInteger("CareerLevel") == 2;
+            if (profession == 1) {
+                tradeVillager = v;
+                tradeTick = serverTicks;
+                v.setCustomer(player);
+            }
             if (profession == 3) {
                 levelVillager = v;
                 levelCount = v.getRecipes(player).size();
@@ -792,8 +1041,14 @@ public final class Audit112 {
                 int z = Integer.parseInt(p[2]);
                 world.theChunkProviderServer.loadChunk(x >> 4, z >> 4);
                 Block b = world.getBlock(x, y, z);
-                if (p[3].equals(Block.blockRegistry.getNameForObject(b))) {
+                String found = Block.blockRegistry.getNameForObject(b);
+                if (p[3].equals(found)) {
                     good++;
+                } else if (("mc112bridge:chorus_flower".equals(p[3]) && "mc112bridge:chorus_plant".equals(found))
+                        || ("mc112bridge:frosted_ice".equals(p[3]) && "minecraft:water".equals(found))) {
+                    // Random ticks while the world ran: a chorus flower grows into a plant, frosted ice melts. 1.12.2 does the same.
+                    good++;
+                    log("CHANGED " + p[3] + " -> " + found + " (expected)");
                 } else {
                     bad++;
                     log("LOST " + p[3] + " found " + Block.blockRegistry.getNameForObject(b));
@@ -816,6 +1071,16 @@ public final class Audit112 {
                 }
             }
             log("RELOAD entities=" + ents);
+            ItemStack bought = player.inventory.mainInventory[30];
+            boolean tagged = bought != null && bought.getItem() == Items.filled_map && bought.hasTagCompound() && bought.getTagCompound().hasKey("Marker112Type");
+            log((tagged ? "PASS" : "FAIL") + " cartographer map kept after reload " + bought);
+            step = 2;
+            markerTick = serverTicks + 120;
+        } else if (step == 2 && serverTicks > markerTick) {
+            step = 3;
+            ItemStack bought = player.inventory.mainInventory[30];
+            WorldServer world = MinecraftServer.getServer().worldServers[0];
+            log((bought != null && ru.codex.offhand1710.Maps112.hasMarker(world, bought) ? "PASS" : "FAIL") + " cartographer map marker after reload");
             wantQuit = true;
         }
     }

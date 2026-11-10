@@ -55,10 +55,18 @@ public final class MoreMobsClient {
         public void onPlayerTick(TickEvent.PlayerTickEvent event) {
             if (event.phase == TickEvent.Phase.END && event.player == Minecraft.getMinecraft().thePlayer) {
                 ru.codex.offhand1710.OffhandInventory state = ru.codex.offhand1710.OffhandInventory.get(event.player);
-                if (state.bedBounce > 0.0D) {
-                    event.player.motionY = state.bedBounce;
-                    state.bedBounce = 0.0D;
+                // onLanded of 1.12.2 for beds and slime, in any game mode: speed at the moment of landing.
+                if (event.player.onGround && !state.wasOnGround && state.lastMotionY < 0.0D && !event.player.isSneaking()) {
+                    net.minecraft.block.Block below = event.player.worldObj.getBlock(net.minecraft.util.MathHelper.floor_double(event.player.posX),
+                            net.minecraft.util.MathHelper.floor_double(event.player.boundingBox.minY - 0.2D), net.minecraft.util.MathHelper.floor_double(event.player.posZ));
+                    if (below == ru.codex.offhand1710.Content119.slime) {
+                        event.player.motionY = -state.lastMotionY;
+                    } else if (below instanceof net.minecraft.block.BlockBed) {
+                        event.player.motionY = -state.lastMotionY * 0.6600000262260437D;
+                    }
                 }
+                state.wasOnGround = event.player.onGround;
+                state.lastMotionY = event.player.motionY;
             }
             if (event.phase == TickEvent.Phase.END && levitation > 0 && event.player == Minecraft.getMinecraft().thePlayer) {
                 levitation--;

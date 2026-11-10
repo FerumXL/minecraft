@@ -44,7 +44,7 @@ public final class ShieldRenderer implements IItemRenderer {
      * the rotation as one quaternion built from the angles in X, Y, Z order (y and z negated for the left
      * hand), then the scale. The quaternion equals rotating about X, then Y, then Z.
      */
-    private static void applyDisplay(float[] t, boolean left) {
+    static void applyDisplay(float[] t, boolean left) {
         float side = left ? -1.0F : 1.0F;
         GL11.glTranslatef(side * t[0] / 16.0F, t[1] / 16.0F, t[2] / 16.0F);
         GL11.glRotatef(t[3], 1.0F, 0.0F, 0.0F);
@@ -53,10 +53,25 @@ public final class ShieldRenderer implements IItemRenderer {
         GL11.glScalef(t[6], t[7], t[8]);
     }
 
+    private static ItemStack stack;
+
+    /** The stack whose banner pattern the next draw uses; the offhand renderers set it before drawing. */
+    static void setStack(ItemStack value) {
+        stack = value;
+    }
+
+    private static ResourceLocation texture(ItemStack item) {
+        if (item != null && item.hasTagCompound() && item.getTagCompound().hasKey("BlockEntityTag")) {
+            net.minecraft.nbt.NBTTagCompound tag = item.getTagCompound().getCompoundTag("BlockEntityTag");
+            return Banner112Client.layered("textures/entity/shield_base.png", "textures/entity/shield/", tag.getInteger("Base"), tag.getTagList("Patterns", 10));
+        }
+        return TEXTURE;
+    }
+
     /** The builtin model offset and TileEntityItemStackRenderer for the shield. */
     private static void renderModel() {
         GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
-        Minecraft.getMinecraft().getTextureManager().bindTexture(TEXTURE);
+        Minecraft.getMinecraft().getTextureManager().bindTexture(texture(stack));
         GL11.glPushMatrix();
         GL11.glScalef(1.0F, -1.0F, -1.0F);
         GL11.glEnable(GL12.GL_RESCALE_NORMAL);
@@ -133,6 +148,7 @@ public final class ShieldRenderer implements IItemRenderer {
 
     @Override
     public void renderItem(ItemRenderType type, ItemStack stack, Object... data) {
+        setStack(stack);
         switch (type) {
             case EQUIPPED:
                 // Undo RenderPlayer.renderEquippedItems (plain item branch) and the EQUIPPED_BLOCK offset,
@@ -168,7 +184,12 @@ public final class ShieldRenderer implements IItemRenderer {
                 break;
             case INVENTORY:
                 // RenderItem.setupGuiTransform of 1.12.2 from the slot corner, then the gui display transform.
-                renderInventory();
+                renderInventory(GUI, new Runnable() {
+                    @Override
+                    public void run() {
+                        renderModel();
+                    }
+                });
                 break;
             case ENTITY:
                 // Forge has rotated, bobbed and scaled by 0.25, which is also the scale of the ground transform.
@@ -191,7 +212,7 @@ public final class ShieldRenderer implements IItemRenderer {
      * the depth test (the shield is not convex, without it the handle shows through the plate), no face
      * culling (the GUI flip makes the matrix mirrored), item lighting, no lightmap, fog or blending.
      */
-    private static void renderInventory() {
+    static void renderInventory(float[] display, Runnable body) {
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_LIGHTING_BIT | GL11.GL_DEPTH_BUFFER_BIT
                 | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_CURRENT_BIT | GL11.GL_POLYGON_BIT);
         OpenGlHelper.setActiveTexture(OpenGlHelper.lightmapTexUnit);
@@ -213,8 +234,8 @@ public final class ShieldRenderer implements IItemRenderer {
         GL11.glTranslatef(8.0F, 8.0F, 0.0F);
         GL11.glScalef(1.0F, -1.0F, 1.0F);
         GL11.glScalef(16.0F, 16.0F, 16.0F);
-        applyDisplay(GUI, false);
-        renderModel();
+        applyDisplay(display, false);
+        body.run();
         GL11.glPopMatrix();
         GL11.glPopAttrib();
         if (lightmap) {

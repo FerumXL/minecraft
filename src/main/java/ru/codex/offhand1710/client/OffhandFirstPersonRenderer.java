@@ -160,7 +160,8 @@ public final class OffhandFirstPersonRenderer {
             EnumAction action = using ? stack.getItemUseAction() : EnumAction.none;
             if (stack.getItem() instanceof ItemShield) {
                 GL11.glEnable(GL12.GL_RESCALE_NORMAL);
-                ShieldRenderer.renderFirstPersonLeft(equip, swing, using && action == EnumAction.block);
+                ShieldRenderer.setStack(ru.codex.offhand1710.OffhandInventory.get(Minecraft.getMinecraft().thePlayer).getStack());
+            ShieldRenderer.renderFirstPersonLeft(equip, swing, using && action == EnumAction.block);
                 return;
             }
 

@@ -309,14 +309,22 @@ public final class Content120 {
         }
     }
 
+    public static EntityArrow newSpectral(World world, EntityLivingBase shooter, float power) {
+        return new EntitySpectralArrow(world, shooter, power);
+    }
+
     public static final class Events {
+        private static boolean isAmmo(ItemStack s) {
+            return s.getItem() == spectralArrow || s.getItem() == Items.arrow || s.getItem() == Brew112.tipped;
+        }
+
         private static ItemStack findAmmo(EntityPlayer player) {
             ItemStack off = OffhandInventory.get(player).getStack();
-            if (off != null && (off.getItem() == spectralArrow || off.getItem() == Items.arrow)) {
+            if (off != null && isAmmo(off)) {
                 return off;
             }
             for (ItemStack stack : player.inventory.mainInventory) {
-                if (stack != null && (stack.getItem() == spectralArrow || stack.getItem() == Items.arrow)) {
+                if (stack != null && isAmmo(stack)) {
                     return stack;
                 }
             }
@@ -326,7 +334,7 @@ public final class Content120 {
         @SubscribeEvent
         public void onNock(ArrowNockEvent event) {
             ItemStack ammo = findAmmo(event.entityPlayer);
-            if (ammo != null && ammo.getItem() == spectralArrow && !event.entityPlayer.inventory.hasItem(Items.arrow)) {
+            if (ammo != null && ammo.getItem() != Items.arrow && !event.entityPlayer.inventory.hasItem(Items.arrow)) {
                 event.entityPlayer.setItemInUse(event.result, event.result.getMaxItemUseDuration());
                 event.setCanceled(true);
             }
@@ -336,7 +344,7 @@ public final class Content120 {
         public void onLoose(ArrowLooseEvent event) {
             EntityPlayer player = event.entityPlayer;
             ItemStack ammo = findAmmo(player);
-            if (ammo == null || ammo.getItem() != spectralArrow) {
+            if (ammo == null || ammo.getItem() == Items.arrow) {
                 return;
             }
             event.setCanceled(true);
@@ -346,7 +354,7 @@ public final class Content120 {
                 return;
             }
             power = Math.min(power, 1.0F);
-            EntitySpectralArrow arrow = new EntitySpectralArrow(player.worldObj, player, power * 2.0F);
+            EntityArrow arrow = ammo.getItem() == spectralArrow ? new EntitySpectralArrow(player.worldObj, player, power * 2.0F) : (EntityArrow) Brew112.newTipped(player.worldObj, player, power * 2.0F, ammo.getItemDamage());
             arrow.setIsCritical(power == 1.0F);
             int strength = EnchantmentHelper.getEnchantmentLevel(Enchantment.power.effectId, event.bow);
             if (strength > 0) {
@@ -395,6 +403,7 @@ public final class Content120 {
             EntityLivingBase entity = event.entityLiving;
             PotionEffect effect = entity.getActivePotionEffect(levitation);
             if (effect != null) {
+                entity.motionY += 0.08D; // cancels the gravity applied later this tick; 1.12.2 replaces gravity with this rule
                 entity.motionY += (0.05D * (double) (effect.getAmplifier() + 1) - entity.motionY) * 0.2D;
                 entity.fallDistance = 0.0F;
             }

@@ -10,7 +10,7 @@ buildscript {
 
 apply plugin: 'forge'
 
-version = '0.22.0'
+version = '0.29.0'
 group = 'ru.ferumxl.mc112bridge'
 archivesBaseName = 'mc112bridge'
 
@@ -101,3 +101,12 @@ task remapReleaseJar(type: JavaExec) {
 
 build.dependsOn remapReleaseJar
 
+jar {
+    manifest {
+        attributes 'FMLCorePlugin': 'ru.codex.offhand1710.asm.Plugin', 'FMLCorePluginContainsFMLMod': 'true'
+    }
+}
+
+runClient {
+    jvmArgs '-Dfml.coreMods.load=ru.codex.offhand1710.asm.Plugin'
+}

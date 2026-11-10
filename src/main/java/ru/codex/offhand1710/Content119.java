@@ -113,6 +113,23 @@ public final class Content119 {
         return entity instanceof EntityLivingBase && level(frostWalker, ((EntityLivingBase) entity).getEquipmentInSlot(1)) > 0;
     }
 
+    private static float strider(EntityLivingBase e) {
+        float level = Math.min(3, level(depthStrider, e.getEquipmentInSlot(1)));
+        return e.onGround ? level : level * 0.5F;
+    }
+
+    /** EntityLivingBase.travel of 1.12.2, called from the coremod: the acceleration in water. */
+    public static float waterAcceleration(float base, EntityLivingBase e) {
+        float d = strider(e);
+        return d > 0.0F ? base + (e.getAIMoveSpeed() - base) * d / 3.0F : base;
+    }
+
+    /** EntityLivingBase.travel of 1.12.2, called from the coremod: the horizontal drag in water. */
+    public static double waterDrag(double base, EntityLivingBase e) {
+        float d = strider(e);
+        return d > 0.0F ? base + (0.54600006D - base) * (double) d / 3.0D : base;
+    }
+
     /** EnchantmentSweepingEdge.getSweepingDamageRatio. */
     public static float sweepRatio(ItemStack weapon) {
         int level = level(sweeping, weapon);
@@ -189,14 +206,6 @@ public final class Content119 {
             int frost = level(frostWalker, boots);
             if (frost > 0 && !entity.worldObj.isRemote && entity.onGround) {
                 freeze(entity, frost);
-            }
-            int strider = Math.min(3, level(depthStrider, boots));
-            if (strider > 0 && entity.isInWater()) {
-                // EntityLivingBase.travel: the drag of water moves from 0.8 towards 0.546 of the air value.
-                float power = (entity.onGround ? (float) strider : (float) strider * 0.5F) / 3.0F;
-                double factor = (0.8F + (0.54600006F - 0.8F) * power) / 0.8F;
-                entity.motionX *= 1.0D + (1.0D / factor - 1.0D) * 0.5D;
-                entity.motionZ *= 1.0D + (1.0D / factor - 1.0D) * 0.5D;
             }
         }
 

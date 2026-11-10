@@ -275,37 +275,15 @@ public final class Items112 {
 
     /** BlockBed.onFallenUpon and onLanded of 1.12.2, for every bed including the vanilla red one. */
     public static final class Bounce {
-        /** Creative players do not get a LivingFallEvent in 1.7.10. */
-        @SubscribeEvent
-        public void onFlyableFall(net.minecraftforge.event.entity.player.PlayerFlyableFallEvent event) {
-            EntityPlayer player = event.entityPlayer;
-            int x = MathHelper.floor_double(player.posX);
-            int y = MathHelper.floor_double(player.boundingBox.minY - 0.2D);
-            int z = MathHelper.floor_double(player.posZ);
-            Block below = player.worldObj.getBlock(x, y, z);
-            if (player.worldObj.isRemote && !player.isSneaking() && player.motionY < 0.0D && (below instanceof BlockBed || below == Content119.slime)) {
-                OffhandInventory.get(player).bedBounce = -player.motionY * (below == Content119.slime ? 1.0D : 0.6600000262260437D);
-            }
-        }
-
         @SubscribeEvent
         public void onFall(LivingFallEvent event) {
             int x = MathHelper.floor_double(event.entity.posX);
             int y = MathHelper.floor_double(event.entity.boundingBox.minY - 0.2D);
             int z = MathHelper.floor_double(event.entity.posZ);
-            if (event.entity.worldObj.getBlock(x, y, z) == Content119.slime) {
-                if (event.entity instanceof EntityPlayer && event.entity.worldObj.isRemote && !event.entity.isSneaking() && event.entity.motionY < 0.0D) {
-                    OffhandInventory.get((EntityPlayer) event.entity).bedBounce = -event.entity.motionY;
-                }
-                return;
-            }
             if (!(event.entity.worldObj.getBlock(x, y, z) instanceof BlockBed)) {
                 return;
             }
             event.distance *= 0.5F;
-            if (event.entity instanceof EntityPlayer && event.entity.worldObj.isRemote && !event.entity.isSneaking() && event.entity.motionY < 0.0D) {
-                OffhandInventory.get((EntityPlayer) event.entity).bedBounce = -event.entity.motionY * 0.6600000262260437D;
-            }
         }
     }
 }

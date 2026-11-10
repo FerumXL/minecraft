@@ -110,7 +110,8 @@ public final class OffhandPlayerRenderer {
         try {
             event.renderer.modelBipedMain.bipedLeftArm.postRender(0.0625F);
             if (stack.getItem() instanceof ItemShield) {
-                ShieldRenderer.renderThirdPerson(true, ShieldRenderer.isOffhandBlocking(player, stack));
+                ShieldRenderer.setStack(stack);
+            ShieldRenderer.renderThirdPerson(true, ShieldRenderer.isOffhandBlocking(player, stack));
                 return;
             }
             // Exact mirror of the vanilla right hand, item included (as the 1.12.2 left hand). Mirroring turns
