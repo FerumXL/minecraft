@@ -98,3 +98,6 @@ src/main/resources/assets/mc112bridge/data/recipes/
 .classpath
 .project
 .settings/
+
+# Mojang sound, restored by tools/fetch-assets.py
+/src/main/resources/assets/mc112bridge/sounds/ui/toast/challenge_complete.ogg

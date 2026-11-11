@@ -995,3 +995,4 @@ src/main/resources/assets/mc112bridge/textures/items/potion_overlay.png	c0aad7fb
 src/main/resources/assets/mc112bridge/textures/items/tipped_arrow_base.png	4cf236d6ca6053f2a02b8b6f18e4af33cf9f2bbe	jar:assets/minecraft/textures/items/tipped_arrow_base.png
 src/main/resources/assets/mc112bridge/textures/items/tipped_arrow_head.png	00d7d0f9dba7d9c25585f4f15798722cd8148a96	jar:assets/minecraft/textures/items/tipped_arrow_head.png
 src/main/resources/assets/minecraft/textures/map/map_icons.png	9476b3ece75401b963a410795dfc9f66b7152694	jar:assets/minecraft/textures/map/map_icons.png
+src/main/resources/assets/mc112bridge/sounds/ui/toast/challenge_complete.ogg	210c839d6fab655373b3a5e4c278f59dff4936d8	asset:210c839d6fab655373b3a5e4c278f59dff4936d8

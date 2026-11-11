@@ -206,5 +206,6 @@
   "entity.vindication_illager.ambient": {"sounds":[{"name":"mob/vindication_illager/idle1"},{"name":"mob/vindication_illager/idle2"},{"name":"mob/vindication_illager/idle3"},{"name":"mob/vindication_illager/idle4"}],"category":"neutral"},
   "entity.vindication_illager.death": {"sounds":[{"name":"mob/vindication_illager/death1"},{"name":"mob/vindication_illager/death2"}],"category":"neutral"},
   "entity.vindication_illager.hurt": {"sounds":[{"name":"mob/vindication_illager/hurt1"},{"name":"mob/vindication_illager/hurt2"},{"name":"mob/vindication_illager/hurt3"}],"category":"neutral"},
-  "item.totem.use": {"sounds":[{"name":"item/totem/use_totem"}],"category":"neutral"}
+  "item.totem.use": {"sounds":[{"name":"item/totem/use_totem"}],"category":"neutral"},
+  "ui.toast.challenge_complete": {"sounds":[{"name":"ui/toast/challenge_complete"}],"category":"master"}
 }

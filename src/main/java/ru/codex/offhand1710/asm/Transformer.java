@@ -8,6 +8,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -60,6 +61,46 @@ public final class Transformer implements IClassTransformer {
         list.add(new InsnNode(returnOpcode));
         list.add(go);
         method.instructions.insert(list);
+    }
+
+    private static AbstractInsnNode previousCode(AbstractInsnNode n) {
+        AbstractInsnNode p = n.getPrevious();
+        while (p != null && p.getOpcode() < 0) {
+            p = p.getPrevious();
+        }
+        return p;
+    }
+
+    /**
+     * Passes the local "is this outside the window" of a GuiContainer mouse method through the book. The local is the
+     * one tested just before the first -999; the value goes through the hook right where it is stored.
+     */
+    private static void outsideTest(MethodNode m, String owner, String gui) {
+        int local = -1;
+        for (AbstractInsnNode n : m.instructions.toArray()) {
+            if (n.getOpcode() == Opcodes.SIPUSH && ((IntInsnNode) n).operand == -999) {
+                AbstractInsnNode jump = previousCode(n);
+                AbstractInsnNode load = jump == null ? null : previousCode(jump);
+                if (load != null && jump.getOpcode() == Opcodes.IFEQ && load.getOpcode() == Opcodes.ILOAD) {
+                    local = ((VarInsnNode) load).var;
+                }
+                break;
+            }
+        }
+        if (local < 0) {
+            return;
+        }
+        for (AbstractInsnNode n : m.instructions.toArray()) {
+            if (n.getOpcode() == Opcodes.ISTORE && ((VarInsnNode) n).var == local) {
+                InsnList l = new InsnList();
+                l.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                l.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                l.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, owner, "outsideWindow", "(Z" + gui + "II)Z", false));
+                m.instructions.insertBefore(n, l);
+                return;
+            }
+        }
     }
 
     @Override
@@ -199,6 +240,32 @@ public final class Transformer implements IClassTransformer {
             }
             return write(node);
         }
+        if ("net.minecraft.client.gui.inventory.GuiContainer".equals(transformedName)) {
+            ClassNode node = read(bytes);
+            String owner = "ru/codex/offhand1710/client/DataClient";
+            String gui = "Lnet/minecraft/client/gui/inventory/GuiContainer;";
+            for (MethodNode m : node.methods) {
+                boolean click = named(m, "mouseClicked", "func_73864_a") && "(III)V".equals(m.desc);
+                if (click || named(m, "mouseMovedOrUp", "func_146286_b") && "(III)V".equals(m.desc)) {
+                    outsideTest(m, owner, gui);
+                }
+                if (click) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    for (int i = 1; i <= 3; i++) {
+                        load.add(new VarInsnNode(Opcodes.ILOAD, i));
+                    }
+                    guard(m, load, owner, "bookClick", "(" + gui + "III)Z", Opcodes.RETURN, 0);
+                } else if (named(m, "keyTyped", "func_73869_a") && "(CI)V".equals(m.desc)) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    load.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                    load.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                    guard(m, load, owner, "bookKey", "(" + gui + "CI)Z", Opcodes.RETURN, 0);
+                }
+            }
+            return write(node);
+        }
         if ("net.minecraft.client.renderer.EntityRenderer".equals(transformedName)) {
             ClassNode node = read(bytes);
             String hook = "ru/codex/offhand1710/client/Client122";
@@ -213,6 +280,13 @@ public final class Transformer implements IClassTransformer {
                     InsnList call = new InsnList();
                     call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, hook, "handEnd", "()V", false));
                     beforeReturns(m, call);
+                } else if (named(m, "updateCameraAndRender", "func_78480_b") && "(F)V".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n.getOpcode() == Opcodes.INVOKEVIRTUAL && "(FJ)V".equals(((MethodInsnNode) n).desc)
+                            && ("renderWorld".equals(((MethodInsnNode) n).name) || "func_78471_a".equals(((MethodInsnNode) n).name))) {
+                            m.instructions.insert(n, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/client/GlowOutline", "afterWorld", "()V", false));
+                        }
+                    }
                 }
             }
             return write(node);

@@ -1,5 +1,6 @@
 package ru.codex.offhand1710.client;
 
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraftforge.client.event.RenderLivingEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.common.MinecraftForge;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import ru.codex.offhand1710.Maps112;
 
@@ -41,12 +43,22 @@ public final class GlowOutline {
     public static int lastDrawn;
     /** True while the silhouettes are drawn: name tags must not get into them. */
     private static boolean drawingMask;
+    private static GlowOutline instance;
+    /** Set by the first call of the coremod hook; without the hook the outline stays in RenderWorldLast. */
+    private static boolean afterWorldSeen;
+    /** The camera of the world pass: the hand pass replaces both matrices and does not put them back. */
+    private final FloatBuffer projection = BufferUtils.createFloatBuffer(16);
+    private final FloatBuffer modelview = BufferUtils.createFloatBuffer(16);
+    private final List<Entity> glowing = new ArrayList<Entity>();
+    private float partial;
+    private boolean pending;
 
     private GlowOutline() {
     }
 
     static void register() {
-        MinecraftForge.EVENT_BUS.register(new GlowOutline());
+        instance = new GlowOutline();
+        MinecraftForge.EVENT_BUS.register(instance);
     }
 
     private static Framebuffer ensure(Framebuffer fb, int w, int h, boolean depth) {
@@ -116,14 +128,28 @@ public final class GlowOutline {
 
     private static final Map<Render, Boolean> READY = new WeakHashMap<Render, Boolean>();
 
+    /**
+     * Coremod hook right after EntityRenderer.renderWorld, hand included: where 1.12 calls
+     * renderEntityOutlineFramebuffer, so the outline lies over the hand and under the screen shader.
+     */
+    public static void afterWorld() {
+        afterWorldSeen = true;
+        if (instance != null && instance.pending) {
+            instance.pending = false;
+            instance.draw();
+        }
+    }
+
+    /** Only notes what is to be drawn and with which camera. */
     @SubscribeEvent
     public void onWorldLast(RenderWorldLastEvent event) {
         Minecraft mc = Minecraft.getMinecraft();
         lastDrawn = 0;
+        pending = false;
         if (!OpenGlHelper.isFramebufferEnabled() || mc.theWorld == null) {
             return;
         }
-        List<Entity> glowing = new ArrayList<Entity>();
+        glowing.clear();
         for (Object o : mc.theWorld.loadedEntityList) {
             Entity e = (Entity) o;
             if (e instanceof EntityLivingBase && Maps112.isGlowing(e) && !(e == mc.renderViewEntity && mc.gameSettings.thirdPersonView == 0)) {
@@ -133,15 +159,42 @@ public final class GlowOutline {
         if (glowing.isEmpty()) {
             return;
         }
+        partial = event.partialTicks;
+        projection.clear();
+        modelview.clear();
+        GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, projection);
+        GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, modelview);
+        if (afterWorldSeen) {
+            pending = true;
+        } else {
+            draw();
+        }
+    }
+
+    private void draw() {
+        Minecraft mc = Minecraft.getMinecraft();
         int w = mc.displayWidth;
         int h = mc.displayHeight;
         raw = ensure(raw, w, h, true);
         mask = ensure(mask, w, h, false);
         a = ensure(a, w, h, false);
         b = ensure(b, w, h, false);
-        float pt = event.partialTicks;
+        float pt = partial;
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPushMatrix();
+        projection.rewind();
+        GL11.glLoadMatrix(projection);
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glPushMatrix();
+        modelview.rewind();
+        GL11.glLoadMatrix(modelview);
         try {
+            // What the hand pass may have left behind.
+            OpenGlHelper.setActiveTexture(OpenGlHelper.defaultTexUnit);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_CULL_FACE);
+            GL11.glFrontFace(GL11.GL_CCW);
             // 1. The entities themselves, textures on so that cut-out parts stay cut out. Only alpha is written.
             //    The renderer is called directly: RenderManager would add the shadow and the fire, and both would
             //    become part of the silhouette.
@@ -252,6 +305,10 @@ public final class GlowOutline {
             GL11.glMatrixMode(GL11.GL_MODELVIEW);
             GL11.glPopMatrix();
         } finally {
+            GL11.glMatrixMode(GL11.GL_PROJECTION);
+            GL11.glPopMatrix();
+            GL11.glMatrixMode(GL11.GL_MODELVIEW);
+            GL11.glPopMatrix();
             mc.getFramebuffer().bindFramebuffer(true);
             GL11.glPopAttrib();
         }

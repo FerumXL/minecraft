@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -16,6 +17,7 @@ import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.InputEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
@@ -25,22 +27,27 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.gui.inventory.GuiCrafting;
+import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.client.renderer.InventoryEffectRenderer;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderItem;
+import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.StatCollector;
+import net.minecraftforge.client.event.GuiOpenEvent;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -83,6 +90,12 @@ public final class DataClient {
     private static int bookPage;
     private static int bookTab;
     private static boolean bookCraftable;
+    /** The slot whose alternatives are open (right click), where its button was, and the recipe shown as a ghost in the grid. */
+    private static Group altGroup;
+    private static int altX;
+    private static int altY;
+    private static Data112.Recipe ghost;
+    private static Events events;
 
     private DataClient() {
     }
@@ -107,9 +120,27 @@ public final class DataClient {
         return bookOpen;
     }
 
+    /**
+     * Coremod hook in GuiContainer.mouseClicked and mouseMovedOrUp, on the "outside the window" test, as
+     * hasClickedOutside of 1.12: over the book a click with an item on the cursor drops nothing.
+     */
+    public static boolean outsideWindow(boolean outside, GuiContainer gui, int x, int y) {
+        return outside && !(events != null && events.overBook(gui, x, y));
+    }
+
+    /** Coremod hook at the start of GuiContainer.mouseClicked; true means the book took the click. */
+    public static boolean bookClick(GuiContainer gui, int x, int y, int button) {
+        return events != null && events.click(gui, x, y, button);
+    }
+
+    /** Coremod hook at the start of GuiContainer.keyTyped; true means the book took the key. */
+    public static boolean bookKey(GuiContainer gui, char c, int key) {
+        return events != null && events.key(gui, c, key);
+    }
+
     static void register() {
         ClientRegistry.registerKeyBinding(KEY);
-        Events events = new Events();
+        events = new Events();
         MinecraftForge.EVENT_BUS.register(events);
         FMLCommonHandler.instance().bus().register(events);
     }
@@ -213,6 +244,9 @@ public final class DataClient {
         String title;
         List<String> lines;
         int width;
+        /** "n/m" of the requirements done, or null when there is one only; and the share done. */
+        String progress;
+        float fraction;
 
         boolean drawn() {
             return !a.hidden || done;
@@ -427,7 +461,19 @@ public final class DataClient {
         private void describe(Widget w) {
             FontRenderer font = fontRendererObj;
             w.title = font.trimStringToWidth(StatCollector.translateToLocal(w.a.title), 163);
-            int width = 29 + font.getStringWidth(w.title);
+            int total = w.a.total();
+            w.progress = null;
+            w.fraction = w.done ? 1.0F : 0.0F;
+            int progressWidth = 0;
+            if (total > 1) {
+                int n = w.a.completed(CRIT);
+                w.progress = n + "/" + total;
+                w.fraction = w.done ? 1.0F : (float) n / (float) total;
+                progressWidth = font.getStringWidth(" ") + font.getStringWidth("0") * String.valueOf(total).length() * 2 + font.getStringWidth("/");
+            } else if (total == 1 && !w.done) {
+                w.fraction = w.a.completed(CRIT) > 0 ? 1.0F : 0.0F;
+            }
+            int width = 29 + font.getStringWidth(w.title) + progressWidth;
             String text = w.a.description == null ? "" : StatCollector.translateToLocal(w.a.description);
             w.lines = new ArrayList<String>();
             if (text.length() > 0) {
@@ -693,10 +739,39 @@ public final class DataClient {
                 repeat(x + 10, by + 10, bw - 20, boxH - 20, 10, 62, 180, 6);
                 repeat(x + bw - 10, by + 10, 10, boxH - 20, 190, 62, 200, 6);
             }
-            blit(x, y, 0, state * 26, half, 26);
-            blit(x + half, y, 200 - rest, state * 26, rest, 26);
-            blit(ox + w.x + 3, y, w.frameU(), 128 + state * 26, 26, 26);
+            // the bar is filled as far as the progress goes: 0 = obtained, 1 = not yet (as the widget of 1.12 picks)
+            int fill = Math.round(w.fraction * (float) w.width);
+            int sLeft;
+            int sRight;
+            int sIcon;
+            if (w.fraction >= 1.0F) {
+                fill = w.width / 2;
+                sLeft = 0;
+                sRight = 0;
+                sIcon = 0;
+            } else if (fill < 2) {
+                fill = w.width / 2;
+                sLeft = 1;
+                sRight = 1;
+                sIcon = 1;
+            } else if (fill > w.width - 2) {
+                fill = w.width / 2;
+                sLeft = 0;
+                sRight = 0;
+                sIcon = 1;
+            } else {
+                sLeft = 0;
+                sRight = 1;
+                sIcon = 1;
+            }
+            blit(x, y, 0, sLeft * 26, fill, 26);
+            blit(x + fill, y, 200 - (w.width - fill), sRight * 26, w.width - fill, 26);
+            blit(ox + w.x + 3, y, w.frameU(), 128 + sIcon * 26, 26, 26);
             fontRendererObj.drawString(w.title, toLeft ? x + 5 : ox + w.x + 32, y + 9, -1, true);
+            if (w.progress != null) {
+                int pw = fontRendererObj.getStringWidth(w.progress);
+                fontRendererObj.drawString(w.progress, toLeft ? ox + w.x - pw : x + w.width - pw - 5, y + 9, -1, true);
+            }
             for (int i = 0; i < w.lines.size(); i++) {
                 int ly = upwards ? y + 26 - boxH + 7 + i * fontH : y + 9 + 17 + i * fontH;
                 fontRendererObj.drawString(w.lines.get(i), x + 5, ly, -5592406, false);
@@ -802,6 +877,7 @@ public final class DataClient {
     /** Not a button at all: the body of the book, drawn before the buttons that lie on it. */
     private static final class PanelButton extends GuiButton {
         String page;
+        GuiTextField field;
 
         PanelButton(int x, int y) {
             super(9399, x, y, 0, 0, "");
@@ -819,6 +895,10 @@ public final class DataClient {
             blit(xPosition, yPosition, 1, 1, 147, 166);
             if (page != null) {
                 mc.fontRenderer.drawString(page, xPosition + 73 - mc.fontRenderer.getStringWidth(page) / 2, yPosition + 141, -1);
+                GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+            }
+            if (field != null) {
+                field.drawTextBox();
                 GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
             }
         }
@@ -873,6 +953,12 @@ public final class DataClient {
         RecipeButton(int id, int x, int y, Group group) {
             super(id, x, y, 25, 25, "");
             this.group = group;
+        }
+
+        /** While the window of alternatives is open, clicks belong to it. */
+        @Override
+        public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
+            return altGroup == null && super.mousePressed(mc, mouseX, mouseY);
         }
 
         /** Craftable ones first, the rest after them unless only craftable ones are shown. */
@@ -941,13 +1027,137 @@ public final class DataClient {
     public static final class Events {
         private final List<RecipeButton> shown = new ArrayList<RecipeButton>();
         private ImageButton filter;
+        private ImageButton pageBack;
+        private ImageButton pageNext;
+        private TabButton currentTab;
+        private GuiTextField search;
+        private String lastQuery = "";
+        private int panelX;
+        private int panelY;
+        /** While the buttons are remade by the book itself: the search field stays as it is. */
+        private boolean rebuilding;
+        private boolean keyRepeat;
         private final Tip tip = new Tip();
+        private boolean leftWas;
+        private boolean rightWas;
 
         @SubscribeEvent
         public void onKey(InputEvent.KeyInputEvent event) {
             if (KEY.isPressed() && Minecraft.getMinecraft().currentScreen == null) {
                 openAdvancements();
             }
+        }
+
+        private boolean applies(GuiScreen gui) {
+            return bookOpen && (gui instanceof GuiInventory || gui instanceof GuiCrafting);
+        }
+
+        private void repeat(boolean on) {
+            if (on != keyRepeat) {
+                Keyboard.enableRepeatEvents(on);
+                keyRepeat = on;
+            }
+        }
+
+        /** Remakes the buttons of an open book, for a change that does not reset the search field. */
+        private void rebuild(GuiScreen gui) {
+            rebuilding = true;
+            try {
+                gui.setWorldAndResolution(Minecraft.getMinecraft(), gui.width, gui.height);
+            } finally {
+                rebuilding = false;
+            }
+        }
+
+        /**
+         * The panel, and the tab that is selected at the moment of the test (after a click on another tab that one is
+         * the selected one), as GuiRecipeBook.hasClickedOutside. The panel is measured from where it is drawn, so its
+         * three leftmost columns count too.
+         */
+        boolean overBook(GuiContainer gui, int x, int y) {
+            if (!applies(gui)) {
+                return false;
+            }
+            if (altGroup != null) {
+                return true;
+            }
+            int left;
+            try {
+                left = ((Integer) ReflectionHelper.getPrivateValue(GuiContainer.class, gui, "guiLeft", "field_147003_i")).intValue();
+            } catch (RuntimeException e) {
+                return false;
+            }
+            return x >= panelX && x < left && y >= panelY && y < panelY + 166 || currentTab != null && currentTab.over(x, y);
+        }
+
+        /** As GuiRecipeBook.mouseClicked: an open window of alternatives takes every click; the page keeps the focus. */
+        boolean click(GuiContainer gui, int x, int y, int button) {
+            if (!applies(gui)) {
+                return false;
+            }
+            if (altGroup != null) {
+                return true;
+            }
+            if (button != 0 || search == null || overPage(x, y)) {
+                return false;
+            }
+            search.mouseClicked(x, y, button);
+            return false;
+        }
+
+        private boolean overPage(int x, int y) {
+            if (pageBack != null && pageBack.over(x, y) || pageNext != null && pageNext.over(x, y)) {
+                return true;
+            }
+            for (RecipeButton b : shown) {
+                if (x >= b.xPosition && y >= b.yPosition && x < b.xPosition + b.width && y < b.yPosition + b.height) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** As GuiRecipeBook.keyPressed with the book beside the window; the keys it does not take go on to GuiContainer. */
+        boolean key(GuiContainer gui, char c, int code) {
+            if (!applies(gui) || search == null) {
+                return false;
+            }
+            Minecraft mc = Minecraft.getMinecraft();
+            if (GameSettings.isKeyDown(mc.gameSettings.keyBindChat) && !search.isFocused()) {
+                search.setFocused(true);
+                return false;
+            }
+            if (!search.textboxKeyTyped(c, code)) {
+                return false;
+            }
+            String text = search.getText().toLowerCase(Locale.ROOT);
+            if (!text.equals(lastQuery)) {
+                lastQuery = text;
+                bookPage = 0;
+                rebuild(gui);
+            }
+            return true;
+        }
+
+        private boolean matches(Group g, String text) {
+            for (Data112.Recipe r : g.recipes) {
+                if (EnumChatFormatting.getTextWithoutFormattingCodes(r.result.getDisplayName()).toLowerCase(Locale.ROOT).contains(text)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @SubscribeEvent
+        public void onTick(TickEvent.ClientTickEvent event) {
+            if (event.phase == TickEvent.Phase.END && search != null && applies(Minecraft.getMinecraft().currentScreen)) {
+                search.updateCursorCounter();
+            }
+        }
+
+        @SubscribeEvent
+        public void onOpen(GuiOpenEvent event) {
+            repeat(false);
         }
 
         /** The slots of the book: known recipes that fit the grid, gathered as 1.12 does, in the order of the data. */
@@ -996,6 +1206,13 @@ public final class DataClient {
             int left;
             shown.clear();
             filter = null;
+            pageBack = null;
+            pageNext = null;
+            currentTab = null;
+            altGroup = null;
+            if (!bookOpen) {
+                ghost = null;
+            }
             if (bookOpen) {
                 // Like the recipe book of 1.12: the window moves right to make room for the panel.
                 left = 177 + (gui.width - 176 - 200) / 2;
@@ -1022,10 +1239,24 @@ public final class DataClient {
                 event.buttonList.add(new ImageButton(9300, left + 5, gui.height / 2 - 49, 20, 18, CRAFTING, 0, 168, 19));
             }
             if (!bookOpen || mc.thePlayer == null) {
+                search = null;
+                repeat(false);
                 return;
             }
             int x = (gui.width - 147) / 2 - 86;
             int y = (gui.height - 166) / 2;
+            panelX = x;
+            panelY = y;
+            if (!rebuilding || search == null) {
+                search = new GuiTextField(mc.fontRenderer, x + 25, y + 14, 80, mc.fontRenderer.FONT_HEIGHT + 5);
+                search.setMaxStringLength(50);
+                search.setEnableBackgroundDrawing(false);
+                search.setVisible(true);
+                search.setTextColor(0xFFFFFF);
+                lastQuery = "";
+            }
+            repeat(true);
+            String query = search.getText().toLowerCase(Locale.ROOT);
             List<Group> all = groups(small);
             boolean[] has = new boolean[5];
             has[0] = true;
@@ -1037,7 +1268,7 @@ public final class DataClient {
             }
             List<Group> list = new ArrayList<Group>();
             for (Group g : all) {
-                if ((bookTab == 0 || g.category == bookTab) && (!bookCraftable || anyCraftable(mc, g))) {
+                if ((bookTab == 0 || g.category == bookTab) && (query.length() == 0 || matches(g, query)) && (!bookCraftable || anyCraftable(mc, g))) {
                     list.add(g);
                 }
             }
@@ -1045,19 +1276,26 @@ public final class DataClient {
             bookPage = Math.max(0, Math.min(bookPage, pages - 1));
             PanelButton panel = new PanelButton(x, y);
             panel.page = pages > 1 ? (bookPage + 1) + "/" + pages : null;
+            panel.field = search;
             event.buttonList.add(panel);
             filter = new ImageButton(9303, x + 110, y + 12, 26, 16, BOOK, bookCraftable ? 152 + 28 : 152, 41, 18);
             event.buttonList.add(filter);
             if (pages > 1 && bookPage > 0) {
-                event.buttonList.add(new ImageButton(9301, x + 38, y + 137, 12, 17, BOOK, 1 + 13, 208, 18));
+                pageBack = new ImageButton(9301, x + 38, y + 137, 12, 17, BOOK, 1 + 13, 208, 18);
+                event.buttonList.add(pageBack);
             }
             if (pages > 1 && bookPage < pages - 1) {
-                event.buttonList.add(new ImageButton(9302, x + 93, y + 137, 12, 17, BOOK, 1, 208, 18));
+                pageNext = new ImageButton(9302, x + 93, y + 137, 12, 17, BOOK, 1, 208, 18);
+                event.buttonList.add(pageNext);
             }
             int row = 0;
             for (int c = 0; c < 5; c++) {
                 if (has[c]) {
-                    event.buttonList.add(new TabButton(c, x - 30, y + 3 + 27 * row++));
+                    TabButton tab = new TabButton(c, x - 30, y + 3 + 27 * row++);
+                    if (c == bookTab) {
+                        currentTab = tab;
+                    }
+                    event.buttonList.add(tab);
                 }
             }
             for (int i = bookPage * 20, n = 0; i < list.size() && n < 20; i++, n++) {
@@ -1090,11 +1328,13 @@ public final class DataClient {
             } else {
                 again = false;
                 if (event.button instanceof RecipeButton) {
-                    MC112Bridge.NETWORK.channel.sendToServer(new Data112.FillMessage(((RecipeButton) event.button).recipe(mc).id));
+                    choose(mc, ((RecipeButton) event.button).recipe(mc));
                 }
             }
-            if (again) {
+            if (id == 9300) {
                 event.gui.setWorldAndResolution(mc, event.gui.width, event.gui.height);
+            } else if (again) {
+                rebuild(event.gui);
             }
         }
 
@@ -1105,7 +1345,12 @@ public final class DataClient {
                 return;
             }
             Minecraft mc = Minecraft.getMinecraft();
-            if (mc.thePlayer == null || mc.thePlayer.inventory.getItemStack() != null) {
+            if (mc.thePlayer == null) {
+                return;
+            }
+            drawGhost(mc, event.gui);
+            boolean held = mc.thePlayer.inventory.getItemStack() != null;
+            if (alternatives(mc, event.gui, event.mouseX, event.mouseY) || held) {
                 return;
             }
             int mx = event.mouseX;
@@ -1126,6 +1371,140 @@ public final class DataClient {
                 lines.add(StatCollector.translateToLocal(bookCraftable ? "gui.recipebook.toggleRecipes.craftable" : "gui.recipebook.toggleRecipes.all"));
                 tip.show(event.gui, lines, mx, my);
             }
+        }
+
+        /** A recipe chosen in the book: one that can be made is filled in, any other is shown as a ghost in the grid. */
+        private void choose(Minecraft mc, Data112.Recipe r) {
+            if (canCraft(mc, r)) {
+                ghost = null;
+                MC112Bridge.NETWORK.channel.sendToServer(new Data112.FillMessage(r.id));
+            } else {
+                ghost = r;
+            }
+        }
+
+        /** The recipe as a see-through picture over the empty slots of the grid; the options of a slot take turns. */
+        private void drawGhost(Minecraft mc, GuiScreen gui) {
+            if (ghost == null || !(gui instanceof GuiContainer)) {
+                return;
+            }
+            if (canCraft(mc, ghost)) {
+                ghost = null;
+                return;
+            }
+            GuiContainer c = (GuiContainer) gui;
+            int gridW = gui instanceof GuiInventory ? 2 : 3;
+            int left;
+            int top;
+            try {
+                left = ((Integer) ReflectionHelper.getPrivateValue(GuiContainer.class, c, "guiLeft", "field_147003_i")).intValue();
+                top = ((Integer) ReflectionHelper.getPrivateValue(GuiContainer.class, c, "guiTop", "field_147009_r")).intValue();
+            } catch (RuntimeException e) {
+                return;
+            }
+            if (ghost.shaped && (ghost.width > gridW || ghost.height > gridW)) {
+                return;
+            }
+            int index = 0;
+            for (List<ItemStack> options : ghost.slots) {
+                int cell = index;
+                if (ghost.shaped && ghost.width > 0) {
+                    cell = index / ghost.width * gridW + index % ghost.width;
+                }
+                index++;
+                if (options.isEmpty() || cell >= gridW * gridW || cell + 1 >= c.inventorySlots.inventorySlots.size()) {
+                    continue;
+                }
+                net.minecraft.inventory.Slot slot = c.inventorySlots.getSlot(cell + 1);
+                if (slot.getHasStack()) {
+                    continue;
+                }
+                ItemStack stack = options.get((int) (System.currentTimeMillis() / 1000L % options.size()));
+                int sx = left + slot.xDisplayPosition;
+                int sy = top + slot.yDisplayPosition;
+                icon(stack, sx, sy);
+                Gui.drawRect(sx, sy, sx + 16, sy + 16, 0x30FFFFFF);
+            }
+            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        }
+
+        /**
+         * The window of alternatives: a right click on a slot with several recipes opens it, a click in it picks one,
+         * any other click closes it. There is no mouse event for screens in this Forge, so the buttons are polled.
+         * Returns true if it took the tooltip.
+         */
+        private boolean alternatives(Minecraft mc, GuiScreen gui, int mx, int my) {
+            boolean right = Mouse.isButtonDown(1);
+            boolean left = Mouse.isButtonDown(0);
+            boolean rightNew = right && !rightWas;
+            boolean leftNew = left && !leftWas;
+            rightWas = right;
+            leftWas = left;
+            if (rightNew) {
+                RecipeButton hit = null;
+                for (RecipeButton b : shown) {
+                    if (mx >= b.xPosition && my >= b.yPosition && mx < b.xPosition + b.width && my < b.yPosition + b.height && b.group.recipes.size() > 1) {
+                        hit = b;
+                    }
+                }
+                if (hit != null) {
+                    altGroup = hit.group;
+                    altX = hit.xPosition;
+                    altY = hit.yPosition;
+                    return false;
+                }
+                altGroup = null;
+            }
+            if (altGroup == null) {
+                return false;
+            }
+            List<Data112.Recipe> list = altGroup.recipes;
+            int n = list.size();
+            int cols = Math.min(4, n);
+            int rows = (n + 3) / 4;
+            int bw = cols * 25 + 8;
+            int bh = rows * 25 + 8;
+            int bx = Math.max(2, Math.min(gui.width - bw - 2, altX + 12 - bw / 2));
+            int by = Math.max(2, Math.min(gui.height - bh - 2, altY + 27));
+            int over = -1;
+            for (int i = 0; i < n; i++) {
+                int cx = bx + 4 + 25 * (i % 4);
+                int cy = by + 4 + 25 * (i / 4);
+                if (mx >= cx && my >= cy && mx < cx + 25 && my < cy + 25) {
+                    over = i;
+                }
+            }
+            if (leftNew || rightNew) {
+                if (leftNew && over >= 0) {
+                    choose(mc, list.get(over));
+                }
+                if (leftNew || !(mx >= bx && my >= by && mx < bx + bw && my < by + bh)) {
+                    altGroup = null;
+                    return false;
+                }
+            }
+            GL11.glPushMatrix();
+            GL11.glTranslatef(0.0F, 0.0F, 300.0F);
+            Gui.drawRect(bx - 1, by - 1, bx + bw + 1, by + bh + 1, 0xFF000000);
+            Gui.drawRect(bx, by, bx + bw, by + bh, 0xFFC6C6C6);
+            for (int i = 0; i < n; i++) {
+                int cx = bx + 4 + 25 * (i % 4);
+                int cy = by + 4 + 25 * (i / 4);
+                textured();
+                mc.getTextureManager().bindTexture(BOOK);
+                blit(cx, cy, canCraft(mc, list.get(i)) ? 29 : 54, 206, 25, 25);
+                icon(list.get(i).result, cx + 4, cy + 4);
+            }
+            GL11.glPopMatrix();
+            if (over >= 0) {
+                ItemStack stack = list.get(over).result;
+                List<String> lines = new ArrayList<String>(stack.getTooltip(mc.thePlayer, mc.gameSettings.advancedItemTooltips));
+                if (!lines.isEmpty()) {
+                    lines.set(0, stack.getRarity().rarityColor + lines.get(0));
+                }
+                tip.show(gui, lines, mx, my);
+            }
+            return true;
         }
 
         /** Without a screen open the toasts go over the HUD... */
@@ -1179,6 +1558,7 @@ public final class DataClient {
         private long start = -1L;
         private long shown = -1L;
         private boolean hiding;
+        private boolean played;
 
         ToastSlot(Data112.Advancement a) {
             this.a = a;
@@ -1214,6 +1594,12 @@ public final class DataClient {
         @SuppressWarnings("unchecked")
         private boolean draw(Minecraft mc, long time) {
             FontRenderer font = mc.fontRenderer;
+            if (!played) {
+                played = true;
+                if ("challenge".equals(a.frame)) {
+                    mc.getSoundHandler().playSound(PositionedSoundRecord.func_147674_a(new ResourceLocation(DOMAIN, "ui.toast.challenge_complete"), 1.0F));
+                }
+            }
             textured();
             mc.getTextureManager().bindTexture(TOASTS);
             blit(0, 0, 0, 0, 160, 32);

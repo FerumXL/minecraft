@@ -100,6 +100,25 @@ public final class Data112 {
         final List<String> rewardRecipes = new ArrayList<String>();
         int rewardXp;
         String rewardFunction;
+
+        /** Number of requirement groups: the n of the progress n/m. */
+        public int total() {
+            return requirements.size();
+        }
+
+        /** Requirement groups with at least one criterion done. */
+        public int completed(java.util.Set<String> crit) {
+            int n = 0;
+            for (List<String> any : requirements) {
+                for (String c : any) {
+                    if (crit.contains(id + "|" + c)) {
+                        n++;
+                        break;
+                    }
+                }
+            }
+            return n;
+        }
     }
 
     static final class Criterion {
