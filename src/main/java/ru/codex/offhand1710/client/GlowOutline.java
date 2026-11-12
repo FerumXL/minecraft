@@ -41,6 +41,8 @@ public final class GlowOutline {
     private Framebuffer a;
     private Framebuffer b;
     public static int lastDrawn;
+    /** Test accessor only: how many times the coremod hook afterWorld has been called. */
+    private static int hookCalls;
     /** True while the silhouettes are drawn: name tags must not get into them. */
     private static boolean drawingMask;
     private static GlowOutline instance;
@@ -54,6 +56,11 @@ public final class GlowOutline {
     private boolean pending;
 
     private GlowOutline() {
+    }
+
+    /** Test accessor (read only) for the audit: calls of the afterWorld hook so far. */
+    public static int hookCalls() {
+        return hookCalls;
     }
 
     static void register() {
@@ -133,6 +140,7 @@ public final class GlowOutline {
      * renderEntityOutlineFramebuffer, so the outline lies over the hand and under the screen shader.
      */
     public static void afterWorld() {
+        hookCalls++;
         afterWorldSeen = true;
         if (instance != null && instance.pending) {
             instance.pending = false;
@@ -179,6 +187,10 @@ public final class GlowOutline {
         mask = ensure(mask, w, h, false);
         a = ensure(a, w, h, false);
         b = ensure(b, w, h, false);
+        // Creating or resizing a Framebuffer leaves framebuffer 0 bound. glPushAttrib below would then save the
+        // draw buffer of the window (GL_BACK), and glPopAttrib would restore it onto the scene framebuffer bound at
+        // the end: GL_INVALID_OPERATION (1282), the "Post render" GL error once per run. Rebind the scene first.
+        mc.getFramebuffer().bindFramebuffer(true);
         float pt = partial;
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
         GL11.glMatrixMode(GL11.GL_PROJECTION);

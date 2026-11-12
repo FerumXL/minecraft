@@ -609,7 +609,7 @@ public final class Brew112 {
                 if (!world.isRemote) {
                     cloud.radius(cloud.radius() - 0.5F);
                 }
-                world.playSoundAtEntity(player, "random.bottle", 1.0F, 1.0F);
+                world.playSoundAtEntity(player, MC112Bridge.MOD_ID + ":item.bottle.fill_dragonbreath", 1.0F, 1.0F);
                 ItemStack filled = new ItemStack(dragonBreath);
                 if (player.capabilities.isCreativeMode) {
                     player.inventory.addItemStackToInventory(filled);

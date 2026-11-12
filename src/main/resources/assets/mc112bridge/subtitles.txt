@@ -276,3 +276,4 @@ minecraft:step.stone=subtitles.block.generic.hit
 minecraft:step.wood=subtitles.block.generic.hit
 minecraft:tile.piston.in=subtitles.block.piston.move
 minecraft:tile.piston.out=subtitles.block.piston.move
+mc112bridge:item.bottle.fill_dragonbreath=subtitles.item.bottle.fill

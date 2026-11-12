@@ -3,7 +3,9 @@ package ru.codex.offhand1710.client;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Random;
@@ -20,8 +22,14 @@ import net.minecraft.client.gui.GuiCommandBlock;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiScreenOptionsSounds;
+import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.settings.KeyBinding;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 import net.minecraft.entity.EntityList;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.passive.EntityPig;
@@ -94,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -268,6 +276,8 @@ public final class Scenarios {
             bench();
         } else if ("extra".equals(STAGE)) {
             extra();
+        } else if ("gui".equals(STAGE)) {
+            gui();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -376,6 +386,21 @@ public final class Scenarios {
 
     @SubscribeEvent
     public void onRender(TickEvent.RenderTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) {
+            frames++;
+            if (fakeOn) {
+                poke(leftFrames > 0, rightFrames > 0);
+            }
+        } else if (event.phase == TickEvent.Phase.END) {
+            if (measuring && GL11.glGetError() != 0) {
+                glErrors++;
+            }
+            if (fakeOn && (leftFrames > 0 || rightFrames > 0)) {
+                poke(false, false);
+                leftFrames = Math.max(0, leftFrames - 1);
+                rightFrames = Math.max(0, rightFrames - 1);
+            }
+        }
         if (event.phase == TickEvent.Phase.END && counting) {
             count++;
             secondCount++;
@@ -1424,6 +1449,656 @@ public final class Scenarios {
             }
         }
         return treasure;
+    }
+
+
+    // ---- stage gui: real GUI actions of 0.30.0 (recipe book, advancements, glow after hand, toast sound) ----
+
+    private boolean fakeOn;
+    private int fx;
+    private int fy;
+    private int leftFrames;
+    private int rightFrames;
+    private long frames;
+    private boolean measuring;
+    private int glErrors;
+    private long frameMark;
+    private int hookMark;
+    private int itemsBefore;
+    private boolean cursorKept;
+    private int nAll;
+    private GuiButton planksButton;
+    private String expectId;
+    private int glowDrawn;
+    private Data112.Advancement progressAdv;
+    private int progressN;
+    private net.minecraft.entity.passive.EntityCow glowCow;
+
+    /** Steps that may throw: the exception is logged as a failed step by run(). */
+    private abstract class X implements Runnable {
+        @Override
+        public final void run() {
+            try {
+                go();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        abstract void go() throws Exception;
+    }
+
+    private static Field lwjgl(String name) throws Exception {
+        Field f = Mouse.class.getDeclaredField(name);
+        f.setAccessible(true);
+        return f;
+    }
+
+    /** Sets what Mouse.getX/getY/isButtonDown return for the frame about to be drawn (the OS state overwrites it after the frame). */
+    private void poke(boolean left, boolean right) {
+        try {
+            lwjgl("x").setInt(null, fx);
+            lwjgl("y").setInt(null, fy);
+            ByteBuffer b = (ByteBuffer) lwjgl("buttons").get(null);
+            b.put(0, (byte) (left ? 1 : 0));
+            b.put(1, (byte) (right ? 1 : 0));
+        } catch (Exception e) {
+            if (!pokeFailed) {
+                pokeFailed = true;
+                log("FAIL mouse poke " + e);
+            }
+        }
+    }
+
+    private boolean pokeFailed;
+
+    /** Puts the polled mouse over the scaled gui point. */
+    private void mouseTo(int sx, int sy) {
+        int f = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor();
+        fx = sx * f + f / 2;
+        fy = mc.displayHeight - sy * f - f / 2;
+        fakeOn = true;
+    }
+
+    private Method screenMethod(String[] names, Class<?>... types) {
+        return ReflectionHelper.findMethod(GuiScreen.class, mc.currentScreen, names, types);
+    }
+
+    /** A click as the screen gets it from the input loop: pressed and released at one point. */
+    private void clickAt(int x, int y, int button) throws Exception {
+        screenMethod(new String[] {"mouseClicked", "func_73864_a"}, int.class, int.class, int.class).invoke(mc.currentScreen, Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(button));
+        screenMethod(new String[] {"mouseMovedOrUp", "func_146286_b"}, int.class, int.class, int.class).invoke(mc.currentScreen, Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(button));
+    }
+
+    private void key(char c, int code) throws Exception {
+        screenMethod(new String[] {"keyTyped", "func_73869_a"}, char.class, int.class).invoke(mc.currentScreen, Character.valueOf(c), Integer.valueOf(code));
+    }
+
+    private void type(String text) throws Exception {
+        for (char c : text.toCharArray()) {
+            key(c, c == ' ' ? Keyboard.KEY_SPACE : Keyboard.getKeyIndex(String.valueOf(Character.toUpperCase(c))));
+        }
+    }
+
+    private void erase(int n) throws Exception {
+        for (int i = 0; i < n; i++) {
+            key('\b', Keyboard.KEY_BACK);
+        }
+    }
+
+    private static Object dc(String name) throws Exception {
+        Field f = DataClient.class.getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(null);
+    }
+
+    private GuiTextField searchField() throws Exception {
+        Object ev = dc("events");
+        Field f = ev.getClass().getDeclaredField("search");
+        f.setAccessible(true);
+        return (GuiTextField) f.get(ev);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<GuiButton> recipeButtons() {
+        List<GuiButton> all = ReflectionHelper.getPrivateValue(GuiScreen.class, mc.currentScreen, "buttonList", "field_146292_n");
+        List<GuiButton> out = new java.util.ArrayList<GuiButton>();
+        for (GuiButton b : all) {
+            if (b.id >= 9400 && b.id < 9420) {
+                out.add(b);
+            }
+        }
+        return out;
+    }
+
+    private Object groupOf(GuiButton b) throws Exception {
+        Field g = b.getClass().getDeclaredField("group");
+        g.setAccessible(true);
+        return g.get(b);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Data112.Recipe> recipesOf(GuiButton b) throws Exception {
+        Object grp = groupOf(b);
+        Field r = grp.getClass().getDeclaredField("recipes");
+        r.setAccessible(true);
+        return (List<Data112.Recipe>) r.get(grp);
+    }
+
+    private boolean canCraft(Data112.Recipe r) throws Exception {
+        Method m = DataClient.class.getDeclaredMethod("canCraft", Minecraft.class, Data112.Recipe.class);
+        m.setAccessible(true);
+        return ((Boolean) m.invoke(null, mc, r)).booleanValue();
+    }
+
+    private String ghostId() throws Exception {
+        Object g = dc("ghost");
+        return g == null ? null : ((Data112.Recipe) g).id;
+    }
+
+    private int bookPage() throws Exception {
+        return ((Integer) dc("bookPage")).intValue();
+    }
+
+    private int itemEntities() {
+        int n = 0;
+        for (Object o : w().loadedEntityList) {
+            if (o instanceof EntityItem) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private GuiButton buttonFor(String recipeId) throws Exception {
+        for (GuiButton b : recipeButtons()) {
+            for (Data112.Recipe r : recipesOf(b)) {
+                if (r.id.equals(recipeId)) {
+                    return b;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int panelX() {
+        return (mc.currentScreen.width - 147) / 2 - 86;
+    }
+
+    private int panelY() {
+        return (mc.currentScreen.height - 166) / 2;
+    }
+
+    private void gui() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("difficulty 0");
+                cmd("gamerule doDaylightCycle false");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 6000");
+                cmd("gamemode 0");
+                for (int i = 0; i < p().inventory.mainInventory.length; i++) {
+                    p().inventory.mainInventory[i] = null;
+                }
+                cmd("advancement revoke " + p().getCommandSenderName() + " everything");
+                cmd("recipe give " + p().getCommandSenderName() + " *");
+            }
+        });
+        // ---- 1. held-item click ----
+        client(60, new X() {
+            @Override
+            void go() throws Exception {
+                result("recipe sync: client knows every recipe after the first /recipe give *", DataClient.knownCount() >= 400, "client knows " + DataClient.knownCount() + " of " + Data112.RECIPES.size());
+            }
+        });
+        server(2, new Runnable() {
+            @Override
+            public void run() {
+                cmd("recipe give " + p().getCommandSenderName() + " *");
+            }
+        });
+        client(40, new X() {
+            @Override
+            void go() throws Exception {
+                log("INFO knownRecipes=" + DataClient.knownCount() + " recipes=" + Data112.RECIPES.size() + " screen=" + mc.displayWidth + "x" + mc.displayHeight);
+                mc.displayGuiScreen(new GuiInventory(mc.thePlayer));
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                GuiButton b = button(9300);
+                click(b);
+                result("recipe book opens with button 9300", DataClient.isBookOpen() && button(9302) != null && !recipeButtons().isEmpty(), "open=" + DataClient.isBookOpen() + " slots=" + recipeButtons().size());
+            }
+        });
+        server(2, new Runnable() {
+            @Override
+            public void run() {
+                p().inventory.setItemStack(new ItemStack(Items.stick, 7));
+                itemsBefore = itemEntities();
+            }
+        });
+        client(2, new X() {
+            @Override
+            void go() throws Exception {
+                mc.thePlayer.inventory.setItemStack(new ItemStack(Items.stick, 7));
+                clickAt(panelX() + 4, panelY() + 160, 0);
+            }
+        });
+        client(10, new X() {
+            @Override
+            void go() throws Exception {
+                cursorKept = mc.thePlayer.inventory.getItemStack() != null && mc.thePlayer.inventory.getItemStack().stackSize == 7;
+            }
+        });
+        server(2, new Runnable() {
+            @Override
+            public void run() {
+                result("click on the book panel keeps the stack on the cursor, no item entity", cursorKept && p().inventory.getItemStack() != null && itemEntities() == itemsBefore,
+                        "clientCursor=" + cursorKept + " serverCursor=" + p().inventory.getItemStack() + " entities=" + itemEntities() + "/" + itemsBefore);
+            }
+        });
+        client(2, new X() {
+            @Override
+            void go() throws Exception {
+                clickAt(mc.currentScreen.width - 3, mc.currentScreen.height / 2, 0);
+            }
+        });
+        client(10, new X() {
+            @Override
+            void go() throws Exception {
+                cursorKept = mc.thePlayer.inventory.getItemStack() == null;
+            }
+        });
+        server(6, new Runnable() {
+            @Override
+            public void run() {
+                boolean sticks = false;
+                for (Object o : w().loadedEntityList) {
+                    if (o instanceof EntityItem && ((EntityItem) o).getEntityItem().getItem() == Items.stick && ((EntityItem) o).getEntityItem().stackSize == 7) {
+                        sticks = true;
+                        ((EntityItem) o).setDead();
+                    }
+                }
+                result("click really outside the window drops the stack", sticks, "dropped7sticks=" + sticks + " clientCursorEmpty=" + cursorKept + " serverCursor=" + p().inventory.getItemStack());
+            }
+        });
+        // ---- 2. search field ----
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                nAll = recipeButtons().size();
+                GuiButton next = button(9302);
+                click(next);
+                boolean page2 = bookPage() >= 1 && button(9301) != null;
+                result("book: one click on the next-page arrow advances exactly one page", bookPage() == 1, "bookPage(0-based) after one click from page 0 = " + bookPage());
+                log("INFO page click: next at " + next.xPosition + "," + next.yPosition + " size " + next.width + "x" + next.height + " bookPage=" + bookPage() + " back=" + (button(9301) != null) + " slotsNow=" + recipeButtons().size());
+                clickAt(panelX() + 25 + 4, panelY() + 14 + 3, 0);
+                boolean focus = searchField().isFocused();
+                type("stick");
+                int n = recipeButtons().size();
+                boolean names = n > 0;
+                for (GuiButton b : recipeButtons()) {
+                    boolean any = false;
+                    for (Data112.Recipe r : recipesOf(b)) {
+                        any |= net.minecraft.util.EnumChatFormatting.getTextWithoutFormattingCodes(r.result.getDisplayName()).toLowerCase().contains("stick");
+                    }
+                    names &= any;
+                }
+                result("search: field gets the focus from a click", focus, "");
+                result("search 'stick' shrinks the list to matching names and returns to page 1", page2 && n < nAll && names && bookPage() == 0 && button(9301) == null,
+                        "page2first=" + page2 + " slots " + nAll + "->" + n + " allMatch=" + names + " pageNow=" + bookPage() + " text=" + searchField().getText());
+            }
+        });
+        client(6, new X() {
+            @Override
+            void go() throws Exception {
+                shot("gui_book_search");
+            }
+        });
+        client(3, new X() {
+            @Override
+            void go() throws Exception {
+                GuiScreen before = mc.currentScreen;
+                key('e', mc.gameSettings.keyBindInventory.getKeyCode());
+                String text = searchField().getText();
+                result("search: the inventory key types its letter and keeps the screen open", mc.currentScreen == before && "sticke".equals(text), "text=" + text + " screenSame=" + (mc.currentScreen == before));
+                erase(6);
+                result("search: clearing restores the full list", searchField().getText().length() == 0 && recipeButtons().size() == nAll && bookPage() == 0, "text='" + searchField().getText() + "' slots=" + recipeButtons().size() + "/" + nAll);
+            }
+        });
+        // ---- 3. alternatives window ----
+        client(3, new X() {
+            @Override
+            void go() throws Exception {
+                type("plank");
+                planksButton = null;
+                for (GuiButton b : recipeButtons()) {
+                    if (recipesOf(b).size() > 1) {
+                        planksButton = b;
+                        break;
+                    }
+                }
+                log("INFO planks button=" + (planksButton == null ? null : planksButton.xPosition + "," + planksButton.yPosition + " recipes=" + recipesOf(planksButton).size()));
+                expectId = recipesOf(planksButton).get(2).id;
+                mouseTo(planksButton.xPosition + 12, planksButton.yPosition + 12);
+                rightFrames = 1;
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                result("alternatives: right click on a slot with several recipes opens the window", dc("altGroup") == groupOf(planksButton), "altGroup=" + (dc("altGroup") != null));
+            }
+        });
+        client(4, new X() {
+            @Override
+            void go() throws Exception {
+                shot("gui_alt");
+            }
+        });
+        client(2, new X() {
+            @Override
+            void go() throws Exception {
+                int n = recipesOf(planksButton).size();
+                int cols = Math.min(4, n);
+                int rows = (n + 3) / 4;
+                int bw = cols * 25 + 8;
+                int bh = rows * 25 + 8;
+                int bx = Math.max(2, Math.min(mc.currentScreen.width - bw - 2, planksButton.xPosition + 12 - bw / 2));
+                int by = Math.max(2, Math.min(mc.currentScreen.height - bh - 2, planksButton.yPosition + 27));
+                int cx = bx + 4 + 25 * (2 % 4) + 12;
+                int cy = by + 4 + 25 * (2 / 4) + 12;
+                mouseTo(cx, cy);
+                clickAt(cx, cy, 0);
+                leftFrames = 1;
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                result("alternatives: a click on one of its cells picks that recipe and closes it", dc("altGroup") == null && expectId.equals(ghostId()), "altOpen=" + (dc("altGroup") != null) + " ghost=" + ghostId() + " expected=" + expectId);
+                mouseTo(planksButton.xPosition + 12, planksButton.yPosition + 12);
+                rightFrames = 1;
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                boolean open = dc("altGroup") != null;
+                mouseTo(mc.currentScreen.width - 6, 6);
+                clickAt(mc.currentScreen.width - 6, 6, 0);
+                leftFrames = 1;
+                cursorKept = open;
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                result("alternatives: a left click elsewhere closes it and picks nothing", cursorKept && dc("altGroup") == null && expectId.equals(ghostId()), "wasOpen=" + cursorKept + " stillOpen=" + (dc("altGroup") != null) + " ghost=" + ghostId());
+                mouseTo(planksButton.xPosition + 12, planksButton.yPosition + 12);
+                rightFrames = 1;
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                cursorKept = dc("altGroup") != null;
+                mouseTo(mc.currentScreen.width - 6, 6);
+                rightFrames = 1;
+            }
+        });
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                result("alternatives: a right click elsewhere closes it", cursorKept && dc("altGroup") == null, "wasOpen=" + cursorKept + " stillOpen=" + (dc("altGroup") != null));
+            }
+        });
+        // ---- 4. ghost recipe ----
+        client(3, new X() {
+            @Override
+            void go() throws Exception {
+                erase(5);
+                type("crafting");
+                GuiButton b = buttonFor("minecraft:crafting_table");
+                Data112.Recipe r = Data112.RECIPES.get("minecraft:crafting_table");
+                boolean craftable = canCraft(r);
+                click(b);
+                boolean ghost = "minecraft:crafting_table".equals(ghostId());
+                result("ghost: click on a recipe with missing ingredients sets the ghost", b != null && !craftable && ghost, "button=" + (b != null) + " craftableBefore=" + craftable + " ghost=" + ghostId());
+            }
+        });
+        server(8, new Runnable() {
+            @Override
+            public void run() {
+                boolean empty = true;
+                for (int i = 1; i <= 4; i++) {
+                    empty &= !p().openContainer.getSlot(i).getHasStack();
+                }
+                result("ghost: no fill happens while ingredients are missing", empty && p().inventory.getItemStack() == null, "gridEmpty=" + empty);
+            }
+        });
+        client(2, new X() {
+            @Override
+            void go() throws Exception {
+                shot("gui_ghost");
+            }
+        });
+        server(3, new Runnable() {
+            @Override
+            public void run() {
+                p().inventory.addItemStackToInventory(new ItemStack(Blocks.planks, 4, 0));
+                p().inventoryContainer.detectAndSendChanges();
+            }
+        });
+        client(12, new X() {
+            @Override
+            void go() throws Exception {
+                Data112.Recipe r = Data112.RECIPES.get("minecraft:crafting_table");
+                boolean craftable = canCraft(r);
+                click(buttonFor("minecraft:crafting_table"));
+                result("ghost: with the ingredients given the recipe is craftable", craftable, "canCraft=" + craftable);
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                int filled = 0;
+                for (int i = 1; i <= 4; i++) {
+                    ItemStack s = p().openContainer.getSlot(i).getStack();
+                    if (s != null && s.getItem() == Item.getItemFromBlock(Blocks.planks) && s.stackSize == 1) {
+                        filled++;
+                    }
+                }
+                int left = 0;
+                for (ItemStack s : p().inventory.mainInventory) {
+                    left += s != null && s.getItem() == Item.getItemFromBlock(Blocks.planks) ? s.stackSize : 0;
+                }
+                result("ghost: click fills the grid from the inventory", filled == 4 && left == 0, "gridPlanks=" + filled + " inventoryPlanks=" + left);
+            }
+        });
+        client(8, new X() {
+            @Override
+            void go() throws Exception {
+                result("ghost: cleared once the recipe is made craftable", ghostId() == null, "ghost=" + ghostId());
+                mc.displayGuiScreen(null);
+                fakeOn = false;
+            }
+        });
+        // ---- 6. glow after the hand (before the advancement toasts) ----
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                int gx = (int) p().posX;
+                int gz = (int) p().posZ;
+                hold(new ItemStack(Items.iron_sword));
+                p().clearActivePotions();
+                tp(gx + 0.5D, p().posY, gz + 0.5D, 0.0F, 12.0F);
+                net.minecraft.entity.passive.EntityCow cow = new net.minecraft.entity.passive.EntityCow(w());
+                cow.setLocationAndAngles(gx + 0.5D - 1.7D, p().posY, gz + 2.4D, 180.0F, 0.0F);
+                cow.func_110163_bv();
+                w().spawnEntityInWorld(cow);
+                glowCow = cow;
+                cow.addPotionEffect(new PotionEffect(Content120.glowing.id, 4000, 0));
+                view(0);
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                // cows wander: put it back behind the hand and keep it still for the shot
+                glowCow.setLocationAndAngles(p().posX - 1.7D, p().posY, p().posZ + 2.4D, 180.0F, 0.0F);
+                glowCow.motionX = 0.0D;
+                glowCow.motionZ = 0.0D;
+            }
+        });
+        client(4, new X() {
+            @Override
+            void go() throws Exception {
+                glowDrawn = GlowOutline.lastDrawn;
+                shot("glow_hand");
+                log("GLOW hand drawn=" + glowDrawn + " held=" + mc.thePlayer.getHeldItem() + " view=" + mc.gameSettings.thirdPersonView);
+                GL11.glGetError();
+                glErrors = 0;
+                frameMark = frames;
+                hookMark = GlowOutline.hookCalls();
+                measuring = true;
+            }
+        });
+        client(60, new X() {
+            @Override
+            void go() throws Exception {
+                measuring = false;
+                long n = frames - frameMark;
+                int h = GlowOutline.hookCalls() - hookMark;
+                boolean held = mc.thePlayer.getHeldItem() != null && mc.gameSettings.thirdPersonView == 0;
+                result("glow after hand: outline drawn with an item in the first-person hand", held && glowDrawn >= 1, "GLOW drawn=" + glowDrawn + " held=" + mc.thePlayer.getHeldItem());
+                result("glow after hand: hook fires once per frame", n >= 20 && h == n, "frames=" + n + " hookCalls=" + h);
+                result("glow after hand: no GL error in those frames", glErrors == 0, "glErrors=" + glErrors);
+            }
+        });
+        // ---- 5. advancement progress ----
+        server(5, new Runnable() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public void run() {
+                try {
+                    for (String id : new String[] {"minecraft:adventure/root", "minecraft:adventure/sleep_in_bed"}) {
+                        Data112.Advancement a = Data112.ADVANCEMENTS.get(id);
+                        for (String c : ((java.util.Map<String, Object>) fieldOf(Data112.Advancement.class, a, "criteria")).keySet()) {
+                            Data112.grant(p(), a, c);
+                        }
+                    }
+                    progressAdv = Data112.ADVANCEMENTS.get("minecraft:adventure/adventuring_time");
+                    int n = 0;
+                    for (String c : ((java.util.Map<String, Object>) fieldOf(Data112.Advancement.class, progressAdv, "criteria")).keySet()) {
+                        if (n++ < 3) {
+                            Data112.grant(p(), progressAdv, c);
+                        }
+                    }
+                    Data112.sync(p());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        client(20, new X() {
+            @Override
+            @SuppressWarnings("unchecked")
+            void go() throws Exception {
+                java.util.Set<String> crit = (java.util.Set<String>) dc("CRIT");
+                java.util.Set<String> done = (java.util.Set<String>) dc("DONE");
+                int n = progressAdv.completed(crit);
+                int m = progressAdv.total();
+                result("progress: partially granted advancement computes n/m", n >= 3 && n < m && m > 3 && !done.contains(progressAdv.id), "n=" + n + " m=" + m + " done=" + done.contains(progressAdv.id) + " (3 granted by the test, more if the player's own biome counted)");
+                progressN = n;
+                Field last = DataClient.class.getDeclaredField("lastTab");
+                last.setAccessible(true);
+                last.set(null, "minecraft:adventure/root");
+                DataClient.openAdvancements();
+            }
+        });
+        client(8, new X() {
+            @Override
+            @SuppressWarnings("unchecked")
+            void go() throws Exception {
+                boolean screen = mc.currentScreen instanceof DataClient.Screen;
+                Object scr = mc.currentScreen;
+                Object sel = fieldOf(scr.getClass(), scr, "selected");
+                List<Object> all = (List<Object>) fieldOf(sel.getClass(), sel, "all");
+                Object widget = null;
+                for (Object wd : all) {
+                    if (fieldOf(wd.getClass(), wd, "a") == progressAdv) {
+                        widget = wd;
+                    }
+                }
+                String progress = widget == null ? null : (String) fieldOf(widget.getClass(), widget, "progress");
+                float fraction = widget == null ? -1.0F : ((Float) fieldOf(widget.getClass(), widget, "fraction")).floatValue();
+                result("progress: the L screen draws and the widget shows n/m", screen && widget != null && (progressN + "/" + progressAdv.total()).equals(progress) && Math.abs(fraction - (float) progressN / progressAdv.total()) < 0.001F,
+                        "screen=" + screen + " widget=" + (widget != null) + " text=" + progress + " fraction=" + fraction + " keyL=" + (DataClient.keyCode() == Keyboard.KEY_L));
+                if (widget != null) {
+                    int wx = ((Integer) fieldOf(widget.getClass(), widget, "x")).intValue();
+                    int wy = ((Integer) fieldOf(widget.getClass(), widget, "y")).intValue();
+                    Field sx = sel.getClass().getDeclaredField("scrollX");
+                    Field sy = sel.getClass().getDeclaredField("scrollY");
+                    sx.setAccessible(true);
+                    sy.setAccessible(true);
+                    sx.setInt(sel, 117 - wx - 13);
+                    sy.setInt(sel, 56 - wy - 13);
+                    int left = (mc.currentScreen.width - 252) / 2;
+                    int top = (mc.currentScreen.height - 140) / 2;
+                    mouseTo(left + 9 + 117, top + 18 + 56);
+                }
+            }
+        });
+        client(40, new X() {
+            @Override
+            void go() throws Exception {
+                shot("gui_progress");
+                log("INFO progress screen still open=" + (mc.currentScreen instanceof DataClient.Screen));
+                mc.displayGuiScreen(null);
+                fakeOn = false;
+            }
+        });
+        // ---- 7. challenge toast sound ----
+        client(5, new X() {
+            @Override
+            void go() throws Exception {
+                ResourceLocation rl = new ResourceLocation("mc112bridge", "ui.toast.challenge_complete");
+                result("toast sound: ui.toast.challenge_complete is registered in the sound manager", mc.getSoundHandler().getSound(rl) != null, "");
+                mc.getSoundHandler().playSound(PositionedSoundRecord.func_147674_a(rl, 1.0F));
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public void run() {
+                try {
+                    for (String c : ((java.util.Map<String, Object>) fieldOf(Data112.Advancement.class, progressAdv, "criteria")).keySet()) {
+                        Data112.grant(p(), progressAdv, c);
+                    }
+                    Data112.sync(p());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        client(60, new X() {
+            @Override
+            @SuppressWarnings("unchecked")
+            void go() throws Exception {
+                result("toast sound: completing a challenge syncs it done (toast plays the sound)", ((java.util.Set<String>) dc("DONE")).contains(progressAdv.id), "");
+            }
+        });
+        finish();
+    }
+
+    private static Object fieldOf(Class<?> c, Object o, String name) throws Exception {
+        Field f = c.getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(o);
     }
 
 }

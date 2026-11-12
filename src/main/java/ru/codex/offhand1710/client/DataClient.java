@@ -76,9 +76,10 @@ public final class DataClient {
     private static final RenderItem ITEMS = new RenderItem();
     private static final Gui GUI = new Gui();
     private static final KeyBinding KEY = new KeyBinding("key.advancements", Keyboard.KEY_L, "key.categories.misc");
-    private static final Set<String> DONE = new HashSet<String>();
-    private static final Set<String> CRIT = new HashSet<String>();
-    private static final Set<String> KNOWN = new HashSet<String>();
+    // written by the network thread (SyncHandler), read by the client thread
+    private static final Set<String> DONE = Collections.synchronizedSet(new HashSet<String>());
+    private static final Set<String> CRIT = Collections.synchronizedSet(new HashSet<String>());
+    private static final Set<String> KNOWN = Collections.synchronizedSet(new HashSet<String>());
     /** Filled from the network thread. */
     private static final List<String> TOAST_QUEUE = new ArrayList<String>();
     /** The five places of GuiToast (bkc), one under the other. */
@@ -128,8 +129,12 @@ public final class DataClient {
         return outside && !(events != null && events.overBook(gui, x, y));
     }
 
+    /** Set when a click has rebuilt the book's buttons: the rest of that click's button loop must not press the new ones. */
+    private static volatile boolean swallowClick;
+
     /** Coremod hook at the start of GuiContainer.mouseClicked; true means the book took the click. */
     public static boolean bookClick(GuiContainer gui, int x, int y, int button) {
+        swallowClick = false;
         return events != null && events.click(gui, x, y, button);
     }
 
@@ -146,9 +151,11 @@ public final class DataClient {
     }
 
     private static void split(String text, Set<String> into) {
-        into.clear();
-        if (text.length() > 0) {
-            into.addAll(Arrays.asList(text.split(";")));
+        synchronized (into) {
+            into.clear();
+            if (text.length() > 0) {
+                into.addAll(Arrays.asList(text.split(";")));
+            }
         }
     }
 
@@ -862,6 +869,12 @@ public final class DataClient {
             return mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width && mouseY < yPosition + height;
         }
 
+        /** One click is one action: buttons made by a rebuild during this click are not pressed by the same click loop. */
+        @Override
+        public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
+            return !swallowClick && super.mousePressed(mc, mouseX, mouseY);
+        }
+
         @Override
         public void drawButton(Minecraft mc, int mouseX, int mouseY) {
             if (!visible) {
@@ -958,7 +971,7 @@ public final class DataClient {
         /** While the window of alternatives is open, clicks belong to it. */
         @Override
         public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
-            return altGroup == null && super.mousePressed(mc, mouseX, mouseY);
+            return altGroup == null && !swallowClick && super.mousePressed(mc, mouseX, mouseY);
         }
 
         /** Craftable ones first, the rest after them unless only craftable ones are shown. */
@@ -1332,8 +1345,10 @@ public final class DataClient {
                 }
             }
             if (id == 9300) {
+                swallowClick = true;
                 event.gui.setWorldAndResolution(mc, event.gui.width, event.gui.height);
             } else if (again) {
+                swallowClick = true;
                 rebuild(event.gui);
             }
         }
@@ -1341,6 +1356,7 @@ public final class DataClient {
         @SubscribeEvent
         @SuppressWarnings("unchecked")
         public void onDrawn(GuiScreenEvent.DrawScreenEvent.Post event) {
+            swallowClick = false;
             if (!bookOpen || !(event.gui instanceof GuiInventory || event.gui instanceof GuiCrafting)) {
                 return;
             }

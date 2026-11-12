@@ -78,7 +78,7 @@ public final class Data112 {
     private static final Map<String, String> BIOMES = new HashMap<String, String>();
     private static final Map<String, List<Criterion>> BY_TRIGGER = new HashMap<String, List<Criterion>>();
     private static final String TAG = "mc112data";
-    private static final Set<EntityPlayerMP> DIRTY = Collections.newSetFromMap(new WeakHashMap<EntityPlayerMP, Boolean>());
+    private static final Set<EntityPlayerMP> DIRTY = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<EntityPlayerMP, Boolean>()));
 
     private Data112() {
     }
@@ -809,8 +809,8 @@ public final class Data112 {
                     for (Object o : MinecraftServer.getServer().getConfigurationManager().playerEntityList) {
                         flush((EntityPlayerMP) o);
                     }
-                    // the ones left behind have logged out or respawned as a new entity; a new one syncs itself
-                    DIRTY.clear();
+                    // not cleared: a command run from another thread (the tests, an integrated-server client) may
+                    // have marked a player after the loop; the ones left behind are weak and die with their entity
                 }
                 return;
             }
