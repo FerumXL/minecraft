@@ -176,6 +176,16 @@ public final class GlStackProbe {
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onHand(RenderHandEvent event) {
         if (ready()) {
+            if (tracing()) {
+                // Who posts the hand event (it was seen twice per frame in a game with the leak) and in which matrix mode.
+                StringBuilder trace = new StringBuilder();
+                StackTraceElement[] st = Thread.currentThread().getStackTrace();
+                for (int i = 2; i < st.length && i < 16; i++) {
+                    trace.append("\n    at ").append(st[i]);
+                }
+                FMLLog.info("[mc112bridge GL probe] T%d hand event, matrixMode=%d, posted from:%s",
+                        frames, GL11.glGetInteger(GL11.GL_MATRIX_MODE), trace);
+            }
             stage("just before vanilla hand render");
         }
     }

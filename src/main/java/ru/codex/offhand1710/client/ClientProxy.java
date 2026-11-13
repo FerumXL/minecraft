@@ -44,6 +44,8 @@ public final class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new OffhandFirstPersonRenderer());
         MinecraftForge.EVENT_BUS.register(new OffhandGuiHandler());
         MinecraftForge.EVENT_BUS.register(new WolfCollarColors());
+        // Puts unbalanced GL matrix stacks back at the end of a frame (OpenGL error 1283 with OptiFine + HBM).
+        FMLCommonHandler.instance().bus().register(new GlStackGuard());
 
         // Diagnostic only: active when mc112bridge-glprobe.txt exists in the game directory.
         if (new java.io.File(Minecraft.getMinecraft().mcDataDir, "mc112bridge-glprobe.txt").exists()) {

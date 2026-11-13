@@ -59,9 +59,7 @@ public final class WorldGen112 implements IWorldGenerator {
     @SubscribeEvent
     public void onVillageBlock(BiomeEvent.GetVillageBlockID event) {
         Block result = null;
-        if (event.original == Blocks.gravel && !(event.biome instanceof BiomeGenDesert)) {
-            result = PortedBlocks.grassPath; // roads of grass path since 1.9
-        } else if (isTaiga(event.biome)) {
+        if (isTaiga(event.biome)) {
             if (event.original == Blocks.oak_stairs) {
                 result = Blocks.spruce_stairs;
             } else if (event.original == Blocks.fence) {
@@ -85,9 +83,7 @@ public final class WorldGen112 implements IWorldGenerator {
     @SubscribeEvent
     public void onVillageMeta(BiomeEvent.GetVillageBlockMeta event) {
         int meta = -1;
-        if (event.original == Blocks.gravel && !(event.biome instanceof BiomeGenDesert)) {
-            meta = 0;
-        } else if (isTaiga(event.biome)) {
+        if (isTaiga(event.biome)) {
             if (event.original == Blocks.log) {
                 meta = event.type & 12 | 1;
             } else if (event.original == Blocks.planks) {

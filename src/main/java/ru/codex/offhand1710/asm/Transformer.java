@@ -19,11 +19,11 @@ import org.objectweb.asm.tree.VarInsnNode;
 public final class Transformer implements IClassTransformer {
     private static final String WORLD = "Lnet/minecraft/world/World;";
 
-    private static boolean named(MethodNode m, String mcp, String srg) {
+    static boolean named(MethodNode m, String mcp, String srg) {
         return m.name.equals(mcp) || m.name.equals(srg);
     }
 
-    private static void beforeReturns(MethodNode method, InsnList call) {
+    static void beforeReturns(MethodNode method, InsnList call) {
         AbstractInsnNode[] all = method.instructions.toArray();
         for (AbstractInsnNode node : all) {
             if (node.getOpcode() == Opcodes.RETURN) {
@@ -36,20 +36,20 @@ public final class Transformer implements IClassTransformer {
         }
     }
 
-    private static byte[] write(ClassNode node) {
+    static byte[] write(ClassNode node) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         node.accept(writer);
         return writer.toByteArray();
     }
 
-    private static ClassNode read(byte[] bytes) {
+    static ClassNode read(byte[] bytes) {
         ClassNode node = new ClassNode();
         new ClassReader(bytes).accept(node, 0);
         return node;
     }
 
     /** if (Hooks.name(args)) return <constant>; at the start of a method. Package use: next hooks. */
-    private static void guard(MethodNode method, InsnList load, String owner, String name, String desc, int returnOpcode, int constant) {
+    static void guard(MethodNode method, InsnList load, String owner, String name, String desc, int returnOpcode, int constant) {
         LabelNode go = new LabelNode();
         InsnList list = new InsnList();
         list.add(load);
@@ -63,7 +63,7 @@ public final class Transformer implements IClassTransformer {
         method.instructions.insert(list);
     }
 
-    private static AbstractInsnNode previousCode(AbstractInsnNode n) {
+    static AbstractInsnNode previousCode(AbstractInsnNode n) {
         AbstractInsnNode p = n.getPrevious();
         while (p != null && p.getOpcode() < 0) {
             p = p.getPrevious();
@@ -262,6 +262,20 @@ public final class Transformer implements IClassTransformer {
                     load.add(new VarInsnNode(Opcodes.ILOAD, 1));
                     load.add(new VarInsnNode(Opcodes.ILOAD, 2));
                     guard(m, load, owner, "bookKey", "(" + gui + "CI)Z", Opcodes.RETURN, 0);
+                }
+            }
+            return write(node);
+        }
+        if (transformedName.startsWith("net.minecraft.world.gen.structure.StructureVillagePieces")) {
+            return Villages.transform(transformedName.substring("net.minecraft.world.gen.structure.StructureVillagePieces".length()), bytes);
+        }
+        if ("net.minecraft.world.gen.structure.StructureComponent".equals(transformedName)) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "placeDoorAtCurrentPosition", "func_74881_a")) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    guard(m, load, "ru/codex/offhand1710/Village112", "skipDoor", "(Lnet/minecraft/world/gen/structure/StructureComponent;)Z", Opcodes.RETURN, 0);
                 }
             }
             return write(node);

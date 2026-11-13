@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -202,6 +202,13 @@ public final class Scenarios {
             mc.gameSettings.pauseOnLostFocus = false;
             String rd = System.getenv("MC112_BENCH_RD");
             mc.gameSettings.renderDistanceChunks = rd == null ? 8 : Integer.parseInt(rd);
+            if ("terrain".equals(STAGE)) {
+                // MC112_WORLD: save folder (loaded if it exists, else created with MC112_SEED, DEFAULT, structures on)
+                String tw = System.getenv("MC112_WORLD") == null ? "audit112t" : System.getenv("MC112_WORLD");
+                String seed = System.getenv("MC112_SEED");
+                mc.launchIntegratedServer(tw, tw, new WorldSettings(seed == null ? 112L : Long.parseLong(seed), WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
+                return;
+            }
             String world = "bench".equals(STAGE) ? "audit112" : "audit112m";
             WorldType type = "bench".equals(STAGE) ? WorldType.DEFAULT : WorldType.FLAT;
             mc.launchIntegratedServer(world, world, new WorldSettings(112L, WorldSettings.GameType.CREATIVE, !"bench".equals(STAGE) ? false : true, false, type).enableCommands());
@@ -272,6 +279,8 @@ public final class Scenarios {
     private void build() {
         if ("scene".equals(STAGE)) {
             scene();
+        } else if ("terrain".equals(STAGE)) {
+            terrain();
         } else if ("bench".equals(STAGE)) {
             bench();
         } else if ("extra".equals(STAGE)) {
@@ -306,6 +315,95 @@ public final class Scenarios {
     }
 
     // ---- benchmark ----
+
+    /**
+     * Stage terrain (diagnosis): MC112_GEN="cx0,cz0,cx1,cz1" generates and populates that chunk square on the server,
+     * then saves; MC112_SHOTS="name,x,y,z,yaw,pitch;..." takes screenshots at those spots (time 6000, flying).
+     */
+    private void terrain() {
+        final String gen = System.getenv("MC112_GEN");
+        final String shots = System.getenv("MC112_SHOTS");
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("gamerule doDaylightCycle false");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 6000");
+                cmd("weather clear");
+                fly(true);
+                log("TERRAIN seed=" + w().getSeed() + " spawn=" + w().getSpawnPoint().posX + "," + w().getSpawnPoint().posZ + " gen=" + gen);
+            }
+        });
+        // several squares may be given, separated by ';' (stage village uses one per village)
+        for (String square : gen == null ? new String[0] : gen.split(";")) {
+            if (square.trim().isEmpty()) {
+                continue;
+            }
+            String[] g = square.split(",");
+            final int x0 = Integer.parseInt(g[0].trim()), z0 = Integer.parseInt(g[1].trim()), x1 = Integer.parseInt(g[2].trim()), z1 = Integer.parseInt(g[3].trim());
+            for (int x = x0 - 1; x <= x1 + 1; x++) {
+                final int cx = x;
+                server(1, new Runnable() {
+                    @Override
+                    public void run() {
+                        for (int cz = z0 - 1; cz <= z1 + 1; cz++) {
+                            w().theChunkProviderServer.loadChunk(cx, cz);
+                            // rows two behind are populated already; queue them for unload (saved on unload)
+                            w().theChunkProviderServer.unloadChunksIfNotNearSpawn(cx - 3, cz);
+                        }
+                        if ((cx & 15) == 0) {
+                            log("TERRAIN row " + cx + " loaded=" + w().theChunkProviderServer.getLoadedChunkCount());
+                        }
+                    }
+                });
+            }
+            server(5, new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        w().saveAllChunks(true, null);
+                    } catch (Exception e) {
+                        log("FAIL save " + e);
+                    }
+                    log("TERRAIN generated");
+                }
+            });
+        }
+        if (shots != null && !shots.isEmpty()) {
+            for (String sp : shots.split(";")) {
+                final String[] p = sp.split(",");
+                if (p.length < 6) {
+                    continue;
+                }
+                server(20, new Runnable() {
+                    @Override
+                    public void run() {
+                        fly(true);
+                        tp(Double.parseDouble(p[1]), Double.parseDouble(p[2]), Double.parseDouble(p[3]), Float.parseFloat(p[4]), Float.parseFloat(p[5]));
+                    }
+                });
+                client(400, new Runnable() {
+                    @Override
+                    public void run() {
+                        shot("terrain-" + p[0]);
+                        log("TERRAIN shot " + p[0] + " at " + mc.thePlayer.posX + "," + mc.thePlayer.posY + "," + mc.thePlayer.posZ + " fps=" + mc.debug);
+                    }
+                });
+            }
+        }
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    w().saveAllChunks(true, null);
+                } catch (Exception e) {
+                    log("FAIL save " + e);
+                }
+            }
+        });
+        finish();
+    }
 
     private void bench() {
         final long[] frames = new long[2];
