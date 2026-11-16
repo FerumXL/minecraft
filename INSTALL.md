@@ -2,7 +2,7 @@
 
 ## Последняя версия
 
-[Скачать mc112bridge-0.32.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.32.0/mc112bridge-0.32.0.jar)
+[Скачать mc112bridge-0.33.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.33.0/mc112bridge-0.33.0.jar)
 
 Что изменилось: [CHANGELOG.md](CHANGELOG.md).
 
@@ -14,6 +14,8 @@
 
 | Версия | Скачать | Состав |
 |---|---|---|
+| 0.33.0 | [mc112bridge-0.33.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.33.0/mc112bridge-0.33.0.jar) | Двери деревень по биому, 8 триггеров достижений, отскок сущностей от слизи и кровати |
+| 0.32.0 | mc112bridge-0.32.0.jar (jar убран из дерева, лежит в теге v0.32.0 / локальный архив) | Деревни как в 1.12.2 |
 | 0.31.0 | mc112bridge-0.31.0.jar (jar убран из дерева, лежит в теге v0.31.0 / локальный архив) | Исправления книги рецептов, звука и ошибки OpenGL 1282 |
 | 0.22.0 | [mc112bridge-0.22.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.22.0/mc112bridge-0.22.0.jar) | Лодки, баннеры, слизь, наблюдатель, чары, торговля 1.8 |
 | 0.18.0 | [mc112bridge-0.18.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.18.0/mc112bridge-0.18.0.jar) | Блоки и предметы: свёкла, ящики шалкера, стойки, кровати |

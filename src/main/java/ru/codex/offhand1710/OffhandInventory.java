@@ -32,9 +32,6 @@ public final class OffhandInventory implements IExtendedEntityProperties {
     /** Elytra flight (flag 7 and ticksElytraFlying of 1.12.2). Not saved. */
     public boolean elytraFlying;
     public volatile boolean elytraStartRequested;
-    /** Client: landing detection for beds and slime blocks. */
-    public boolean wasOnGround;
-    public double lastMotionY;
     public int elytraTicks;
     public double elytraLastSpeed;
     /** Client: ticks left of a firework boost, and the smoothed wing angles of AbstractClientPlayer. */

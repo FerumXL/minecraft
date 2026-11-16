@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -209,6 +209,12 @@ public final class Scenarios {
                 mc.launchIntegratedServer(tw, tw, new WorldSettings(seed == null ? 112L : Long.parseLong(seed), WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
                 return;
             }
+            if ("backlog1".equals(STAGE)) {
+                // a fresh default world on the seed of the user's world, with its savanna, taiga and plains villages
+                deleteTree(new File(mc.mcDataDir, "saves/audit112b"));
+                mc.launchIntegratedServer("audit112b", "audit112b", new WorldSettings(6968716290812306038L, WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
+                return;
+            }
             String world = "bench".equals(STAGE) ? "audit112" : "audit112m";
             WorldType type = "bench".equals(STAGE) ? WorldType.DEFAULT : WorldType.FLAT;
             mc.launchIntegratedServer(world, world, new WorldSettings(112L, WorldSettings.GameType.CREATIVE, !"bench".equals(STAGE) ? false : true, false, type).enableCommands());
@@ -234,6 +240,7 @@ public final class Scenarios {
     @SubscribeEvent
     public void onServer(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END && started) {
+            sampleBacklog();
             if (sampleItem && flying != null) {
                 maxItemY = Math.max(maxItemY, flying.posY);
             }
@@ -266,6 +273,16 @@ public final class Scenarios {
         wait = next == null ? 0 : next.delay;
     }
 
+    private static void deleteTree(File f) {
+        File[] children = f.listFiles();
+        if (children != null) {
+            for (File c : children) {
+                deleteTree(c);
+            }
+        }
+        f.delete();
+    }
+
     private void finish() {
         client(20, new Runnable() {
             @Override
@@ -285,6 +302,8 @@ public final class Scenarios {
             bench();
         } else if ("extra".equals(STAGE)) {
             extra();
+        } else if ("backlog1".equals(STAGE)) {
+            backlog1();
         } else if ("gui".equals(STAGE)) {
             gui();
         } else if ("more2".equals(STAGE)) {
@@ -320,8 +339,46 @@ public final class Scenarios {
      * Stage terrain (diagnosis): MC112_GEN="cx0,cz0,cx1,cz1" generates and populates that chunk square on the server,
      * then saves; MC112_SHOTS="name,x,y,z,yaw,pitch;..." takes screenshots at those spots (time 6000, flying).
      */
+    /**
+     * "find:taiga" (or desert, savanna, plains) in MC112_GEN: the nearest village grid cell of that start biome (the
+     * check of MapGenVillage.canSpawnStructureAtCoords, no chunk generated), as a 9x9 chunk square around it.
+     */
+    private String findVillage(String what) {
+        int want = "desert".equals(what) ? 1 : "savanna".equals(what) ? 2 : "taiga".equals(what) ? 3 : 0;
+        for (int r = 0; r < 40; r++) {
+            for (int rx = -r; rx <= r; rx++) {
+                for (int rz = -r; rz <= r; rz++) {
+                    if (Math.max(Math.abs(rx), Math.abs(rz)) != r) {
+                        continue;
+                    }
+                    java.util.Random random = w().setRandomSeed(rx, rz, 10387312);
+                    int cx = rx * 32 + random.nextInt(24);
+                    int cz = rz * 32 + random.nextInt(24);
+                    if (!w().getWorldChunkManager().areBiomesViable(cx * 16 + 8, cz * 16 + 8, 0, net.minecraft.world.gen.structure.MapGenVillage.villageSpawnBiomes)) {
+                        continue;
+                    }
+                    net.minecraft.world.biome.BiomeGenBase biome = w().getWorldChunkManager().getBiomeGenAt(cx * 16 + 2, cz * 16 + 2);
+                    if (ru.codex.offhand1710.Village112.typeOf(biome) == want) {
+                        log("TERRAIN found " + what + " village cell chunk " + cx + "," + cz + " biome=" + biome.biomeName);
+                        return (cx - 4) + "," + (cz - 4) + "," + (cx + 4) + "," + (cz + 4);
+                    }
+                }
+            }
+        }
+        log("TERRAIN no " + what + " village found");
+        return "";
+    }
+
     private void terrain() {
-        final String gen = System.getenv("MC112_GEN");
+        String genEnv = System.getenv("MC112_GEN");
+        if (genEnv != null && genEnv.startsWith("find:")) {
+            StringBuilder squares = new StringBuilder();
+            for (String what : genEnv.substring(5).split("\\+")) {
+                squares.append(findVillage(what.trim())).append(';');
+            }
+            genEnv = squares.toString();
+        }
+        final String gen = genEnv;
         final String shots = System.getenv("MC112_SHOTS");
         server(40, new Runnable() {
             @Override
@@ -808,6 +865,488 @@ public final class Scenarios {
                 }
             }
         };
+    }
+
+    // ---- backlog1: biome doors of villages, advancement triggers, bounce of every entity ----
+
+    /** An entity dropped onto a block: lands, then the highest feet position after the landing. */
+    private static final class Drop {
+        String name;
+        net.minecraft.entity.Entity e;
+        double top;
+        float health;
+        boolean landed;
+        double landY;
+        String below;
+        double maxAfter = -1.0D;
+        int afterTicks;
+    }
+
+    private final List<Drop> drops = new java.util.ArrayList<Drop>();
+    private int[] doorWatch;
+    private boolean doorOpened;
+    private double villagerMaxX;
+    private EntityVillager doorVillager;
+
+    private void sampleBacklog() {
+        for (Drop d : drops) {
+            if (!d.landed) {
+                d.landed = d.e.onGround;
+                d.landY = d.e.posY;
+            } else if (d.afterTicks < 60) {
+                d.afterTicks++;
+                d.maxAfter = Math.max(d.maxAfter, d.e.posY);
+            }
+        }
+        if (doorWatch != null) {
+            int meta = w().getBlockMetadata(doorWatch[0], doorWatch[1], doorWatch[2]);
+            doorOpened |= (meta & 4) != 0;
+            if (doorVillager != null) {
+                villagerMaxX = Math.max(villagerMaxX, doorVillager.posX);
+            }
+        }
+    }
+
+    private static final String[] VILLAGE_KINDS = {"savanna", "taiga", "plains"};
+
+    /** Lower door halves in the square around a village centre: oak, spruce, acacia, other; and every half found. */
+    private int[] countDoors(int cx, int cz, List<int[]> halves) {
+        int[] n = new int[4];
+        for (int x = cx - 80; x <= cx + 80; x++) {
+            for (int z = cz - 80; z <= cz + 80; z++) {
+                for (int y = 40; y < 150; y++) {
+                    Block b = w().getBlock(x, y, z);
+                    if (!(b instanceof net.minecraft.block.BlockDoor)) {
+                        continue;
+                    }
+                    int meta = w().getBlockMetadata(x, y, z);
+                    if (halves != null) {
+                        halves.add(new int[] {x, y, z, Block.getIdFromBlock(b), meta});
+                    }
+                    if ((meta & 8) != 0) {
+                        continue;
+                    }
+                    n[b == Blocks.wooden_door ? 0 : b == PortedBlocks.DOORS[0] ? 1 : b == PortedBlocks.DOORS[3] ? 2 : 3]++;
+                }
+            }
+        }
+        return n;
+    }
+
+    /** Doors a fresh VillageCollection registers from the positions of these villagers (VillageCollection.tick). */
+    private int registeredDoors(List<int[]> villagers) {
+        net.minecraft.village.VillageCollection vc = new net.minecraft.village.VillageCollection(w());
+        for (int[] v : villagers) {
+            vc.addVillagerPosition(v[0], v[1], v[2]);
+        }
+        for (int i = 0; i < villagers.size() + 3; i++) {
+            vc.tick();
+        }
+        int doors = 0;
+        for (Object o : vc.getVillageList()) {
+            doors += ((net.minecraft.village.Village) o).getNumVillageDoors();
+        }
+        return doors;
+    }
+
+    private Drop drop(String name, net.minecraft.entity.Entity e, double x, double y, double z, double top) {
+        e.setLocationAndAngles(x, y, z, 0.0F, 0.0F);
+        w().spawnEntityInWorld(e);
+        Drop d = new Drop();
+        d.name = name;
+        d.e = e;
+        d.top = top;
+        d.below = w().getBlock(net.minecraft.util.MathHelper.floor_double(x), net.minecraft.util.MathHelper.floor_double(top - 0.2D), net.minecraft.util.MathHelper.floor_double(z)).getUnlocalizedName();
+        d.health = e instanceof net.minecraft.entity.EntityLivingBase ? ((net.minecraft.entity.EntityLivingBase) e).getHealth() : 0.0F;
+        drops.add(d);
+        return d;
+    }
+
+    private void hand(ItemStack s) {
+        p().inventory.setInventorySlotContents(p().inventory.currentItem, s);
+    }
+
+    private void done(String name, String id) {
+        result(name, Data112.isDone(p(), id), id);
+    }
+
+    /** Teleporter that keeps the coordinates (the scaled ones of the dimension change) and builds no portal. */
+    private static final class Keep extends net.minecraft.world.Teleporter {
+        Keep(WorldServer world) {
+            super(world);
+        }
+
+        @Override
+        public void placeInPortal(net.minecraft.entity.Entity e, double x, double y, double z, float yaw) {
+            e.setLocationAndAngles(e.posX, 120.0D, e.posZ, e.rotationYaw, 0.0F);
+        }
+
+        @Override
+        public boolean placeInExistingPortal(net.minecraft.entity.Entity e, double x, double y, double z, float yaw) {
+            return true;
+        }
+
+        @Override
+        public boolean makePortal(net.minecraft.entity.Entity e) {
+            return true;
+        }
+
+        @Override
+        public void removeStalePortalLocations(long time) {
+        }
+    }
+
+    private void backlog1() {
+        final int[] centre = new int[VILLAGE_KINDS.length * 2];
+        final String[] squares = new String[VILLAGE_KINDS.length];
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("difficulty 2");
+                cmd("gamerule doDaylightCycle false");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 6000");
+                cmd("weather clear");
+                fly(true);
+                bx = w().getSpawnPoint().posX;
+                bz = w().getSpawnPoint().posZ;
+                for (int i = 0; i < VILLAGE_KINDS.length; i++) {
+                    squares[i] = findVillage(VILLAGE_KINDS[i]);
+                    if (squares[i].isEmpty()) {
+                        continue;
+                    }
+                    String[] g = squares[i].split(",");
+                    centre[i * 2] = (Integer.parseInt(g[0]) + 4) * 16 + 8;
+                    centre[i * 2 + 1] = (Integer.parseInt(g[1]) + 4) * 16 + 8;
+                }
+                log("INFO seed=" + w().getSeed() + " spawn=" + bx + "," + bz);
+            }
+        });
+        // generate the three villages (the chunks stay loaded, their villagers tick)
+        for (int k = 0; k < VILLAGE_KINDS.length; k++) {
+            final int i = k;
+            for (int r = -5; r <= 5; r++) {
+                final int row = r;
+                server(1, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (squares[i] == null || squares[i].isEmpty()) {
+                            return;
+                        }
+                        int cx = (centre[i * 2] >> 4) + row;
+                        for (int cz = (centre[i * 2 + 1] >> 4) - 5; cz <= (centre[i * 2 + 1] >> 4) + 5; cz++) {
+                            w().theChunkProviderServer.loadChunk(cx, cz);
+                        }
+                    }
+                });
+            }
+        }
+        for (int k = 0; k < VILLAGE_KINDS.length; k++) {
+            final int i = k;
+            final String kind = VILLAGE_KINDS[k];
+            server(20, new Runnable() {
+                @Override
+                public void run() {
+                    if (squares[i] == null || squares[i].isEmpty()) {
+                        result("village " + kind + " found", false, "");
+                        return;
+                    }
+                    tp(centre[i * 2] + 0.5D, w().getHeightValue(centre[i * 2], centre[i * 2 + 1]) + 6.0D, centre[i * 2 + 1] + 0.5D, 0.0F, 30.0F);
+                }
+            });
+            // villagers report their positions to the world's VillageCollection every 70-120 ticks
+            server(400, new Runnable() {
+                @Override
+                public void run() {
+                    if (squares[i] == null || squares[i].isEmpty()) {
+                        return;
+                    }
+                    int cx = centre[i * 2];
+                    int cz = centre[i * 2 + 1];
+                    List<int[]> halves = new java.util.ArrayList<int[]>();
+                    int[] n = countDoors(cx, cz, halves);
+                    String counts = "oak=" + n[0] + " spruce=" + n[1] + " acacia=" + n[2] + " other=" + n[3];
+                    int want = "savanna".equals(kind) ? 2 : "taiga".equals(kind) ? 1 : 0;
+                    boolean only = n[want] > 0 && n[0] + n[1] + n[2] + n[3] == n[want];
+                    result("village " + kind + " doors are " + (want == 2 ? "acacia" : want == 1 ? "spruce" : "oak"), only, counts + " centre=" + cx + "," + cz);
+                    List<int[]> villagers = new java.util.ArrayList<int[]>();
+                    for (Object o : w().getEntitiesWithinAABB(EntityVillager.class, net.minecraft.util.AxisAlignedBB.getBoundingBox(cx - 96, 0, cz - 96, cx + 96, 255, cz + 96))) {
+                        net.minecraft.entity.Entity v = (net.minecraft.entity.Entity) o;
+                        villagers.add(new int[] {net.minecraft.util.MathHelper.floor_double(v.posX), net.minecraft.util.MathHelper.floor_double(v.posY), net.minecraft.util.MathHelper.floor_double(v.posZ)});
+                    }
+                    int biome = registeredDoors(villagers);
+                    // the same layout with oak doors (the metadata kept): the count of the 1.7.10 door code
+                    for (int[] h : halves) {
+                        w().setBlock(h[0], h[1], h[2], Blocks.wooden_door, h[4], 2);
+                    }
+                    int oak = registeredDoors(villagers);
+                    for (int[] h : halves) {
+                        w().setBlock(h[0], h[1], h[2], Block.getBlockById(h[3]), h[4], 2);
+                    }
+                    result("village " + kind + " door registration equals the oak case", biome == oak && biome > 0, "biomeDoors=" + biome + " oakDoors=" + oak + " villagers=" + villagers.size());
+                    net.minecraft.village.Village real = w().villageCollectionObj.findNearestVillage(cx, w().getHeightValue(cx, cz), cz, 96);
+                    int realDoors = real == null ? 0 : real.getNumVillageDoors();
+                    result("village " + kind + " registered in the world (villages.dat)", realDoors > 0, "doors=" + realDoors + " villages=" + w().villageCollectionObj.getVillageList().size()
+                        + (real == null ? "" : " centre=" + real.getCenter().posX + "," + real.getCenter().posZ + " radius=" + real.getVillageRadius() + " villagers=" + real.getNumVillagers()));
+                }
+            });
+        }
+        // a villager inside a closed acacia door room walks out: EntityAIOpenDoor opens the door
+        final int dy = 200;
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                tp(bx + 3.5D, dy + 3.0D, bz + 4.5D, 0.0F, 60.0F);
+                for (int x = bx - 2; x <= bx + 60; x++) {
+                    for (int z = bz - 3; z <= bz + 60; z++) {
+                        w().setBlock(x, dy - 1, z, Blocks.stone, 0, 2);
+                    }
+                }
+                for (int y = dy; y <= dy + 1; y++) {
+                    w().setBlock(bx - 1, y, bz, Blocks.stone, 0, 2);
+                    w().setBlock(bx, y, bz - 1, Blocks.stone, 0, 2);
+                    w().setBlock(bx, y, bz + 1, Blocks.stone, 0, 2);
+                    w().setBlock(bx + 1, y, bz - 1, Blocks.stone, 0, 2);
+                    w().setBlock(bx + 1, y, bz + 1, Blocks.stone, 0, 2);
+                }
+                w().setBlock(bx, dy + 2, bz, Blocks.stone, 0, 2);
+                w().setBlock(bx + 1, dy + 2, bz, Blocks.stone, 0, 2);
+                net.minecraft.item.ItemDoor.placeDoorBlock(w(), bx + 1, dy, bz, 0, PortedBlocks.DOORS[3]);
+                doorVillager = new EntityVillager(w());
+                doorVillager.setLocationAndAngles(bx + 0.5D, dy, bz + 0.5D, 0.0F, 0.0F);
+                w().spawnEntityInWorld(doorVillager);
+                villagerMaxX = doorVillager.posX;
+                doorOpened = false;
+                doorWatch = new int[] {bx + 1, dy, bz};
+                log("INFO door before meta=" + w().getBlockMetadata(bx + 1, dy, bz) + " block=" + w().getBlock(bx + 1, dy, bz).getUnlocalizedName());
+            }
+        });
+        for (int t = 0; t < 30; t++) {
+            server(10, new Runnable() {
+                @Override
+                public void run() {
+                    if (!doorOpened || villagerMaxX < bx + 2.5D) {
+                        doorVillager.getNavigator().tryMoveToXYZ(bx + 7.5D, dy, bz + 0.5D, 0.6D);
+                    }
+                }
+            });
+        }
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                result("villager opens an acacia door (EntityAIOpenDoor) and walks out", doorOpened && villagerMaxX > bx + 2.0D, "opened=" + doorOpened + " villagerMaxX=" + (villagerMaxX - bx));
+                doorWatch = null;
+                doorVillager.setDead();
+            }
+        });
+        // C: pigs and zombies onto slime blocks (12 blocks) and beds (5 blocks), a pig onto stone, an item onto slime
+        final int sz = bz + 10;
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                int[] pads = {20, 26, 32, 38, 44, 50};
+                for (int i = 0; i < pads.length; i++) {
+                    int x = bx + pads[i];
+                    for (int a = -1; a <= 1; a++) {
+                        for (int b = -1; b <= 1; b++) {
+                            if (i == 0 || i == 1 || i == 5) {
+                                w().setBlock(x + a, dy - 1, sz + b, Content119.slime, 0, 2);
+                            } else if (i == 4) {
+                                w().setBlock(x + a, dy - 1, sz + b, Blocks.stone, 0, 2);
+                            }
+                        }
+                    }
+                    if (i == 2 || i == 3) {
+                        w().setBlock(x, dy - 1, sz, Blocks.bed, 0, 2);
+                        w().setBlock(x, dy - 1, sz + 1, Blocks.bed, 8, 2);
+                    }
+                }
+                tp(bx + 35.5D, dy + 8.0D, sz - 8.5D, 0.0F, 30.0F);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                double slimeTop = dy;
+                double bedTop = dy - 1 + 0.5625D;
+                drop("pig slime", new EntityPig(w()), bx + 20.5D, dy + 12.0D, sz + 0.5D, slimeTop);
+                net.minecraft.entity.monster.EntityZombie z1 = new net.minecraft.entity.monster.EntityZombie(w());
+                z1.setCurrentItemOrArmor(4, new ItemStack(Items.leather_helmet));
+                drop("zombie slime", z1, bx + 26.5D, dy + 12.0D, sz + 0.5D, slimeTop);
+                drop("pig bed", new EntityPig(w()), bx + 32.5D, dy + 5.0D, sz + 0.5D, bedTop);
+                net.minecraft.entity.monster.EntityZombie z2 = new net.minecraft.entity.monster.EntityZombie(w());
+                z2.setCurrentItemOrArmor(4, new ItemStack(Items.leather_helmet));
+                drop("zombie bed", z2, bx + 38.5D, dy + 5.0D, sz + 0.5D, bedTop);
+                drop("pig stone", new EntityPig(w()), bx + 44.5D, dy + 5.0D, sz + 0.5D, dy);
+                EntityItem item = new EntityItem(w(), 0, 0, 0, new ItemStack(Items.diamond));
+                item.motionX = 0.0D;
+                item.motionZ = 0.0D;
+                item.delayBeforeCanPickup = 1000;
+                drop("item slime", item, bx + 50.5D, dy + 10.0D, sz + 0.5D, slimeTop);
+            }
+        });
+        server(160, new Runnable() {
+            @Override
+            public void run() {
+                for (Drop d : drops) {
+                    double up = d.maxAfter - d.top;
+                    boolean onTop = d.landed && Math.abs(d.landY - d.top) < 0.1D;
+                    float health = d.e instanceof net.minecraft.entity.EntityLivingBase ? ((net.minecraft.entity.EntityLivingBase) d.e).getHealth() : 0.0F;
+                    String detail = "bounce=" + String.format("%.2f", up) + " health " + d.health + "->" + health + " landed=" + d.landed + " landY=" + String.format("%.2f", d.landY) + " below=" + d.below + " now=" + String.format("%.1f", d.e.posY) + " dead=" + d.e.isDead + " difficulty=" + w().difficultySetting;
+                    if (d.name.endsWith("slime") && d.e instanceof net.minecraft.entity.EntityLivingBase) {
+                        result(d.name + " bounces, no fall damage", onTop && up > 2.0D && health == d.health, detail);
+                    } else if (d.name.endsWith("bed")) {
+                        result(d.name + " bounces (0.66), no fall damage", onTop && up > 0.4D && up < 3.0D && health == d.health, detail);
+                    } else if (d.name.endsWith("stone")) {
+                        result(d.name + " does not bounce (control)", onTop && up < 0.3D, detail);
+                    } else {
+                        log("INFO " + d.name + " " + detail);
+                    }
+                    d.e.setDead();
+                }
+                drops.clear();
+            }
+        });
+        // B: advancement triggers
+        final int ax = bx + 10;
+        final int az = bz + 30;
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                Data112.revokeAll(p());
+                tp(ax + 0.5D, dy, az + 0.5D, 0.0F, 30.0F);
+                // tame_animal: bones to a wolf through EntityPlayer.interactWith
+                net.minecraft.entity.passive.EntityWolf wolf = new net.minecraft.entity.passive.EntityWolf(w());
+                wolf.setLocationAndAngles(ax + 2.5D, dy, az + 0.5D, 0.0F, 0.0F);
+                w().spawnEntityInWorld(wolf);
+                hand(new ItemStack(Items.bone, 64));
+                int tries = 0;
+                while (!wolf.isTamed() && tries < 60) {
+                    p().interactWith(wolf);
+                    tries++;
+                }
+                log("INFO wolf tamed=" + wolf.isTamed() + " after " + tries);
+                // brewed_potion: a potion taken out of a brewing stand slot
+                net.minecraft.inventory.ContainerBrewingStand brew = new net.minecraft.inventory.ContainerBrewingStand(p().inventory, new net.minecraft.tileentity.TileEntityBrewingStand());
+                ((net.minecraft.inventory.Slot) brew.inventorySlots.get(0)).onPickupFromSlot(p(), new ItemStack(Items.potionitem, 1, 8193));
+                // enchanted_item: the enchanting table container
+                net.minecraft.inventory.ContainerEnchantment ench = new net.minecraft.inventory.ContainerEnchantment(p().inventory, w(), ax, dy, az);
+                ench.putStackInSlot(0, new ItemStack(Items.diamond_sword));
+                p().experienceLevel = 30;
+                boolean enchanted = ench.enchantItem(p(), 0);
+                log("INFO enchantItem=" + enchanted + " levels=" + ench.enchantLevels[0] + " sword=" + ench.getSlot(0).getStack());
+                // item_durability_changed: a diamond hoe with no durability left breaks
+                cmd("gamemode 0");
+                ItemStack hoe = new ItemStack(Items.diamond_hoe);
+                hoe.setItemDamage(hoe.getMaxDamage());
+                hand(hoe);
+                hoe.damageItem(1, p());
+                log("INFO hoe size=" + hoe.stackSize);
+                cmd("gamemode 1");
+                fly(true);
+                hand(null);
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                done("trigger tame_animal", "minecraft:husbandry/tame_an_animal");
+                done("trigger brewed_potion", "minecraft:nether/brew_potion");
+                done("trigger enchanted_item", "minecraft:story/enchant_item");
+                done("trigger item_durability_changed (broken diamond hoe)", "minecraft:husbandry/break_diamond_hoe");
+                // cured_zombie_villager: golden apple to a weak zombie villager, conversion shortened to one tick
+                net.minecraft.entity.monster.EntityZombie z = new net.minecraft.entity.monster.EntityZombie(w());
+                z.setLocationAndAngles(ax - 2.5D, dy, az + 0.5D, 0.0F, 0.0F);
+                z.setVillager(true);
+                z.setCurrentItemOrArmor(4, new ItemStack(Items.leather_helmet));
+                w().spawnEntityInWorld(z);
+                z.addPotionEffect(new PotionEffect(Potion.weakness.id, 1200, 0));
+                hand(new ItemStack(Items.golden_apple, 1, 0));
+                p().interactWith(z);
+                log("INFO zombie converting=" + z.isConverting());
+                ReflectionHelper.setPrivateValue(net.minecraft.entity.monster.EntityZombie.class, z, Integer.valueOf(1), "conversionTime", "field_82234_d");
+                hand(null);
+                // construct_beacon: level 1 pyramid
+                for (int x = -1; x <= 1; x++) {
+                    for (int zz = -1; zz <= 1; zz++) {
+                        w().setBlock(ax + 6 + x, dy - 1, az + zz, Blocks.iron_block, 0, 2);
+                    }
+                }
+                w().setBlock(ax + 6, dy, az, Blocks.beacon, 0, 3);
+                // enter_block: a water source at the feet
+                w().setBlock(ax, dy, az + 3, Blocks.water, 0, 2);
+                tp(ax + 0.5D, dy, az + 3.5D, 0.0F, 30.0F);
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                done("trigger cured_zombie_villager", "minecraft:story/cure_zombie_villager");
+                result("trigger enter_block (water)", Data112.hasCriterion(p(), "minecraft:recipes/transportation/boat", "entered_water"), "");
+                w().setBlockToAir(ax, dy, az + 3);
+                // enter_block: the end gateway, its teleport held back
+                p().timeUntilPortal = 2000;
+                w().setBlock(ax, dy, az - 3, ru.codex.offhand1710.End112.gateway, 0, 2);
+                tp(ax + 0.5D, dy, az - 2.5D, 0.0F, 30.0F);
+            }
+        });
+        server(160, new Runnable() {
+            @Override
+            public void run() {
+                done("trigger enter_block (end gateway)", "minecraft:end/enter_end_gateway");
+                w().setBlockToAir(ax, dy, az - 3);
+                done("trigger construct_beacon level 1", "minecraft:nether/create_beacon");
+                result("construct_beacon level 1 is not the full beacon", !Data112.isDone(p(), "minecraft:nether/create_full_beacon"), "");
+                for (int layer = 1; layer <= 3; layer++) {
+                    for (int x = -1 - layer; x <= 1 + layer; x++) {
+                        for (int zz = -1 - layer; zz <= 1 + layer; zz++) {
+                            w().setBlock(ax + 6 + x, dy - 1 - layer, az + zz, Blocks.iron_block, 0, 2);
+                        }
+                    }
+                }
+            }
+        });
+        server(200, new Runnable() {
+            @Override
+            public void run() {
+                done("trigger construct_beacon level 4", "minecraft:nether/create_full_beacon");
+                TileEntity beacon = w().getTileEntity(ax + 6, dy, az);
+                log("INFO beacon levels=" + (beacon instanceof net.minecraft.tileentity.TileEntityBeacon ? ((net.minecraft.tileentity.TileEntityBeacon) beacon).getLevels() : -1));
+                // nether_travel: into the nether here, out of it 1000 blocks further (8000 in the overworld)
+                tp(ax + 0.5D, dy + 1.0D, az + 0.5D, 0.0F, 30.0F);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                MinecraftServer.getServer().getConfigurationManager().transferPlayerToDimension(p(), -1, new Keep(MinecraftServer.getServer().worldServerForDimension(-1)));
+                log("INFO in dimension " + p().dimension + " at " + (int) p().posX + "," + (int) p().posY + "," + (int) p().posZ);
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                fly(true);
+                p().playerNetServerHandler.setPlayerLocation(p().posX + 1000.0D, 120.0D, p().posZ, 0.0F, 0.0F);
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                MinecraftServer.getServer().getConfigurationManager().transferPlayerToDimension(p(), 0, new Keep(MinecraftServer.getServer().worldServerForDimension(0)));
+                log("INFO back in dimension " + p().dimension + " at " + (int) p().posX + "," + (int) p().posY + "," + (int) p().posZ);
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                done("trigger nether_travel (7000 blocks)", "minecraft:nether/fast_travel");
+                fly(true);
+                tp(bx + 0.5D, dy + 2.0D, bz + 0.5D, 0.0F, 30.0F);
+            }
+        });
+        finish();
     }
 
     // ---- functional scenarios ----

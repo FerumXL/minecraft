@@ -278,7 +278,28 @@ public final class Transformer implements IClassTransformer {
                     guard(m, load, "ru/codex/offhand1710/Village112", "skipDoor", "(Lnet/minecraft/world/gen/structure/StructureComponent;)Z", Opcodes.RETURN, 0);
                 }
             }
+            Villages.structureDoors(node);
             return write(node);
+        }
+        // every wooden door is a door for villages, villagers, zombies and the path finder (1.12: BlockDoor of wood)
+        if ("net.minecraft.village.VillageCollection".equals(transformedName) || "net.minecraft.village.Village".equals(transformedName)
+            || "net.minecraft.entity.ai.EntityAIDoorInteract".equals(transformedName)) {
+            return Villages.doors(transformedName, bytes, 1);
+        }
+        if ("net.minecraft.pathfinding.PathFinder".equals(transformedName)) {
+            return Villages.doors(transformedName, bytes, 2);
+        }
+        if ("net.minecraft.entity.Entity".equals(transformedName)) {
+            return Entities.entity(bytes);
+        }
+        if ("net.minecraft.entity.monster.EntityZombie".equals(transformedName)) {
+            return Entities.zombie(bytes);
+        }
+        if ("net.minecraft.inventory.ContainerEnchantment".equals(transformedName)) {
+            return Entities.enchant(bytes);
+        }
+        if ("net.minecraft.item.ItemStack".equals(transformedName)) {
+            return Entities.itemStack(bytes);
         }
         if ("net.minecraft.client.renderer.EntityRenderer".equals(transformedName)) {
             ClassNode node = read(bytes);

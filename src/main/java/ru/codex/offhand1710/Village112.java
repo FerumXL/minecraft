@@ -3,7 +3,11 @@ package ru.codex.offhand1710;
 import java.lang.reflect.Field;
 import java.util.Random;
 
+import org.apache.logging.log4j.LogManager;
+
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockDoor;
+import net.minecraft.block.material.Material;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.monster.EntityZombie;
 import net.minecraft.init.Blocks;
@@ -30,7 +34,13 @@ public final class Village112 {
     public static final int TAIGA = 3;
     private static final int SEA_LEVEL = 63;
 
+    private static final String[] DESERT_NAMES = {"field_143014_b", "isDesertVillage", "isDesert"};
+    private static final boolean FORCE_ZOMBIE = "1".equals(System.getProperty("mc112.zombieVillages", System.getenv("MC112_ZOMBIE")));
+
     private static Field zombieField;
+    private static Field typeField;
+    private static Field desertField;
+    private static boolean desertMissing;
 
     private Village112() {
     }
@@ -52,9 +62,39 @@ public final class Village112 {
         return type == DESERT;
     }
 
+    /** The desert flag of the start piece, found by its SRG or MCP name (the dev environment uses MCP names). */
+    public static void setDesert(StructureComponent start, int type) {
+        try {
+            if (desertField == null) {
+                for (String name : DESERT_NAMES) {
+                    try {
+                        Field f = StructureVillagePieces.Village.class.getDeclaredField(name);
+                        f.setAccessible(true);
+                        desertField = f;
+                        break;
+                    } catch (NoSuchFieldException e) {
+                        // next name
+                    }
+                }
+                if (desertField == null) {
+                    if (!desertMissing) {
+                        desertMissing = true;
+                        LogManager.getLogger("mc112bridge").warn("Village patch not applied: desert flag field");
+                    }
+                    return;
+                }
+            }
+            desertField.setBoolean(start, isDesert(type));
+        } catch (IllegalAccessException e) {
+            // left as vanilla set it
+        }
+    }
+
     /** The extra roll of the 1.12 Start: it decides a zombie village and keeps the random sequence of 1.12. */
     public static boolean zombieRoll(Random random) {
-        return random.nextInt(50) == 0;
+        boolean zombie = random.nextInt(50) == 0;
+        // test switch: -Dmc112.zombieVillages=1 or MC112_ZOMBIE=1 makes every village a zombie village (same layout)
+        return zombie || FORCE_ZOMBIE;
     }
 
     /** The biome given to the village block events; a piece loaded from disk has no start piece, its type stands in. */
@@ -115,6 +155,39 @@ public final class Village112 {
     /** A zombie village of 1.12 has no doors. */
     public static boolean skipDoor(StructureComponent piece) {
         return zombie(piece);
+    }
+
+    private static int type(StructureComponent piece) {
+        if (!(piece instanceof StructureVillagePieces.Village)) {
+            return PLAINS;
+        }
+        try {
+            if (typeField == null) {
+                typeField = StructureVillagePieces.Village.class.getField("mc112Type");
+            }
+            return typeField.getInt(piece);
+        } catch (Exception e) {
+            return PLAINS;
+        }
+    }
+
+    /**
+     * The door of StructureVillagePieces.Village.biomeDoor of 1.12.2: acacia in savanna villages, spruce in taiga
+     * villages, oak otherwise; any other structure keeps the oak door.
+     */
+    public static Block door(StructureComponent piece) {
+        int type = type(piece);
+        // PortedBlocks.DOORS follows PortedBlocks.WOODS: spruce, birch, jungle, acacia, dark oak
+        Block door = type == SAVANNA ? PortedBlocks.DOORS[3] : type == TAIGA ? PortedBlocks.DOORS[0] : null;
+        return door == null ? Blocks.wooden_door : door;
+    }
+
+    /**
+     * Stands in for "block == Blocks.wooden_door" in the village, door AI and path finding code of 1.7.10: every
+     * wooden door counts, as BlockDoor with Material.WOOD does in 1.12.2.
+     */
+    public static boolean isWoodDoor(Block block) {
+        return block == Blocks.wooden_door || block instanceof BlockDoor && block.getMaterial() == Material.wood;
     }
 
     /** Villagers of a zombie village spawn as zombie villagers. */

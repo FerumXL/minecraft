@@ -76,7 +76,7 @@ public final class Data112 {
     private static final Map<String, String[]> ALIASES = new HashMap<String, String[]>();
     private static final Map<String, String> ENTITIES = new HashMap<String, String>();
     private static final Map<String, String> BIOMES = new HashMap<String, String>();
-    private static final Map<String, List<Criterion>> BY_TRIGGER = new HashMap<String, List<Criterion>>();
+    static final Map<String, List<Criterion>> BY_TRIGGER = new HashMap<String, List<Criterion>>();
     private static final String TAG = "mc112data";
     private static final Set<EntityPlayerMP> DIRTY = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<EntityPlayerMP, Boolean>()));
 
@@ -217,6 +217,7 @@ public final class Data112 {
         ADVANCEMENTS.clear();
         RECIPES.clear();
         BY_TRIGGER.clear();
+        Triggers112.reset();
         for (String l : lines("data/aliases.txt")) {
             String[] p = l.split("=");
             ALIASES.put(p[0], p[1].split(" "));
@@ -341,6 +342,9 @@ public final class Data112 {
         Events events = new Events();
         MinecraftForge.EVENT_BUS.register(events);
         FMLCommonHandler.instance().bus().register(events);
+        Triggers112.Events triggers = new Triggers112.Events();
+        MinecraftForge.EVENT_BUS.register(triggers);
+        FMLCommonHandler.instance().bus().register(triggers);
     }
 
     // ---- player storage ----
@@ -375,6 +379,10 @@ public final class Data112 {
 
     public static boolean isDone(EntityPlayer p, String id) {
         return set(p, "done").contains(id);
+    }
+
+    public static boolean hasCriterion(EntityPlayer p, String id, String criterion) {
+        return set(p, "crit").contains(id + "|" + criterion);
     }
 
     public static boolean knowsRecipe(EntityPlayer p, String id) {
@@ -474,7 +482,7 @@ public final class Data112 {
         boolean matches(JsonObject conditions);
     }
 
-    private static void fire(EntityPlayerMP p, String trigger, Check check) {
+    static void fire(EntityPlayerMP p, String trigger, Check check) {
         List<Criterion> list = BY_TRIGGER.get(trigger);
         if (list == null) {
             return;
@@ -529,7 +537,7 @@ public final class Data112 {
         return true;
     }
 
-    private static boolean itemCond(JsonObject c, ItemStack used) {
+    static boolean itemCond(JsonObject c, ItemStack used) {
         if (!c.has("item")) {
             return true;
         }
@@ -541,7 +549,7 @@ public final class Data112 {
         return want != null && used != null && want.getItem() == used.getItem();
     }
 
-    private static boolean entityCond(JsonObject c, String field, Entity e) {
+    static boolean entityCond(JsonObject c, String field, Entity e) {
         if (!c.has(field)) {
             return true;
         }
@@ -557,7 +565,7 @@ public final class Data112 {
         return name != null && (name.equals(actual) || actual.endsWith("." + name));
     }
 
-    private static boolean range(JsonObject parent, String axis, double value) {
+    static boolean range(JsonObject parent, String axis, double value) {
         if (!parent.has(axis)) {
             return true;
         }
