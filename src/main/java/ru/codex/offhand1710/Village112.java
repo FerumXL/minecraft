@@ -128,9 +128,46 @@ public final class Village112 {
         return tag.getBoolean("Zombie");
     }
 
-    /** The blacksmith of 1.12 builds with plain cobblestone in every village type. */
+    /** The blacksmith and the church of 1.12 build with plain cobblestone in every village type. */
     public static boolean keepBlock(StructureComponent piece, Block block) {
-        return block == Blocks.cobblestone && piece instanceof StructureVillagePieces.House2;
+        return block == Blocks.cobblestone && (piece instanceof StructureVillagePieces.House2 || piece instanceof StructureVillagePieces.Church);
+    }
+
+    /** StructureVillagePieces.Field.getRandomCropType of 1.12.2. */
+    public static Block cropType(Random random) {
+        switch (random.nextInt(10)) {
+            case 0:
+            case 1:
+                return Blocks.carrots;
+            case 2:
+            case 3:
+                return Blocks.potatoes;
+            case 4:
+                return Items112.beetroots;
+            default:
+                return Blocks.wheat;
+        }
+    }
+
+    /**
+     * The age of a planted crop: 1.12 draws MathHelper.getInt(random, max / 3, max), for wheat, carrots and potatoes the
+     * 2..7 of 1.7.10; beetroots (max 3) get 1..3. nextInt(6) % 3 is the nextInt(3) of the same random state.
+     */
+    public static int cropAge(Block block, int age) {
+        return block == Items112.beetroots && age >= 2 ? (age - 2) % 3 + 1 : age;
+    }
+
+    /** StructureComponent.getMetadataWithOffset: a village door of coordBaseMode 2 turns as in 1.12; -1 = vanilla. */
+    public static int doorMeta(StructureComponent piece, int mode, Block block, int meta) {
+        return mode == 2 && piece instanceof StructureVillagePieces.Village && isWoodDoor(block) ? (meta + 2) & 3 : -1;
+    }
+
+    /** placeDoorAtCurrentPosition: the door, then (village pieces) the upper half hinge of 1.12: right for coordBaseMode 0 and 1. */
+    public static void placeDoor(World world, int x, int y, int z, int meta, Block door, StructureComponent piece, int mode) {
+        net.minecraft.item.ItemDoor.placeDoorBlock(world, x, y, z, meta, door);
+        if (piece instanceof StructureVillagePieces.Village && world.getBlock(x, y + 1, z) == door) {
+            world.setBlockMetadataWithNotify(x, y + 1, z, 8 | (mode == 0 || mode == 1 ? 1 : 0), 2);
+        }
     }
 
     /** A zombie village of 1.12 has no torches. */
@@ -188,6 +225,121 @@ public final class Village112 {
      */
     public static boolean isWoodDoor(Block block) {
         return block == Blocks.wooden_door || block instanceof BlockDoor && block.getMaterial() == Material.wood;
+    }
+
+    /**
+     * EntityAIMoveIndoors.shouldExecute of 1.12.2: no going indoors by day unless it rains in a biome without rain, never
+     * without a sky. 1.7.10 asked BiomeGenBase.canSpawnLightningBolt (Biome.canRain of 1.12) the other way round, so
+     * villagers of savanna, desert and snowy villages ran indoors at speed 1.0 all day long.
+     */
+    public static boolean stayOutside(net.minecraft.entity.EntityCreature e) {
+        World w = e.worldObj;
+        if (w.provider.hasNoSky) {
+            return true;
+        }
+        if (!w.isDaytime()) {
+            return false;
+        }
+        int x = net.minecraft.util.MathHelper.floor_double(e.posX);
+        int z = net.minecraft.util.MathHelper.floor_double(e.posZ);
+        return !(w.isRaining() && !w.getBiomeGenForCoords(x, z).canSpawnLightningBolt());
+    }
+
+    private static Field modeField;
+
+    /** StructureComponent.coordBaseMode (protected). */
+    private static int mode(StructureComponent piece) {
+        try {
+            if (modeField == null) {
+                modeField = cpw.mods.fml.relauncher.ReflectionHelper.findField(StructureComponent.class, "coordBaseMode", "field_74885_f");
+            }
+            return modeField.getInt(piece);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /** World position of a piece-relative block (StructureComponent.getX/Y/ZWithOffset), or null when the mode is unknown. */
+    private static int[] at(StructureComponent piece, int x, int y, int z) {
+        StructureBoundingBox b = piece.getBoundingBox();
+        switch (mode(piece)) {
+            case 0:
+                return new int[] {b.minX + x, b.minY + y, b.minZ + z};
+            case 1:
+                return new int[] {b.maxX - z, b.minY + y, b.minZ + x};
+            case 2:
+                return new int[] {b.minX + x, b.minY + y, b.maxZ - z};
+            case 3:
+                return new int[] {b.minX + z, b.minY + y, b.minZ + x};
+            default:
+                return null;
+        }
+    }
+
+    private static boolean full(World world, int x, int y, int z) {
+        return world.getBlock(x, y, z).isOpaqueCube();
+    }
+
+    /** Metadata of a horizontal facing: north 2, south 3, west 4, east 5; offsets by facing. */
+    private static final int[] DX = {0, 0, 0, 0, 0, -1, 1};
+    private static final int[] DZ = {0, 0, -1, 1, 0, 0, 0};
+    private static final int[] OPPOSITE = {0, 0, 3, 2, 5, 4};
+    private static final int[] ROTATE_Y = {0, 0, 5, 4, 2, 3};
+
+    /**
+     * House2 (blacksmith) furnace of 1.12.2: the default north facing turned by the piece (1.7.10 lets
+     * BlockFurnace.onBlockAdded pick a side from the neighbours).
+     */
+    public static void furnace(StructureComponent piece, World world, int x, int y, int z, StructureBoundingBox area) {
+        int[] p = at(piece, x, y, z);
+        if (p == null || !area.isVecInside(p[0], p[1], p[2]) || world.getBlock(p[0], p[1], p[2]) != Blocks.furnace) {
+            return;
+        }
+        // north, rotated CLOCKWISE_90 for coordBaseMode 1 and 3 (the LEFT_RIGHT mirror keeps north); no turn by the
+        // neighbours: the 1.12.2 worlds (plains mode 1: 5 with cobblestone west and air east, desert mode 0: 2) show none
+        int m = mode(piece);
+        world.setBlockMetadataWithNotify(p[0], p[1], p[2], m == 1 || m == 3 ? 5 : 2, 2);
+    }
+
+    /** House2 (blacksmith) chest of 1.12.2: StructureComponent.limitChestOrientation from the default north facing. */
+    public static void chest(StructureComponent piece, World world, int x, int y, int z, StructureBoundingBox area) {
+        int[] p = at(piece, x, y, z);
+        if (p == null || !area.isVecInside(p[0], p[1], p[2]) || world.getBlock(p[0], p[1], p[2]) != Blocks.chest) {
+            return;
+        }
+        int[] order = {2, 5, 3, 4};
+        int found = -1;
+        for (int f : order) {
+            int nx = p[0] + DX[f];
+            int nz = p[2] + DZ[f];
+            if (world.getBlock(nx, p[1], nz) == Blocks.chest) {
+                world.setBlockMetadataWithNotify(p[0], p[1], p[2], 2, 2);
+                return;
+            }
+            if (full(world, nx, p[1], nz)) {
+                if (found >= 0) {
+                    found = -1;
+                    break;
+                }
+                found = f;
+            }
+        }
+        int facing;
+        if (found >= 0) {
+            facing = OPPOSITE[found];
+        } else {
+            facing = 2;
+            if (full(world, p[0] + DX[facing], p[1], p[2] + DZ[facing])) {
+                facing = OPPOSITE[facing];
+            }
+            if (full(world, p[0] + DX[facing], p[1], p[2] + DZ[facing])) {
+                facing = ROTATE_Y[facing];
+            }
+            if (full(world, p[0] + DX[facing], p[1], p[2] + DZ[facing])) {
+                facing = OPPOSITE[facing];
+            }
+        }
+        world.setBlockMetadataWithNotify(p[0], p[1], p[2], facing, 2);
     }
 
     /** Villagers of a zombie village spawn as zombie villagers. */

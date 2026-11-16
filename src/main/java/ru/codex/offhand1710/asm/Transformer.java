@@ -103,6 +103,71 @@ public final class Transformer implements IClassTransformer {
         }
     }
 
+    /** IntCache: getIntCache, resetIntCache and getCacheSizes call ru.codex.offhand1710.IntCache112 (one cache per thread). */
+    private static byte[] intCache(byte[] bytes) {
+        ClassNode node = read(bytes);
+        String h = "ru/codex/offhand1710/IntCache112";
+        int done = 0;
+        for (MethodNode m : node.methods) {
+            InsnList l = new InsnList();
+            if (named(m, "getIntCache", "func_76445_a") && "(I)[I".equals(m.desc)) {
+                l.add(new VarInsnNode(Opcodes.ILOAD, 0));
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, h, "get", "(I)[I", false));
+                l.add(new InsnNode(Opcodes.ARETURN));
+            } else if (named(m, "resetIntCache", "func_76446_a") && "()V".equals(m.desc)) {
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, h, "reset", "()V", false));
+                l.add(new InsnNode(Opcodes.RETURN));
+            } else if (named(m, "getCacheSizes", "func_85144_b") && "()Ljava/lang/String;".equals(m.desc)) {
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, h, "sizes", "()Ljava/lang/String;", false));
+                l.add(new InsnNode(Opcodes.ARETURN));
+            } else {
+                continue;
+            }
+            m.instructions.clear();
+            m.tryCatchBlocks.clear();
+            if (m.localVariables != null) {
+                m.localVariables.clear();
+            }
+            m.access &= ~Opcodes.ACC_SYNCHRONIZED;
+            m.instructions.add(l);
+            done++;
+        }
+        if (done != 3) {
+            org.apache.logging.log4j.LogManager.getLogger("mc112bridge").warn("IntCache patch not applied: " + done + " of 3 methods");
+            return bytes;
+        }
+        return write(node);
+    }
+
+    /**
+     * World.func_147467_a (mood sound and relight checks of a ticked chunk): returns at once for a null chunk
+     * (Hooks112.nullChunk logs it). WorldServer.updateBlocks passes getChunkFromChunkCoords, which is null when
+     * ChunkProviderServer.loadChunk gets nothing from ChunkIOExecutor.syncChunkLoad for a chunk that is still being
+     * saved; with OptiFine's limited chunk set and a large view distance this crashes the server ("Exception ticking
+     * world", NPE at World.java:2856).
+     */
+    private static byte[] nullChunkGuard(byte[] bytes) {
+        ClassNode node = read(bytes);
+        for (MethodNode m : node.methods) {
+            if ("func_147467_a".equals(m.name) && "(IILnet/minecraft/world/chunk/Chunk;)V".equals(m.desc)) {
+                LabelNode go = new LabelNode();
+                InsnList l = new InsnList();
+                l.add(new VarInsnNode(Opcodes.ALOAD, 3));
+                l.add(new JumpInsnNode(Opcodes.IFNONNULL, go));
+                l.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                l.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                l.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Hooks112", "nullChunk", "(" + WORLD + "II)V", false));
+                l.add(new InsnNode(Opcodes.RETURN));
+                l.add(go);
+                m.instructions.insert(l);
+                return write(node);
+            }
+        }
+        org.apache.logging.log4j.LogManager.getLogger("mc112bridge").warn("Null chunk patch not applied: World.func_147467_a not found");
+        return bytes;
+    }
+
     @Override
     public byte[] transform(String name, String transformedName, byte[] bytes) {
         if (bytes == null || System.getenv("MC112_NOPATCH") != null) {
@@ -285,6 +350,15 @@ public final class Transformer implements IClassTransformer {
         if ("net.minecraft.village.VillageCollection".equals(transformedName) || "net.minecraft.village.Village".equals(transformedName)
             || "net.minecraft.entity.ai.EntityAIDoorInteract".equals(transformedName)) {
             return Villages.doors(transformedName, bytes, 1);
+        }
+        if ("net.minecraft.world.gen.layer.IntCache".equals(transformedName)) {
+            return intCache(bytes);
+        }
+        if ("net.minecraft.world.World".equals(transformedName)) {
+            return nullChunkGuard(bytes);
+        }
+        if ("net.minecraft.entity.ai.EntityAIMoveIndoors".equals(transformedName)) {
+            return Villages.moveIndoors(bytes);
         }
         if ("net.minecraft.pathfinding.PathFinder".equals(transformedName)) {
             return Villages.doors(transformedName, bytes, 2);

@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -209,10 +209,11 @@ public final class Scenarios {
                 mc.launchIntegratedServer(tw, tw, new WorldSettings(seed == null ? 112L : Long.parseLong(seed), WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
                 return;
             }
-            if ("backlog1".equals(STAGE)) {
+            if ("backlog1".equals(STAGE) || "villager".equals(STAGE)) {
                 // a fresh default world on the seed of the user's world, with its savanna, taiga and plains villages
-                deleteTree(new File(mc.mcDataDir, "saves/audit112b"));
-                mc.launchIntegratedServer("audit112b", "audit112b", new WorldSettings(6968716290812306038L, WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
+                String name = "villager".equals(STAGE) ? "audit112v" : "audit112b";
+                deleteTree(new File(mc.mcDataDir, "saves/" + name));
+                mc.launchIntegratedServer(name, name,new WorldSettings(6968716290812306038L, WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
                 return;
             }
             String world = "bench".equals(STAGE) ? "audit112" : "audit112m";
@@ -241,6 +242,7 @@ public final class Scenarios {
     public void onServer(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END && started) {
             sampleBacklog();
+            sampleSpeeds();
             if (sampleItem && flying != null) {
                 maxItemY = Math.max(maxItemY, flying.posY);
             }
@@ -304,6 +306,8 @@ public final class Scenarios {
             extra();
         } else if ("backlog1".equals(STAGE)) {
             backlog1();
+        } else if ("villager".equals(STAGE)) {
+            villager();
         } else if ("gui".equals(STAGE)) {
             gui();
         } else if ("more2".equals(STAGE)) {
@@ -994,6 +998,262 @@ public final class Scenarios {
         @Override
         public void removeStalePortalLocations(long time) {
         }
+    }
+
+    // ---- villager: walking speeds against the travel formula of 1.12.2, villagers of a savanna village by day ----
+
+    /** Horizontal blocks per tick of an entity, sampled on the server each tick. */
+    private static final class Speed {
+        final String name;
+        final net.minecraft.entity.Entity e;
+        boolean has;
+        double lx;
+        double lz;
+        final List<Double> d = new java.util.ArrayList<Double>();
+
+        Speed(String name, net.minecraft.entity.Entity e) {
+            this.name = name;
+            this.e = e;
+        }
+
+        /** The 90th percentile of the ticks it moved (more than 0.02), its maximum and the count of those ticks. */
+        double[] stats() {
+            List<Double> moving = new java.util.ArrayList<Double>();
+            for (double v : d) {
+                if (v > 0.02D) {
+                    moving.add(v);
+                }
+            }
+            java.util.Collections.sort(moving);
+            if (moving.isEmpty()) {
+                return new double[] {0.0D, 0.0D, 0.0D};
+            }
+            return new double[] {moving.get((int) (moving.size() * 0.9D)), moving.get(moving.size() - 1), moving.size()};
+        }
+    }
+
+    private final List<Speed> speeds = new java.util.ArrayList<Speed>();
+    private final java.util.Map<net.minecraft.entity.EntityLiving, double[]> lanes = new java.util.LinkedHashMap<net.minecraft.entity.EntityLiving, double[]>();
+
+    private void sampleSpeeds() {
+        for (Speed s : speeds) {
+            if (s.has) {
+                s.d.add(Math.sqrt((s.e.posX - s.lx) * (s.e.posX - s.lx) + (s.e.posZ - s.lz) * (s.e.posZ - s.lz)));
+            }
+            s.has = true;
+            s.lx = s.e.posX;
+            s.lz = s.e.posZ;
+        }
+        for (java.util.Map.Entry<net.minecraft.entity.EntityLiving, double[]> en : lanes.entrySet()) {
+            double[] v = en.getValue();
+            if (en.getKey().getNavigator().noPath()) {
+                v[4] = 1.0D - v[4];
+                en.getKey().getNavigator().tryMoveToXYZ(v[0], v[1], v[4] == 0.0D ? v[2] : v[3], v[5]);
+            }
+        }
+    }
+
+    /**
+     * Steady walking speed on a block of slipperiness 0.6 (EntityLivingBase.travel of 1.12.2, the same numbers as
+     * moveEntityWithHeading of 1.7.10): the move helper sets moveForward = aiMoveSpeed = speed * movementSpeed, it is
+     * scaled by 0.98, and moveRelative adds forward * aiMoveSpeed while the motion keeps 0.6 * 0.91 of itself.
+     */
+    private static double walkSpeed(double aiSpeed) {
+        float m = (float) aiSpeed;
+        return (double) (m * 0.98F * m) / (1.0D - (double) (0.6F * 0.91F));
+    }
+
+    private void speedCheck(String what, Speed s, double expected) {
+        double[] st = s.stats();
+        result(what, Math.abs(st[0] - expected) < 0.006D && st[1] < expected + 0.006D, String.format("p90=%.4f max=%.4f expected=%.4f movingTicks=%d", st[0], st[1], expected, (int) st[2]));
+    }
+
+    private net.minecraft.entity.EntityLiving lane(net.minecraft.entity.EntityLiving e, String name, double x, double y, double z, double speed) {
+        e.setLocationAndAngles(x, y, z - 6.0D, 0.0F, 0.0F);
+        if (e instanceof net.minecraft.entity.monster.EntityZombie) {
+            e.setCurrentItemOrArmor(4, new ItemStack(Items.leather_helmet));
+        }
+        w().spawnEntityInWorld(e);
+        if (speed > 0.0D) {
+            net.minecraft.entity.ai.EntityAITasks t = ReflectionHelper.getPrivateValue(net.minecraft.entity.EntityLiving.class, e, "tasks", "field_70714_bg");
+            net.minecraft.entity.ai.EntityAITasks tt = ReflectionHelper.getPrivateValue(net.minecraft.entity.EntityLiving.class, e, "targetTasks", "field_70715_bh");
+            t.taskEntries.clear();
+            tt.taskEntries.clear();
+            lanes.put(e, new double[] {x, y, z + 8.0D, z - 6.0D, 0.0D, speed});
+        }
+        speeds.add(new Speed(name, e));
+        return e;
+    }
+
+    private Speed speed(String name) {
+        for (Speed s : speeds) {
+            if (s.name.equals(name)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    private void endSpeeds() {
+        for (Speed s : speeds) {
+            if (!(s.e instanceof EntityPlayerMP) && !(s.e instanceof EntityVillager && s.name.startsWith("village"))) {
+                s.e.setDead();
+            }
+        }
+        speeds.clear();
+        lanes.clear();
+    }
+
+    private void villager() {
+        final int dy = 200;
+        final int[] centre = new int[2];
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("difficulty 2");
+                cmd("gamerule doDaylightCycle false");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 1000");
+                cmd("weather clear");
+                fly(true);
+                bx = w().getSpawnPoint().posX;
+                bz = w().getSpawnPoint().posZ;
+                String square = findVillage("savanna");
+                if (!square.isEmpty()) {
+                    String[] g = square.split(",");
+                    centre[0] = (Integer.parseInt(g[0]) + 4) * 16 + 8;
+                    centre[1] = (Integer.parseInt(g[1]) + 4) * 16 + 8;
+                }
+                tp(bx + 0.5D, dy + 4.0D, bz - 10.5D, 0.0F, 30.0F);
+                for (int x = bx - 12; x <= bx + 12; x++) {
+                    for (int z = bz - 12; z <= bz + 12; z++) {
+                        w().setBlock(x, dy - 1, z, Blocks.stone, 0, 2);
+                    }
+                }
+                // AI cleared, the navigator walks each mob back and forth over 14 blocks with its vanilla wander speed
+                lane(new EntityVillager(w()), "villager", bx - 8.5D, dy, bz + 0.5D, 0.6D);
+                lane(new net.minecraft.entity.monster.EntityZombie(w()), "zombie", bx - 2.5D, dy, bz + 0.5D, 1.0D);
+                lane(new EntityPig(w()), "pig", bx + 3.5D, dy, bz + 0.5D, 1.0D);
+                lane(new net.minecraft.entity.passive.EntityCow(w()), "cow", bx + 9.5D, dy, bz + 0.5D, 1.0D);
+                EntityVillager v = (EntityVillager) lanes.keySet().iterator().next();
+                log("INFO villager movementSpeed=" + v.getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.movementSpeed).getAttributeValue() + " savanna village centre=" + centre[0] + "," + centre[1]);
+            }
+        });
+        server(300, new Runnable() {
+            @Override
+            public void run() {
+                speedCheck("villager walks at the 1.12.2 speed (AI speed 0.6, movementSpeed 0.5)", speed("villager"), walkSpeed(0.6D * 0.5D));
+                speedCheck("zombie walks at the 1.12.2 speed (1.0 x 0.23)", speed("zombie"), walkSpeed(0.23D));
+                speedCheck("pig walks at the 1.12.2 speed (1.0 x 0.25)", speed("pig"), walkSpeed(0.25D));
+                speedCheck("cow walks at the 1.12.2 speed (1.0 x 0.2)", speed("cow"), walkSpeed(0.2D));
+                endSpeeds();
+                // natural AI: the villager flees a zombie (EntityAIAvoidEntity 0.6 / 0.6)
+                lane(new EntityVillager(w()), "fleeing villager", bx + 0.5D, dy, bz + 6.5D, 0.0D);
+                lane(new net.minecraft.entity.monster.EntityZombie(w()), "chasing zombie", bx + 0.5D, dy, bz + 3.5D, 0.0D);
+            }
+        });
+        server(100, new Runnable() {
+            @Override
+            public void run() {
+                speedCheck("villager fleeing a zombie runs at the 1.12.2 speed (0.6)", speed("fleeing villager"), walkSpeed(0.6D * 0.5D));
+                speedCheck("zombie chasing a villager walks at the 1.12.2 speed", speed("chasing zombie"), walkSpeed(0.23D));
+                endSpeeds();
+                fly(false);
+                tp(bx + 0.5D, dy, bz - 10.5D, 0.0F, 0.0F);
+            }
+        });
+        client(30, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.rotationYaw = 0.0F;
+                mc.thePlayer.setSprinting(false);
+                KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), true);
+            }
+        });
+        server(15, new Runnable() {
+            @Override
+            public void run() {
+                speeds.add(new Speed("player", p()));
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                speedCheck("player walks at the vanilla speed (0.1, no sprint)", speed("player"), (double) (0.98F * 0.1F) / (1.0D - (double) (0.6F * 0.91F)));
+                endSpeeds();
+            }
+        });
+        client(1, new Runnable() {
+            @Override
+            public void run() {
+                KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), false);
+            }
+        });
+        // the savanna village: 1.7.10 sent its villagers indoors at speed 1.0 all day (EntityAIMoveIndoors)
+        for (int r = -5; r <= 5; r++) {
+            final int row = r;
+            server(1, new Runnable() {
+                @Override
+                public void run() {
+                    if (centre[0] == 0 && centre[1] == 0) {
+                        return;
+                    }
+                    int cx = (centre[0] >> 4) + row;
+                    for (int cz = (centre[1] >> 4) - 5; cz <= (centre[1] >> 4) + 5; cz++) {
+                        w().theChunkProviderServer.loadChunk(cx, cz);
+                    }
+                }
+            });
+        }
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                fly(true);
+                tp(centre[0] + 0.5D, w().getHeightValue(centre[0], centre[1]) + 12.0D, centre[1] + 0.5D, 0.0F, 60.0F);
+            }
+        });
+        for (int k = 0; k < 2; k++) {
+            final boolean night = k == 1;
+            server(night ? 1 : 300, new Runnable() {
+                @Override
+                public void run() {
+                    if (night) {
+                        cmd("time set 13000");
+                    }
+                    for (Object o : w().getEntitiesWithinAABB(EntityVillager.class, net.minecraft.util.AxisAlignedBB.getBoundingBox(centre[0] - 80, 0, centre[1] - 80, centre[0] + 80, 255, centre[1] + 80))) {
+                        EntityVillager v = (EntityVillager) o;
+                        speeds.add(new Speed("village villager " + v.getEntityId() + (v.isChild() ? " child" : ""), v));
+                    }
+                }
+            });
+            server(400, new Runnable() {
+                @Override
+                public void run() {
+                    Speed all = new Speed("all", null);
+                    StringBuilder each = new StringBuilder();
+                    int over = 0;
+                    for (Speed s : speeds) {
+                        all.d.addAll(s.d);
+                        for (double v : s.d) {
+                            over += v > 0.25D ? 1 : 0;
+                        }
+                        double[] st = s.stats();
+                        each.append(String.format(" %s:max=%.3f", s.name.substring("village villager ".length()).replace(' ', '_'), st[1]));
+                    }
+                    double[] st = all.stats();
+                    String detail = String.format("villagers=%d p90=%.4f max=%.4f movingTicks=%d ticksOver0.25=%d walk=%.4f indoorsAt1.0=%.4f;%s", speeds.size(), st[0], st[1], (int) st[2], over, walkSpeed(0.3D), walkSpeed(0.5D), each);
+                    if (night) {
+                        // 1.12.2 too: at night EntityAIMoveIndoors walks at speed 1.0; only reported
+                        log("INFO savanna village at night (time 13000) " + detail);
+                    } else {
+                        result("savanna village by day: villagers walk at the 1.12.2 speed, under 2% of moving ticks above 0.25 (pushes; 1.7.10 ran indoors at 0.54)", speeds.size() > 0 && st[2] > 0 && over * 50 <= st[2] && st[0] < walkSpeed(0.3D) + 0.006D, detail);
+                    }
+                    endSpeeds();
+                }
+            });
+        }
+        finish();
     }
 
     private void backlog1() {
