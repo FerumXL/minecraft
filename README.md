@@ -4,9 +4,9 @@
 
 ## Установка и загрузки
 
-[Установка и архив версий](INSTALL.md) · [Список изменений](CHANGELOG.md) · [Скачать последнюю версию 0.33.1](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.33.1/mc112bridge-0.33.1.jar)
+[Установка и архив версий](INSTALL.md) · [Список изменений](CHANGELOG.md) · [Скачать последнюю версию 0.33.2](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.33.2/mc112bridge-0.33.2.jar)
 
-Готовый jar лежит в `releases/0.33.1/` (`mc112bridge-0.33.1.jar`).
+Готовый jar лежит в `releases/0.33.2/` (`mc112bridge-0.33.2.jar`).
 
 **Сборка из исходников.** Файлы Mojang (1636 штук: текстуры, звуки, таблицы добычи, JSON достижений и рецептов) в репозиторий не выкладываются. После клона и перед сборкой выполни `python tools/fetch-assets.py`. Скрипт по умолчанию берёт `%APPDATA%\.minecraft` и требует установленный 1.12.2 (`versions/1.12.2/1.12.2.jar`). После клона `python tools/fetch-assets.py` восстанавливает текстуры, звуки, таблицы добычи и данные (достижения, рецепты). Без этого в моде не будет текстур, звуков, достижений и книги рецептов.
 

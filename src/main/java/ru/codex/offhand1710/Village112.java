@@ -281,8 +281,8 @@ public final class Village112 {
     }
 
     /** Metadata of a horizontal facing: north 2, south 3, west 4, east 5; offsets by facing. */
-    private static final int[] DX = {0, 0, 0, 0, 0, -1, 1};
-    private static final int[] DZ = {0, 0, -1, 1, 0, 0, 0};
+    private static final int[] DX = {0, 0, 0, 0, -1, 1};
+    private static final int[] DZ = {0, 0, -1, 1, 0, 0};
     private static final int[] OPPOSITE = {0, 0, 3, 2, 5, 4};
     private static final int[] ROTATE_Y = {0, 0, 5, 4, 2, 3};
 
