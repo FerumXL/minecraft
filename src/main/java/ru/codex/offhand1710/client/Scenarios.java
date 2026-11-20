@@ -1688,6 +1688,40 @@ public final class Scenarios {
             public void run() {
                 shot("elytra-" + FLY + "-rd" + mc.gameSettings.renderDistanceChunks + "-first");
                 shotPitch = 0.0F;
+                double box = mc.thePlayer.boundingBox.maxY - mc.thePlayer.boundingBox.minY;
+                result("glide: client box 0.6 high, yOffset unchanged (stance 1.62)", Math.abs(box - 0.6D) < 0.01D && Math.abs(mc.thePlayer.yOffset - 1.62F) < 0.01F,
+                    "box=" + box + " yOffset=" + mc.thePlayer.yOffset + " stance=" + (mc.thePlayer.posY - mc.thePlayer.boundingBox.minY));
+                result("glide: camera 1.22 lower (eye 0.4)", Math.abs(ElytraClient.cameraShift(0.0F) - 1.22F) < 0.01F, "shift=" + ElytraClient.cameraShift(0.0F));
+            }
+        });
+        server(1, new Runnable() {
+            @Override
+            public void run() {
+                double box = p().boundingBox.maxY - p().boundingBox.minY;
+                result("glide: server box 0.6 high", Math.abs(box - 0.6D) < 0.01D, "box=" + box + " height=" + p().height);
+                ru.codex.offhand1710.Elytra112.useFirework(p(), new ItemStack(Items.fireworks, 1));
+            }
+        });
+        client(4, new Runnable() {
+            @Override
+            public void run() {
+                mc.gameSettings.thirdPersonView = 1;
+                shotPitch = 20.0F;
+            }
+        });
+        client(4, new Runnable() {
+            @Override
+            public void run() {
+                shot("elytra-rocket-back");
+                mc.gameSettings.thirdPersonView = 2;
+            }
+        });
+        client(4, new Runnable() {
+            @Override
+            public void run() {
+                shot("elytra-rocket-front");
+                mc.gameSettings.thirdPersonView = 0;
+                shotPitch = 0.0F;
             }
         });
         server(580, new Runnable() {
@@ -1750,6 +1784,16 @@ public final class Scenarios {
                 float lost = health[0] - p().getHealth();
                 result("survival: a rocket with one explosion hurts the glider by 7 (5 + 2)", Math.abs(lost - 7.0F) < 0.01F, "lost=" + lost + " health=" + p().getHealth());
                 cmd("gamemode 1");
+                p().inventory.armorInventory[2] = null;
+                p().inventoryContainer.detectAndSendChanges();
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                double c = mc.thePlayer.boundingBox.maxY - mc.thePlayer.boundingBox.minY, s = p().boundingBox.maxY - p().boundingBox.minY;
+                result("glide end: box back to 1.8 on both sides, still connected", Math.abs(c - 1.8D) < 0.01D && Math.abs(s - 1.8D) < 0.01D && mc.theWorld != null,
+                    "client=" + c + " server=" + s + " flying=" + ru.codex.offhand1710.OffhandInventory.get(p()).elytraFlying);
             }
         });
         finish();

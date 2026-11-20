@@ -392,6 +392,23 @@ public final class Transformer implements IClassTransformer {
             }
             return write(node);
         }
+        if ("net.minecraft.client.renderer.EntityRenderer".equals(transformedName)) {
+            // orientCamera: f1 = entity.yOffset - 1.62F; the elytra hook lowers the eye to 0.4 while gliding (1.12.2)
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "orientCamera", "func_78467_g") && "(F)V".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        AbstractInsnNode sub = n.getNext();
+                        if (n instanceof org.objectweb.asm.tree.LdcInsnNode && Float.valueOf(1.62F).equals(((org.objectweb.asm.tree.LdcInsnNode) n).cst)
+                            && sub != null && sub.getOpcode() == Opcodes.FSUB && n.getPrevious() != null && n.getPrevious().getOpcode() == Opcodes.GETFIELD) {
+                            m.instructions.insert(sub, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/client/ElytraClient", "cameraShift", "(F)F", false));
+                            break;
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
         if ("net.minecraft.world.biome.BiomeDecorator".equals(transformedName)) {
             ClassNode node = read(bytes);
             for (MethodNode m : node.methods) {

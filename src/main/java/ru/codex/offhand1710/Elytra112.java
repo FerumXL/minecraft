@@ -30,6 +30,28 @@ public final class Elytra112 {
 
     public static ItemElytra elytra;
 
+    /** EntityPlayer of 1.12.2 while gliding: size 0.6 x 0.6, eye 0.4 above the feet. */
+    public static final float GLIDE_HEIGHT = 0.6F;
+    public static final float GLIDE_EYE = 0.4F;
+    /** -Dmc112.elytraSize17=1: keep the 1.7.10 1.8-high box and eye (comparison runs). */
+    public static final boolean OLD_SIZE = "1".equals(System.getProperty("mc112.elytraSize17"));
+
+    /**
+     * Only height and the box change; yOffset stays 1.62, so the client still reports posY - minY = 1.62 and the
+     * server stance check ("Illegal stance", 0.1..1.65) is not touched. Both sides apply the same box, so the
+     * server's collision check of a move agrees with the client.
+     */
+    public static void applySize(net.minecraft.entity.player.EntityPlayer p, boolean gliding) {
+        if (OLD_SIZE || p.isPlayerSleeping()) {
+            return;
+        }
+        float want = gliding ? GLIDE_HEIGHT : 1.8F;
+        if (p.height != want && (gliding || p.height == GLIDE_HEIGHT)) {
+            p.height = want;
+            p.boundingBox.maxY = p.boundingBox.minY + (double) want;
+        }
+    }
+
     /** DamageSource.FIREWORKS of 1.12.2. */
     private static final DamageSource FIREWORKS = new DamageSource("fireworks").setExplosion();
 
@@ -84,6 +106,7 @@ public final class Elytra112 {
             state.elytraStartRequested = false;
             start(player);
         }
+        applySize(player, state.elytraFlying && canFly(player));
         if (!state.elytraFlying) {
             return;
         }

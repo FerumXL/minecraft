@@ -32,6 +32,19 @@ public final class ElytraClient {
     private double savedY;
     private double savedZ;
 
+    /**
+     * Called by the patched EntityRenderer.orientCamera with f1 = yOffset - 1.62F (the camera sits at posY - f1).
+     * While gliding the eye of 1.12.2 is 0.4 above the feet instead of 1.62, so the camera goes 1.22 lower.
+     */
+    public static float cameraShift(float f1) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.renderViewEntity instanceof EntityPlayer && !Elytra112.OLD_SIZE
+                && OffhandInventory.get((EntityPlayer) mc.renderViewEntity).elytraFlying) {
+            return f1 + (1.62F - Elytra112.GLIDE_EYE);
+        }
+        return f1;
+    }
+
     @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         Minecraft mc = Minecraft.getMinecraft();
@@ -39,6 +52,9 @@ public final class ElytraClient {
             return;
         }
         OffhandInventory state = OffhandInventory.get(event.player);
+        if (event.phase == TickEvent.Phase.START) {
+            Elytra112.applySize(event.player, state.elytraFlying);
+        }
         if (event.player != mc.thePlayer) {
             if (event.phase == TickEvent.Phase.START) {
                 state.elytraTicks = state.elytraFlying ? state.elytraTicks + 1 : 0;
