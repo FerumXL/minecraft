@@ -45,7 +45,9 @@ public final class Shoulder112 {
         if (parrot.ticksExisted % 10 == 0 && parrot.getDistanceSqToEntity(p) > 1.0D) {
             parrot.getNavigator().tryMoveToEntityLiving(p, 1.0D);
         }
-        if (parrot.boundingBox.intersectsWith(p.boundingBox.expand(0.3D, 0.0D, 0.3D))) {
+        // 1.12 lands on touching the owner; the 1.7.10 follow-owner AI stops the parrot 1 block away, so next to the
+        // owner (under 1.41 blocks) is enough here
+        if (parrot.getDistanceSqToEntity(p) < 2.0D) {
             NBTTagCompound tag = new NBTTagCompound();
             if (parrot.writeToNBTOptional(tag)) {
                 data.setTag(slot, tag);

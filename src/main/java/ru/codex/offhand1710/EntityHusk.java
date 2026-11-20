@@ -13,6 +13,14 @@ public class EntityHusk extends EntityZombie {
         super(world);
     }
 
+    /** A husk of 1.12.2 is never a villager (EntityZombie of 1.7.10 makes 5 % of them one). */
+    @Override
+    public net.minecraft.entity.IEntityLivingData onSpawnWithEgg(net.minecraft.entity.IEntityLivingData data) {
+        net.minecraft.entity.IEntityLivingData r = super.onSpawnWithEgg(data);
+        setVillager(false);
+        return r;
+    }
+
     /** 1.7.10 zombies set themselves on fire in EntityZombie.onLivingUpdate; a real fire or lava is still respected. */
     @Override
     public void setFire(int seconds) {

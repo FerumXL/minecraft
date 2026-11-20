@@ -91,6 +91,7 @@ public final class Mobs112 {
         EntityRegistry.addSpawn(MoreMobs.Parrot.class, 40, 1, 2, EnumCreatureType.creature, BiomeGenBase.jungle, BiomeGenBase.jungleHills, BiomeGenBase.jungleEdge);
         EntityRegistry.addSpawn(MoreMobs.Llama.class, 5, 4, 6, EnumCreatureType.creature, BiomeGenBase.extremeHills, BiomeGenBase.extremeHillsEdge, BiomeGenBase.extremeHillsPlus, BiomeGenBase.getBiome(131), BiomeGenBase.getBiome(162));
         EntityRegistry.addSpawn(MoreMobs.Llama.class, 8, 4, 4, EnumCreatureType.creature, BiomeGenBase.savanna, BiomeGenBase.savannaPlateau, BiomeGenBase.getBiome(163), BiomeGenBase.getBiome(164));
+        Variants112.register();
         MinecraftForge.EVENT_BUS.register(new EntityStray.Arrows());
         MinecraftForge.EVENT_BUS.register(new Mobs112Events());
     }

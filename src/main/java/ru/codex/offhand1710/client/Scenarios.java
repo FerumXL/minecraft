@@ -1337,6 +1337,116 @@ public final class Scenarios {
                 shot("g2-illusioner");
             }
         });
+        // item 8: own spawn entries for donkeys and zombie villagers
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                g2ill.setDead();
+                net.minecraft.entity.passive.EntityHorse horse = new ru.codex.offhand1710.Variants112.Horse(w());
+                horse.onSpawnWithEgg(null);
+                net.minecraft.entity.passive.EntityHorse donkey = new ru.codex.offhand1710.Variants112.Donkey(w());
+                donkey.onSpawnWithEgg(null);
+                int horses = 0, villagers = 0;
+                for (int i = 0; i < 200; i++) {
+                    net.minecraft.entity.passive.EntityHorse h = new ru.codex.offhand1710.Variants112.Horse(w());
+                    h.onSpawnWithEgg(null);
+                    horses += h.getHorseType() == 0 ? 1 : 0;
+                    net.minecraft.entity.monster.EntityZombie z = new ru.codex.offhand1710.Variants112.Zombie(w());
+                    z.onSpawnWithEgg(null);
+                    villagers += z.isVillager() ? 1 : 0;
+                }
+                net.minecraft.entity.monster.EntityZombie zv = new ru.codex.offhand1710.Variants112.ZombieVillager(w());
+                zv.onSpawnWithEgg(null);
+                result("spawn classes: horse entry gives horses, donkey entry donkeys", horses == 200 && donkey.getHorseType() == 1, "horses=" + horses + "/200 donkeyType=" + donkey.getHorseType());
+                result("spawn classes: zombie entry never a villager, villager entry always", villagers == 0 && zv.isVillager(), "villagers=" + villagers + "/200 zv=" + zv.isVillager());
+                donkey.setLocationAndAngles(bx + 0.5D, dy, bz - 3.5D, 0.0F, 0.0F);
+                NBTTagCompound tag = new NBTTagCompound();
+                boolean saved = donkey.writeToNBTOptional(tag);
+                net.minecraft.entity.Entity back = net.minecraft.entity.EntityList.createEntityFromNBT(tag, w());
+                result("donkey saved as EntityHorse and loads as a plain donkey", saved && "EntityHorse".equals(tag.getString("id"))
+                    && back != null && back.getClass() == net.minecraft.entity.passive.EntityHorse.class && ((net.minecraft.entity.passive.EntityHorse) back).getHorseType() == 1,
+                    "saved=" + saved + " id=" + tag.getString("id") + " class=" + (back == null ? null : back.getClass().getSimpleName()));
+                StringBuilder plains = new StringBuilder();
+                for (Object o : net.minecraft.world.biome.BiomeGenBase.plains.getSpawnableList(net.minecraft.entity.EnumCreatureType.creature)) {
+                    net.minecraft.world.biome.BiomeGenBase.SpawnListEntry e = (net.minecraft.world.biome.BiomeGenBase.SpawnListEntry) o;
+                    plains.append(e.entityClass.getSimpleName()).append('=').append(e.itemWeight).append(' ');
+                }
+                for (Object o : net.minecraft.world.biome.BiomeGenBase.plains.getSpawnableList(net.minecraft.entity.EnumCreatureType.monster)) {
+                    net.minecraft.world.biome.BiomeGenBase.SpawnListEntry e = (net.minecraft.world.biome.BiomeGenBase.SpawnListEntry) o;
+                    plains.append(e.entityClass.getSimpleName()).append('=').append(e.itemWeight).append(' ');
+                }
+                String s = plains.toString();
+                result("plains spawn lists: Horse 5, Donkey 1, Zombie 95, ZombieVillager 5", s.contains("Horse=5") && s.contains("Donkey=1") && s.contains("Zombie=95") && s.contains("ZombieVillager=5"), s);
+                w().spawnEntityInWorld(donkey);
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                boolean seen = false;
+                for (Object o : mc.theWorld.loadedEntityList) {
+                    seen |= o.getClass() == net.minecraft.entity.passive.EntityHorse.class && ((net.minecraft.entity.passive.EntityHorse) o).getHorseType() == 1;
+                }
+                result("client sees the spawned donkey as a plain EntityHorse of type 1", seen, "");
+            }
+        });
+        // item 6: gateway of a dragon kill, its shape, tile and beam
+        final int[] gw = new int[3];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.End112.Gateways g = ru.codex.offhand1710.End112.Gateways.get(w());
+                int before = g.left.size();
+                int next = g.left.get(before - 1);
+                net.minecraft.entity.boss.EntityDragon dragon = new net.minecraft.entity.boss.EntityDragon(w());
+                new ru.codex.offhand1710.End112().onDeath(new net.minecraftforge.event.entity.living.LivingDeathEvent(dragon, net.minecraft.util.DamageSource.generic));
+                gw[0] = net.minecraft.util.MathHelper.floor_double(96.0D * Math.cos(2.0D * (-Math.PI + 0.15707963267948966D * (double) next)));
+                gw[1] = 75;
+                gw[2] = net.minecraft.util.MathHelper.floor_double(96.0D * Math.sin(2.0D * (-Math.PI + 0.15707963267948966D * (double) next)));
+                boolean shape = w().getBlock(gw[0], 75, gw[2]) == ru.codex.offhand1710.End112.gateway && w().getBlock(gw[0], 77, gw[2]) == Blocks.bedrock
+                    && w().getBlock(gw[0], 73, gw[2]) == Blocks.bedrock && w().getBlock(gw[0] + 1, 76, gw[2]) == Blocks.bedrock && w().getBlock(gw[0] + 1, 76, gw[2] + 1) != Blocks.bedrock
+                    && w().getBlock(gw[0] + 1, 75, gw[2]) == Blocks.air;
+                net.minecraft.tileentity.TileEntity t = w().getTileEntity(gw[0], 75, gw[2]);
+                result("dragon kill opens the next of 20 gateways (1.12 position, WorldGenEndGateway shape)", before == 20 && g.left.size() == 19 && shape,
+                    "before=" + before + " after=" + g.left.size() + " index=" + next + " at " + gw[0] + ",75," + gw[2] + " shape=" + shape);
+                result("gateway has the 1.12 tile entity, new (beam)", t instanceof ru.codex.offhand1710.End112.GatewayTile && ((ru.codex.offhand1710.End112.GatewayTile) t).spawning(), String.valueOf(t));
+                cmd("gamemode 1");
+                fly(true);
+                tp(gw[0] + 0.5D, 80.0D, gw[2] - 12.5D, 0.0F, 10.0F);
+            }
+        });
+        client(60, new Runnable() {
+            @Override
+            public void run() {
+                shot("g2-gateway");
+            }
+        });
+        // item 7: an explorer map hung in a frame gets its marker without being carried
+        final net.minecraft.entity.item.EntityItemFrame[] frame = new net.minecraft.entity.item.EntityItemFrame[1];
+        final ItemStack[] map = new ItemStack[1];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                w().setBlock(bx + 5, dy, bz + 5, Blocks.stone, 0, 3);
+                map[0] = new ItemStack(Items.filled_map, 1, w().getUniqueDataId("map"));
+                net.minecraft.world.storage.MapData data = Items.filled_map.getMapData(map[0], w());
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setInteger("Marker112Type", 9);
+                tag.setInteger("Marker112X", data.xCenter + 20);
+                tag.setInteger("Marker112Z", data.zCenter + 20);
+                map[0].setTagCompound(tag);
+                frame[0] = new net.minecraft.entity.item.EntityItemFrame(w(), bx + 5, dy, bz + 4, 2);
+                frame[0].setDisplayedItem(map[0]);
+                w().spawnEntityInWorld(frame[0]);
+                result("framed map starts without the marker", !ru.codex.offhand1710.Maps112.hasMarker(w(), map[0]), "");
+            }
+        });
+        server(45, new Runnable() {
+            @Override
+            public void run() {
+                result("framed explorer map gets its marker back", ru.codex.offhand1710.Maps112.hasMarker(w(), frame[0].getDisplayedItem()), "");
+            }
+        });
         finish();
     }
 

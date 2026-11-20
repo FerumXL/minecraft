@@ -75,6 +75,7 @@ public final class End112 implements IWorldGenerator {
         GameRegistry.registerBlock(chorusFlower, "chorus_flower");
         GameRegistry.registerBlock(endRod, "end_rod");
         GameRegistry.registerBlock(gateway, "end_gateway");
+        GameRegistry.registerTileEntity(GatewayTile.class, "mc112bridge.end_gateway");
         dragonHead = new BlockDragonHead();
         GameRegistry.registerBlock(dragonHead, "dragon_head");
         GameRegistry.registerTileEntity(BlockDragonHead.Tile.class, "mc112bridge.dragon_head");
@@ -916,23 +917,152 @@ public final class End112 implements IWorldGenerator {
 
     // ---------------------------------------------------------------- gateways
 
+    /**
+     * DragonFightManager.spawnNewGateway of 1.12.2: each dragon kill opens the next of 20 gateways, at
+     * (96 cos(2(-pi + 0.157 i)), 75, 96 sin(...)), in an order shuffled with the world seed; after 20 none.
+     */
     @SubscribeEvent
     public void onDeath(LivingDeathEvent event) {
         if (event.entityLiving instanceof EntityDragon && !event.entityLiving.worldObj.isRemote) {
             World world = event.entityLiving.worldObj;
-            double angle = world.rand.nextDouble() * Math.PI * 2.0D;
-            int x = MathHelper.floor_double(Math.cos(angle) * 96.0D);
-            int z = MathHelper.floor_double(Math.sin(angle) * 96.0D);
-            buildGateway(world, x, groundOrPlatform(world, x, z), z);
+            Gateways data = Gateways.get(world);
+            if (data.left.isEmpty()) {
+                return;
+            }
+            int i = data.left.remove(data.left.size() - 1);
+            data.markDirty();
+            int x = MathHelper.floor_double(96.0D * Math.cos(2.0D * (-Math.PI + 0.15707963267948966D * (double) i)));
+            int z = MathHelper.floor_double(96.0D * Math.sin(2.0D * (-Math.PI + 0.15707963267948966D * (double) i)));
+            world.playAuxSFX(3000, x, 75, z, 0);
+            buildGateway(world, x, 75, z);
         }
     }
 
-    static void buildGateway(World world, int x, int y, int z) {
-        world.setBlock(x, y - 1, z, Blocks.bedrock, 0, 2);
-        for (int i = 0; i < 3; i++) {
-            world.setBlock(x, y + i, z, gateway, 0, 2);
+    /** The gateways not opened yet ("Gateways" of the DragonFight data of 1.12.2), saved with the End. */
+    public static final class Gateways extends net.minecraft.world.WorldSavedData {
+        static final String NAME = "mc112bridge_gateways";
+        public final java.util.List<Integer> left = new java.util.ArrayList<Integer>();
+        boolean filled;
+
+        public Gateways(String name) {
+            super(name);
         }
-        world.setBlock(x, y + 3, z, Blocks.bedrock, 0, 2);
+
+        public static Gateways get(World world) {
+            Gateways g = (Gateways) world.perWorldStorage.loadData(Gateways.class, NAME);
+            if (g == null) {
+                g = new Gateways(NAME);
+                world.perWorldStorage.setData(NAME, g);
+            }
+            if (!g.filled) {
+                for (int i = 0; i < 20; i++) {
+                    g.left.add(i);
+                }
+                java.util.Collections.shuffle(g.left, new Random(world.getSeed()));
+                g.filled = true;
+                g.markDirty();
+            }
+            return g;
+        }
+
+        @Override
+        public void readFromNBT(net.minecraft.nbt.NBTTagCompound tag) {
+            left.clear();
+            for (int i : tag.getIntArray("Gateways")) {
+                left.add(i);
+            }
+            filled = true;
+        }
+
+        @Override
+        public void writeToNBT(net.minecraft.nbt.NBTTagCompound tag) {
+            int[] a = new int[left.size()];
+            for (int i = 0; i < a.length; i++) {
+                a[i] = left.get(i);
+            }
+            tag.setIntArray("Gateways", a);
+        }
+    }
+
+    /**
+     * WorldGenEndGateway of 1.12.2: the gateway block, air around it in its layer, bedrock in a cross one block
+     * above and below and a single bedrock two blocks above and below.
+     */
+    static void buildGateway(World world, int x, int y, int z) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    boolean cx = dx == 0, cy = dy == 0, cz = dz == 0, far = Math.abs(dy) == 2;
+                    if (cx && cy && cz) {
+                        world.setBlock(x, y, z, gateway, 0, 3);
+                    } else if (cy) {
+                        world.setBlockToAir(x + dx, y, z + dz);
+                    } else if (far && cx && cz) {
+                        world.setBlock(x + dx, y + dy, z + dz, Blocks.bedrock, 0, 2);
+                    } else if ((cx || cz) && !far) {
+                        world.setBlock(x + dx, y + dy, z + dz, Blocks.bedrock, 0, 2);
+                    } else {
+                        world.setBlockToAir(x + dx, y + dy, z + dz);
+                    }
+                }
+            }
+        }
+    }
+
+    /** TileEntityEndGateway of 1.12.2: age (a beam for the first 200 ticks) and the 40-tick cooldown after a teleport. */
+    public static final class GatewayTile extends net.minecraft.tileentity.TileEntityEndPortal {
+        public long age;
+        public int cooldown;
+
+        @Override
+        public void updateEntity() {
+            age++;
+            if (cooldown > 0) {
+                cooldown--;
+            }
+        }
+
+        @Override
+        public boolean canUpdate() {
+            return true;
+        }
+
+        public boolean spawning() {
+            return age < 200L;
+        }
+
+        @Override
+        public boolean receiveClientEvent(int id, int value) {
+            if (id == 1) {
+                cooldown = 40;
+                return true;
+            }
+            return super.receiveClientEvent(id, value);
+        }
+
+        @Override
+        public void writeToNBT(net.minecraft.nbt.NBTTagCompound tag) {
+            super.writeToNBT(tag);
+            tag.setLong("Age", age);
+        }
+
+        @Override
+        public void readFromNBT(net.minecraft.nbt.NBTTagCompound tag) {
+            super.readFromNBT(tag);
+            age = tag.getLong("Age");
+        }
+
+        @Override
+        public net.minecraft.network.Packet getDescriptionPacket() {
+            net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+            writeToNBT(tag);
+            return new net.minecraft.network.play.server.S35PacketUpdateTileEntity(xCoord, yCoord, zCoord, 8, tag);
+        }
+
+        @Override
+        public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.S35PacketUpdateTileEntity packet) {
+            readFromNBT(packet.func_148857_g());
+        }
     }
 
     /** The height to stand on at this place; over the void a small end stone platform is built first. */
@@ -968,6 +1098,17 @@ public final class End112 implements IWorldGenerator {
         }
 
         @Override
+        public net.minecraft.tileentity.TileEntity createNewTileEntity(World world, int meta) {
+            return new GatewayTile();
+        }
+
+        @Override
+        public boolean onBlockEventReceived(World world, int x, int y, int z, int id, int value) {
+            net.minecraft.tileentity.TileEntity t = world.getTileEntity(x, y, z);
+            return t != null && t.receiveClientEvent(id, value);
+        }
+
+        @Override
         public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z) {
             setBlockBounds(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);
         }
@@ -983,13 +1124,18 @@ public final class End112 implements IWorldGenerator {
                 return;
             }
             entity.timeUntilPortal = 100;
+            net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
+            if (tile instanceof GatewayTile) {
+                ((GatewayTile) tile).cooldown = 40;
+            }
+            world.addBlockEvent(x, y, z, this, 1, 0);
             double length = Math.sqrt((double) x * (double) x + (double) z * (double) z);
             double target = length > 500.0D ? 96.0D : 1024.0D;
             int tx = MathHelper.floor_double((double) x / length * target);
             int tz = MathHelper.floor_double((double) z / length * target);
             int top = groundOrPlatform(world, tx, tz);
-            if (world.getBlock(tx + 3, top, tz) != gateway) {
-                buildGateway(world, tx + 3, top, tz);
+            if (world.getBlock(tx + 3, top + 2, tz) != gateway && world.getBlock(tx + 3, top, tz) != gateway) {
+                buildGateway(world, tx + 3, top + 2, tz);
             }
             ((EntityPlayer) entity).setPositionAndUpdate((double) tx + 0.5D, (double) top + 0.5D, (double) tz + 0.5D);
         }

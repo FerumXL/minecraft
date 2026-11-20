@@ -68,6 +68,7 @@ public final class ClientProxy extends CommonProxy {
         Scenarios.start();
         MinecraftForgeClient.registerItemRenderer(PortedBlocks.shield, new ShieldRenderer());
         EndRenderers.register();
+        cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.End112.GatewayTile.class, new GatewayRender());
         DragonHeadRenderer dragonHead = new DragonHeadRenderer();
         cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.BlockDragonHead.Tile.class, dragonHead);
         MinecraftForgeClient.registerItemRenderer(net.minecraft.item.Item.getItemFromBlock(ru.codex.offhand1710.End112.dragonHead), dragonHead);

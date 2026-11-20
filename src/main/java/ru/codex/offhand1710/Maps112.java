@@ -105,6 +105,25 @@ public final class Maps112 {
             }
         }
 
+        /**
+         * MapData.mapDecorations of 1.12.2 are saved with the map, here the marker lives only in memory: a map hung in a
+         * frame (and never carried since the world was loaded) gets it back from the frames of the world, once a second.
+         */
+        @SubscribeEvent
+        public void onWorld(TickEvent.WorldTickEvent event) {
+            if (event.phase != TickEvent.Phase.END || event.world.isRemote || event.world.getTotalWorldTime() % 20 != 0) {
+                return;
+            }
+            for (Object o : event.world.loadedEntityList) {
+                if (o instanceof net.minecraft.entity.item.EntityItemFrame) {
+                    ItemStack stack = ((net.minecraft.entity.item.EntityItemFrame) o).getDisplayedItem();
+                    if (stack != null && stack.getItem() == Items.filled_map && stack.hasTagCompound() && stack.getTagCompound().hasKey("Marker112Type")) {
+                        refresh(event.world, stack);
+                    }
+                }
+            }
+        }
+
         /** The glowing effect is mirrored into flag 6 of Entity, as in 1.9, so that every client can see it. */
         @SubscribeEvent
         public void onLiving(LivingUpdateEvent event) {
