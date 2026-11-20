@@ -27,10 +27,25 @@ public final class Trees112 {
         return !(rand.nextFloat() < chance);
     }
 
-    /** Plains (and sunflower plains) as in 1.12.2 BiomePlains: treesPerChunk = 0. */
+    /**
+     * Plains (and sunflower plains) as in 1.12.2 BiomePlains: treesPerChunk = 0. And one big oak generator for every
+     * biome, as Biome.BIG_TREE_FEATURE of 1.12.2: WorldGenBigTree draws its height limit once (5 + nextInt(12)) and
+     * keeps it, only lowering it when a tree is blocked, so in 1.12.2 all big oaks of a session share one height;
+     * 1.7.10 gives every biome its own generator and so its own height.
+     */
     public static void applyBiomes() {
         if (OLD) {
             return;
+        }
+        net.minecraft.world.gen.feature.WorldGenBigTree shared = new net.minecraft.world.gen.feature.WorldGenBigTree(false);
+        java.lang.reflect.Field big = cpw.mods.fml.relauncher.ReflectionHelper.findField(BiomeGenBase.class, "worldGeneratorBigTree", "field_76758_O");
+        for (BiomeGenBase b : BiomeGenBase.getBiomeGenArray()) {
+            if (b != null) {
+                try {
+                    big.set(b, shared);
+                } catch (IllegalAccessException ignored) {
+                }
+            }
         }
         for (BiomeGenBase b : BiomeGenBase.getBiomeGenArray()) {
             if (b != null && (b instanceof BiomeGenPlains || b.biomeID == 129) && b.theBiomeDecorator != null
