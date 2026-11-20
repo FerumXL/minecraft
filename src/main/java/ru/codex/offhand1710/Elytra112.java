@@ -30,6 +30,13 @@ public final class Elytra112 {
 
     public static ItemElytra elytra;
 
+    /** DamageSource.FIREWORKS of 1.12.2. */
+    private static final DamageSource FIREWORKS = new DamageSource("fireworks").setExplosion();
+
+    /** Rockets boosting a gliding player (EntityFireworkRocket.boostedEntity of 1.12.2). */
+    private static final java.util.Map<net.minecraft.entity.item.EntityFireworkRocket, EntityPlayerMP> ROCKETS =
+            new java.util.HashMap<net.minecraft.entity.item.EntityFireworkRocket, EntityPlayerMP>();
+
     public static void register() {
         elytra = new ItemElytra();
         GameRegistry.registerItem(elytra, "elytra");
@@ -98,7 +105,9 @@ public final class Elytra112 {
         }
         double speed = (double) MathHelper.sqrt_double(deltaX * deltaX + deltaZ * deltaZ);
         float impact = (float) ((state.elytraLastSpeed - speed) * 10.0D - 3.0D);
-        if (impact > 0.0F) {
+        // 1.12.2 counts a speed drop only when the glide hit a wall (collidedHorizontally), not when it was stopped
+        // at the edge of the loaded chunks or slowed by a rocket
+        if (impact > 0.0F && player.isCollidedHorizontally) {
             player.playSound(impact > 4.0F ? "game.player.hurt.fall.big" : "game.player.hurt.fall.small", 1.0F, 1.0F);
             player.attackEntityFrom(FLY_INTO_WALL, impact);
         }
@@ -106,6 +115,48 @@ public final class Elytra112 {
         // Gliding counts as floating for the "flying is not enabled" kick of a dedicated server.
         ReflectionHelper.setPrivateValue(NetHandlerPlayServer.class, player.playerNetServerHandler, Integer.valueOf(0),
                 "field_147365_f", "floatingTickCount");
+    }
+
+    /** EntityFireworkRocket.onUpdate of 1.12.2 for a rocket with a boosted entity: it stays at the player. */
+    @SubscribeEvent
+    public void onWorldTick(TickEvent.WorldTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || event.world.isRemote || ROCKETS.isEmpty()) {
+            return;
+        }
+        java.util.Iterator<java.util.Map.Entry<net.minecraft.entity.item.EntityFireworkRocket, EntityPlayerMP>> it = ROCKETS.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<net.minecraft.entity.item.EntityFireworkRocket, EntityPlayerMP> e = it.next();
+            net.minecraft.entity.item.EntityFireworkRocket rocket = e.getKey();
+            EntityPlayerMP player = e.getValue();
+            if (rocket.worldObj != event.world) {
+                continue;
+            }
+            if (rocket.isDead) {
+                it.remove();
+                explode(rocket, player);
+                continue;
+            }
+            if (player.isDead || player.worldObj != rocket.worldObj) {
+                continue;
+            }
+            rocket.setPosition(player.posX, player.posY, player.posZ);
+            rocket.motionX = player.posX - player.prevPosX;
+            rocket.motionY = player.posY - player.prevPosY;
+            rocket.motionZ = player.posZ - player.prevPosZ;
+        }
+    }
+
+    /** EntityFireworkRocket.dealExplosionDamage of 1.12.2: 5 + 2 per explosion to the boosted player. */
+    private static void explode(net.minecraft.entity.item.EntityFireworkRocket rocket, EntityPlayerMP player) {
+        ItemStack stack = rocket.getDataWatcher().getWatchableObjectItemStack(8);
+        NBTTagCompound tag = stack == null ? null : stack.getTagCompound();
+        if (tag == null || !tag.hasKey("Fireworks")) {
+            return;
+        }
+        int explosions = tag.getCompoundTag("Fireworks").getTagList("Explosions", 10).tagCount();
+        if (explosions > 0 && !player.isDead) {
+            player.attackEntityFrom(FIREWORKS, 5.0F + (float) (explosions * 2));
+        }
     }
 
     @SubscribeEvent
@@ -133,6 +184,15 @@ public final class Elytra112 {
         }
         int life = 10 * flight + player.getRNG().nextInt(6) + player.getRNG().nextInt(7);
         player.worldObj.playSoundAtEntity(player, "fireworks.launch", 3.0F, 1.0F);
+        // the rocket itself rides with the player and goes off at the end (spark trail, explosion, damage)
+        net.minecraft.entity.item.EntityFireworkRocket rocket = new net.minecraft.entity.item.EntityFireworkRocket(player.worldObj, player.posX, player.posY, player.posZ, stack.copy());
+        ReflectionHelper.setPrivateValue(net.minecraft.entity.item.EntityFireworkRocket.class, rocket, Integer.valueOf(life), "lifetime", "field_92055_b");
+        rocket.motionX = 0.0D;
+        rocket.motionY = 0.0D;
+        rocket.motionZ = 0.0D;
+        if (player.worldObj.spawnEntityInWorld(rocket)) {
+            ROCKETS.put(rocket, player);
+        }
         if (!player.capabilities.isCreativeMode) {
             stack.stackSize--;
         }

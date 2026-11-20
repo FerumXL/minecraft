@@ -24,6 +24,9 @@ public final class ElytraClient {
     private static final double MAX_HEIGHT = 256.0D;
 
     private boolean lastJump;
+    private boolean wasFlying;
+    /** Ticks the glide waited at the edge of the chunks the client has (shown in the elytra test stage). */
+    public static int heldAtEdge;
     private boolean simulating;
     private double savedX;
     private double savedY;
@@ -68,6 +71,11 @@ public final class ElytraClient {
         }
     }
 
+    private static boolean loaded(EntityPlayer player, double x, double z) {
+        net.minecraft.world.chunk.Chunk c = player.worldObj.getChunkFromBlockCoords(MathHelper.floor_double(x), MathHelper.floor_double(z));
+        return c != null && !(c instanceof net.minecraft.world.chunk.EmptyChunk) && !c.isEmpty();
+    }
+
     private void tickStart(EntityPlayer player, OffhandInventory state) {
         boolean jump = Minecraft.getMinecraft().thePlayer.movementInput != null
                 && Minecraft.getMinecraft().thePlayer.movementInput.jump;
@@ -79,6 +87,10 @@ public final class ElytraClient {
             state.elytraFlying = false;
             state.elytraBoost = 0;
         }
+        if (state.elytraFlying && !wasFlying) {
+            Minecraft.getMinecraft().getSoundHandler().playSound(new ElytraSound(player));
+        }
+        wasFlying = state.elytraFlying;
         if (!state.elytraFlying) {
             state.elytraTicks = 0;
             return;
@@ -124,6 +136,16 @@ public final class ElytraClient {
         player.motionZ *= 0.9900000095367432D;
         if (player.boundingBox.minY >= MAX_HEIGHT && player.motionY > 0.0D) {
             player.motionY = 0.0D; // the ceiling of the glide; a rocket cannot push the player higher either
+        }
+        if (!loaded(player, player.posX + player.motionX * 2.0D, player.posZ + player.motionZ * 2.0D)
+                || !loaded(player, player.posX, player.posZ)) {
+            // 1.12.2 does not move a player whose chunk the client has not got (EntityPlayerSP.onUpdate,
+            // World.isBlockLoaded); 1.7.10 ChunkProviderClient says every chunk exists, so the glide would go on into
+            // empty chunks. The glide waits at the edge until the server has sent them.
+            player.motionX = 0.0D;
+            player.motionY = 0.0D;
+            player.motionZ = 0.0D;
+            heldAtEdge++;
         }
         savedX = player.motionX;
         savedY = player.motionY;

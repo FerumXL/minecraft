@@ -208,5 +208,6 @@
   "entity.vindication_illager.hurt": {"sounds":[{"name":"mob/vindication_illager/hurt1"},{"name":"mob/vindication_illager/hurt2"},{"name":"mob/vindication_illager/hurt3"}],"category":"neutral"},
   "item.bottle.fill_dragonbreath": {"sounds":[{"name":"item/bottle/fill_dragonbreath1"},{"name":"item/bottle/fill_dragonbreath2"}],"category":"neutral"},
   "item.totem.use":{"sounds":[{"name":"item/totem/use_totem"}],"category":"neutral"},
+  "item.elytra.flying":{"sounds":[{"name":"item/elytra/elytra_loop","stream":false}],"category":"player"},
   "ui.toast.challenge_complete": {"sounds":[{"name":"ui/toast/challenge_complete"}],"category":"master"}
 }

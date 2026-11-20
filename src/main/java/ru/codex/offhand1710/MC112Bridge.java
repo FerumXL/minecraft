@@ -15,7 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.33.2", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.34.0", acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
     public static final String[] COLOR_NAMES = {
@@ -49,6 +49,7 @@ public final class MC112Bridge {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(events);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new PortedEvents());
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new ShieldMechanics());
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(new ChunkStream());
         Elytra112 elytra = new Elytra112();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(elytra);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(elytra);

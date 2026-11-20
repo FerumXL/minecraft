@@ -1637,3 +1637,4 @@ src/main/resources/assets/minecraft/textures/entity/wolf/wolf_tame.png	b624293c4
 src/main/resources/assets/minecraft/textures/gui/container/inventory.png	c839adec0b61865c427538ac3ee831c1ba5fd457	jar:assets/minecraft/textures/gui/container/inventory.png
 src/main/resources/assets/minecraft/textures/items/boat.png	10a5a2feefe6aaf85c47e1374340dba84e084187	jar:assets/minecraft/textures/items/oak_boat.png
 src/main/resources/assets/minecraft/textures/particle/particles.png	838f5610dd984241bcd324a363fe7203b9e3cd7d	jar:assets/minecraft/textures/particle/particles.png
+src/main/resources/assets/mc112bridge/sounds/item/elytra/elytra_loop.ogg	90d599a1760137a7c4d7a52c77f5c65c02f137d4	asset:90d599a1760137a7c4d7a52c77f5c65c02f137d4

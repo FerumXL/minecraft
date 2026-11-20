@@ -168,6 +168,52 @@ public final class Transformer implements IClassTransformer {
         return bytes;
     }
 
+    /**
+     * PlayerManager.PlayerInstance: its ChunkProviderServer.loadChunk calls (the Forge one with a Runnable, or the plain
+     * func_73158_c of the Forge build the user runs) go through ChunkStream, and getChunkFromChunkCoords gives an empty
+     * chunk instead of generating one that is still waiting in ChunkStream's queue.
+     */
+    private static byte[] chunkStream(byte[] bytes) {
+        ClassNode node = read(bytes);
+        String cs = "ru/codex/offhand1710/ChunkStream";
+        String provider = "net/minecraft/world/gen/ChunkProviderServer";
+        String chunk = "Lnet/minecraft/world/chunk/Chunk;";
+        int loads = 0;
+        int gets = 0;
+        StringBuilder seen = new StringBuilder();
+        for (MethodNode m : node.methods) {
+            for (AbstractInsnNode n : m.instructions.toArray()) {
+                if (!(n instanceof MethodInsnNode) || n.getOpcode() != Opcodes.INVOKEVIRTUAL) {
+                    continue;
+                }
+                MethodInsnNode c = (MethodInsnNode) n;
+                if (provider.equals(c.owner) && "loadChunk".equals(c.name) && ("(IILjava/lang/Runnable;)" + chunk).equals(c.desc)) {
+                    m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, cs, "load", "(L" + provider + ";IILjava/lang/Runnable;)" + chunk, false));
+                    loads++;
+                } else if (provider.equals(c.owner) && ("loadChunk".equals(c.name) || "func_73158_c".equals(c.name)) && ("(II)" + chunk).equals(c.desc)) {
+                    m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, cs, "loadSync", "(L" + provider + ";II)" + chunk, false));
+                    loads++;
+                } else if (("getChunkFromChunkCoords".equals(c.name) || "func_72964_e".equals(c.name)) && ("(II)" + chunk).equals(c.desc)
+                        && (c.owner.equals("net/minecraft/world/World") || c.owner.equals("net/minecraft/world/WorldServer"))) {
+                    // only where a chunk is looked at without being needed: leaving it and the inhabited-time count
+                    boolean safe = named(m, "removePlayer", "func_73252_b") || named(m, "processChunk", "func_111194_a");
+                    seen.append(" get:").append(m.name).append(safe ? "(replaced)" : "");
+                    if (safe) {
+                        m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, cs, "existing", "(Lnet/minecraft/world/World;II)" + chunk, false));
+                        gets++;
+                    }
+                } else if (c.owner.contains("ChunkProvider")) {
+                    seen.append(' ').append(c.owner).append('.').append(c.name).append(c.desc);
+                }
+            }
+        }
+        if (loads == 0) {
+            org.apache.logging.log4j.LogManager.getLogger("mc112bridge").warn("Chunk streaming patch not applied: no loadChunk call in PlayerInstance; seen:" + seen);
+            return bytes;
+        }
+        org.apache.logging.log4j.LogManager.getLogger("mc112bridge").info("Chunk streaming: PlayerInstance loadChunk calls " + loads + ", chunk reads " + gets + ";" + seen);
+        return write(node);
+    }
     @Override
     public byte[] transform(String name, String transformedName, byte[] bytes) {
         if (bytes == null || System.getenv("MC112_NOPATCH") != null) {
@@ -356,6 +402,36 @@ public final class Transformer implements IClassTransformer {
         }
         if ("net.minecraft.world.World".equals(transformedName)) {
             return nullChunkGuard(bytes);
+        }
+        if ("net.minecraft.server.management.PlayerManager$PlayerInstance".equals(transformedName)) {
+            return chunkStream(bytes);
+        }
+        if ("net.minecraft.world.WorldServer".equals(transformedName)) {
+            // updateBlocks ticks only loaded chunks (1.12 ticks the loaded ones); 1.7.10 generates every chunk of the
+            // active set in view distance it asks for, which defeats ChunkStream's generation budget
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if ("func_147456_g".equals(m.name) && "()V".equals(m.desc)) {
+                    // after super.func_147456_g(), which builds the active set (setActivePlayerChunksAndCheckLight)
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n.getOpcode() == Opcodes.INVOKESPECIAL && "func_147456_g".equals(((MethodInsnNode) n).name)) {
+                            InsnList l = new InsnList();
+                            l.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                            l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/ChunkStream", "filterActive", "(Lnet/minecraft/world/WorldServer;)V", false));
+                            m.instructions.insert(n, l);
+                            // the skipped ones go back into the set when the method ends (OptiFine keeps its own
+                            // bookkeeping of the chunks it still has to tick once)
+                            InsnList back = new InsnList();
+                            back.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                            back.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/ChunkStream", "restoreActive", "(Lnet/minecraft/world/WorldServer;)V", false));
+                            beforeReturns(m, back);
+                            return write(node);
+                        }
+                    }
+                }
+            }
+            org.apache.logging.log4j.LogManager.getLogger("mc112bridge").warn("Active chunk patch not applied: WorldServer.func_147456_g not found");
+            return bytes;
         }
         if ("net.minecraft.entity.ai.EntityAIMoveIndoors".equals(transformedName)) {
             return Villages.moveIndoors(bytes);

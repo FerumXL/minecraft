@@ -2,7 +2,7 @@
 
 ## Последняя версия
 
-[Скачать mc112bridge-0.33.2.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.33.2/mc112bridge-0.33.2.jar)
+[Скачать mc112bridge-0.34.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.34.0/mc112bridge-0.34.0.jar)
 
 Что изменилось: [CHANGELOG.md](CHANGELOG.md).
 
@@ -14,7 +14,8 @@
 
 | Версия | Скачать | Состав |
 |---|---|---|
-| 0.33.2 | [mc112bridge-0.33.2.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.33.2/mc112bridge-0.33.2.jar) | Исправлен поворот сундука в кузнице деревни |
+| 0.34.0 | [mc112bridge-0.34.0.jar](https://raw.githubusercontent.com/FerumXL/minecraft/codex/offhand1710-bootstrap/releases/0.34.0/mc112bridge-0.34.0.jar) | Элитры: ракеты, прогрузка чанков при быстром полёте |
+| 0.33.2 | mc112bridge-0.33.2.jar (jar убран из дерева, лежит в теге v0.33.2 / локальный архив) | Исправлен поворот сундука в кузнице деревни |
 | 0.33.1 | mc112bridge-0.33.1.jar (jar убран из дерева, лежит в теге v0.33.1 / локальный архив) | Скорость жителей, правки деревень, два исправления вылетов |
 | 0.33.0 | mc112bridge-0.33.0.jar (jar убран из дерева, лежит в теге v0.33.0 / локальный архив) | Двери деревень по биому, 8 триггеров достижений, отскок сущностей от слизи и кровати |
 | 0.32.0 | mc112bridge-0.32.0.jar (jar убран из дерева, лежит в теге v0.32.0 / локальный архив) | Деревни как в 1.12.2 |

@@ -108,6 +108,7 @@ item.modifiers.mainhand=When in main hand:
 attribute.modifier.equals.0=%s %s
 attribute.name.generic.attackSpeed=Attack Speed
 item.mc112bridge.elytra.name=Elytra
+death.attack.fireworks=%1$s went off with a bang
 death.attack.flyIntoWall=%1$s experienced kinetic energy
 entity.Guardian.name=Guardian
 entity.ElderGuardian.name=Elder Guardian

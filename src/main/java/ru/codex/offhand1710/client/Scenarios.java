@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -209,6 +209,18 @@ public final class Scenarios {
                 mc.launchIntegratedServer(tw, tw, new WorldSettings(seed == null ? 112L : Long.parseLong(seed), WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
                 return;
             }
+            if ("elytra".equals(STAGE)) {
+                // a fresh default world; MC112_SEED (default 112), render distance MC112_BENCH_RD; MC112_WORLD: an existing save
+                if (System.getenv("MC112_WORLD") != null) {
+                    String tw = System.getenv("MC112_WORLD");
+                    mc.launchIntegratedServer(tw, tw, null);
+                    return;
+                }
+                deleteTree(new File(mc.mcDataDir, "saves/audit112e"));
+                String seed = System.getenv("MC112_SEED");
+                mc.launchIntegratedServer("audit112e", "audit112e", new WorldSettings(seed == null ? 112L : Long.parseLong(seed), WorldSettings.GameType.CREATIVE, true, false, WorldType.DEFAULT).enableCommands());
+                return;
+            }
             if ("backlog1".equals(STAGE) || "villager".equals(STAGE)) {
                 // a fresh default world on the seed of the user's world, with its savanna, taiga and plains villages
                 String name = "villager".equals(STAGE) ? "audit112v" : "audit112b";
@@ -235,6 +247,7 @@ public final class Scenarios {
             lastY = mc.thePlayer.posY;
             flyingNow = mc.thePlayer.capabilities.isFlying;
         }
+        steerFlight();
         run(false);
     }
 
@@ -243,6 +256,7 @@ public final class Scenarios {
         if (event.phase == TickEvent.Phase.END && started) {
             sampleBacklog();
             sampleSpeeds();
+            sampleFlight();
             if (sampleItem && flying != null) {
                 maxItemY = Math.max(maxItemY, flying.posY);
             }
@@ -308,6 +322,8 @@ public final class Scenarios {
             backlog1();
         } else if ("villager".equals(STAGE)) {
             villager();
+        } else if ("elytra".equals(STAGE)) {
+            elytra();
         } else if ("gui".equals(STAGE)) {
             gui();
         } else if ("more2".equals(STAGE)) {
@@ -1180,7 +1196,17 @@ public final class Scenarios {
         server(60, new Runnable() {
             @Override
             public void run() {
-                speedCheck("player walks at the vanilla speed (0.1, no sprint)", speed("player"), (double) (0.98F * 0.1F) / (1.0D - (double) (0.6F * 0.91F)));
+                // the player's moves come from the client: a server tick may apply two of them (two packets in one
+                // tick), so up to 2 ticks of double distance are allowed; the walking speed itself is the p90
+                double expected = (double) (0.98F * 0.1F) / (1.0D - (double) (0.6F * 0.91F));
+                Speed walk = speed("player");
+                double[] st = walk.stats();
+                int doubled = 0;
+                for (double v : walk.d) {
+                    doubled += v > expected * 1.1D ? 1 : 0;
+                }
+                result("player walks at the vanilla speed (0.1, no sprint)", Math.abs(st[0] - expected) < 0.006D && doubled <= 2 && st[1] < expected * 3.5D,
+                        String.format("p90=%.4f max=%.4f expected=%.4f movingTicks=%d ticksAbove=%d", st[0], st[1], expected, (int) st[2], doubled));
                 endSpeeds();
             }
         });
@@ -1253,6 +1279,259 @@ public final class Scenarios {
                 }
             });
         }
+        finish();
+    }
+
+    // ---- elytra: a long straight flight at speed; chunk holes ahead, server tick time, fps, speed ----
+
+    /** MC112_FLY: "rockets" (pitch -5, a Flight 3 rocket every 25 ticks) or "glide" (pitch 25, no rockets). */
+    private static final String FLY = System.getenv("MC112_FLY") == null ? "rockets" : System.getenv("MC112_FLY");
+    private boolean flightOn;
+    private int flightTick;
+    private double flx;
+    private double flz;
+    private boolean fHas;
+    private final StringBuilder flightLog = new StringBuilder();
+    private double flightDist;
+    private int flightHolesMax;
+    private long flightHoleSum;
+    private int flightSamples;
+    private double flightMaxSpeed;
+    private int flightBelowLoaded;
+    private int flightRockets;
+    /** Pitch for the screenshots (the terrain below, not the sky); 0 = the flight's own pitch. */
+    private float shotPitch;
+    private final java.util.Map<String, Integer> serverSamples = new java.util.HashMap<String, Integer>();
+    private Thread serverThread;
+
+    /** A poor man's profiler: where the server thread is, sampled from the client thread each client tick. */
+    private void sampleServerThread() {
+        if (serverThread == null) {
+            for (Thread th : Thread.getAllStackTraces().keySet()) {
+                if ("Server thread".equals(th.getName())) {
+                    serverThread = th;
+                }
+            }
+            if (serverThread == null) {
+                return;
+            }
+        }
+        StringBuilder b = new StringBuilder();
+        int n = 0;
+        for (StackTraceElement e : serverThread.getStackTrace()) {
+            String c = e.getClassName();
+            if (c.startsWith("java.") || c.startsWith("sun.")) {
+                continue;
+            }
+            b.append(c.substring(c.lastIndexOf('.') + 1)).append('.').append(e.getMethodName()).append(" < ");
+            if (++n >= 7) {
+                break;
+            }
+        }
+        String key = b.toString();
+        Integer old = serverSamples.get(key);
+        serverSamples.put(key, old == null ? 1 : old + 1);
+    }
+
+    private String topSamples() {
+        List<java.util.Map.Entry<String, Integer>> l = new java.util.ArrayList<java.util.Map.Entry<String, Integer>>(serverSamples.entrySet());
+        java.util.Collections.sort(l, new java.util.Comparator<java.util.Map.Entry<String, Integer>>() {
+            @Override
+            public int compare(java.util.Map.Entry<String, Integer> a, java.util.Map.Entry<String, Integer> b) {
+                return b.getValue() - a.getValue();
+            }
+        });
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < Math.min(12, l.size()); i++) {
+            b.append("\nPROFILE ").append(l.get(i).getValue()).append(" ").append(l.get(i).getKey());
+        }
+        return b.toString();
+    }
+
+    private void steerFlight() {
+        if (!flightOn || mc.thePlayer == null) {
+            return;
+        }
+        sampleServerThread();
+        mc.thePlayer.rotationYaw = 0.0F;
+        mc.thePlayer.rotationPitch = shotPitch != 0.0F ? shotPitch : "glide".equals(FLY) ? 25.0F : -5.0F;
+        if (flightTick % 20 == 10) {
+            // chunks ahead (z+) within the render distance that the client has not got yet
+            int pcx = net.minecraft.util.MathHelper.floor_double(mc.thePlayer.posX) >> 4;
+            int pcz = net.minecraft.util.MathHelper.floor_double(mc.thePlayer.posZ) >> 4;
+            int rd = Math.min(mc.gameSettings.renderDistanceChunks, 16);
+            int holes = 0;
+            for (int dz = 1; dz <= rd; dz++) {
+                for (int dx = -2; dx <= 2; dx++) {
+                    net.minecraft.world.chunk.Chunk c = mc.theWorld.getChunkFromChunkCoords(pcx + dx, pcz + dz);
+                    if (c == null || !c.isChunkLoaded || c instanceof net.minecraft.world.chunk.EmptyChunk) {
+                        holes++;
+                    }
+                }
+            }
+            net.minecraft.world.chunk.Chunk under = mc.theWorld.getChunkFromChunkCoords(pcx, pcz);
+            if (under == null || under instanceof net.minecraft.world.chunk.EmptyChunk) {
+                flightBelowLoaded++;
+            }
+            flightHolesMax = Math.max(flightHolesMax, holes);
+            flightHoleSum += holes;
+            flightSamples++;
+            flightLog.append(String.format(" [c%d holes=%d/%d]", flightTick / 20, holes, rd * 5));
+        }
+    }
+
+    private void sampleFlight() {
+        if (!flightOn) {
+            return;
+        }
+        flightTick++;
+        EntityPlayerMP p = p();
+        if (fHas) {
+            double d = Math.sqrt((p.posX - flx) * (p.posX - flx) + (p.posZ - flz) * (p.posZ - flz));
+            flightDist += d;
+            flightMaxSpeed = Math.max(flightMaxSpeed, d);
+        }
+        fHas = true;
+        flx = p.posX;
+        flz = p.posZ;
+        if ("rockets".equals(FLY) && flightTick % 25 == 1) {
+            ItemStack rocket = new ItemStack(Items.fireworks, 1);
+            NBTTagCompound fw = new NBTTagCompound();
+            fw.setByte("Flight", (byte) 3);
+            NBTTagCompound tag = new NBTTagCompound();
+            tag.setTag("Fireworks", fw);
+            rocket.setTagCompound(tag);
+            ru.codex.offhand1710.Elytra112.useFirework(p, rocket);
+        }
+        flightRockets = Math.max(flightRockets, w().getEntitiesWithinAABB(net.minecraft.entity.item.EntityFireworkRocket.class, p.boundingBox.expand(4.0D, 4.0D, 4.0D)).size());
+        if (flightTick % 20 == 0) {
+            long[] ticks = MinecraftServer.getServer().tickTimeArray;
+            long sum = 0;
+            for (long t : ticks) {
+                sum += t;
+            }
+            flightLog.append(String.format(" [s%d y=%.0f v=%.2f mspt=%.1f srvChunks=%d genQueue=%d sendQueue=%d flying=%s]", flightTick / 20, p.posY, flightMaxSpeed, sum / (double) ticks.length / 1000000.0D,
+                    w().theChunkProviderServer.getLoadedChunkCount(), ru.codex.offhand1710.ChunkStream.pending(), p.loadedChunks.size(), ru.codex.offhand1710.OffhandInventory.get(p).elytraFlying));
+        }
+    }
+
+    private void elytra() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("gamerule doDaylightCycle false");
+                cmd("time set 6000");
+                cmd("weather clear");
+                fly(false);
+                p().inventory.armorInventory[2] = new ItemStack(ru.codex.offhand1710.Elytra112.elytra);
+                p().inventoryContainer.detectAndSendChanges();
+                tp(p().posX, 200.0D, p().posZ, 0.0F, 0.0F);
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Elytra112.start(p());
+                log("INFO flight " + FLY + " started=" + ru.codex.offhand1710.OffhandInventory.get(p()).elytraFlying + " renderDistance=" + mc.gameSettings.renderDistanceChunks
+                        + " viewDistance=" + MinecraftServer.getServer().getConfigurationManager().getViewDistance() + " from " + (int) p().posX + "," + (int) p().posY + "," + (int) p().posZ);
+                flightOn = true;
+                flightTick = 0;
+            }
+        });
+        client(1, new Runnable() {
+            @Override
+            public void run() {
+                count = 0;
+                perSecond.setLength(0);
+                secondStart = System.currentTimeMillis();
+                secondCount = 0;
+                counting = true;
+            }
+        });
+        client(600, new Runnable() {
+            @Override
+            public void run() {
+                mc.gameSettings.thirdPersonView = 1;
+                shotPitch = 35.0F;
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("elytra-" + FLY + "-rd" + mc.gameSettings.renderDistanceChunks + "-back");
+                mc.gameSettings.thirdPersonView = 0;
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("elytra-" + FLY + "-rd" + mc.gameSettings.renderDistanceChunks + "-first");
+                shotPitch = 0.0F;
+            }
+        });
+        server(580, new Runnable() {
+            @Override
+            public void run() {
+                flightOn = false;
+                counting = false;
+                EntityPlayerMP p = p();
+                log("FLIGHT" + flightLog);
+                log("INFO server thread samples:" + topSamples());
+                int[] r = ru.codex.offhand1710.ChunkStream.REASONS;
+                log("INFO chunk loads: broken " + r[0] + ", loaded " + r[1] + ", on disk " + r[2] + ", near player " + r[3] + ", deferred " + r[4] + ", generated at once " + r[5] + ", unloaded active chunks skipped " + ru.codex.offhand1710.ChunkStream.skippedActive);
+                log("FPS per second " + perSecond);
+                log(String.format("INFO flight %s: %d ticks, distance %.0f (%.2f blocks/tick), max %.2f, now at %d,%d,%d, flying=%s, holes ahead avg %.1f max %d, chunk under player missing %d of %d samples, held at the chunk edge %d ticks, rockets riding along max %d, elytra damage %d",
+                        FLY, flightTick, flightDist, flightDist / Math.max(1, flightTick), flightMaxSpeed, (int) p.posX, (int) p.posY, (int) p.posZ,
+                        ru.codex.offhand1710.OffhandInventory.get(p).elytraFlying, flightHoleSum / (double) Math.max(1, flightSamples), flightHolesMax, flightBelowLoaded, flightSamples, ElytraClient.heldAtEdge, flightRockets,
+                        p.inventory.armorInventory[2] == null ? -1 : p.inventory.armorInventory[2].getItemDamage()));
+                result("elytra flight ran (" + FLY + ")", flightTick >= 600 && flightDist > 100.0D, String.format("distance=%.0f", flightDist));
+            }
+        });
+        // survival: a rocket with one explosion hurts the gliding player by 5 + 2 (EntityFireworkRocket.dealExplosionDamage)
+        final float[] health = new float[1];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                EntityPlayerMP p = p();
+                p.setHealth(20.0F);
+                p.fallDistance = 0.0F;
+                if (!ru.codex.offhand1710.OffhandInventory.get(p).elytraFlying) {
+                    tp(p.posX, 220.0D, p.posZ, 0.0F, 0.0F);
+                }
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                EntityPlayerMP p = p();
+                ru.codex.offhand1710.Elytra112.start(p);
+                health[0] = p.getHealth();
+                ItemStack rocket = new ItemStack(Items.fireworks, 1);
+                NBTTagCompound explosion = new NBTTagCompound();
+                explosion.setByte("Type", (byte) 0);
+                explosion.setIntArray("Colors", new int[] {0xFF0000});
+                NBTTagList list = new NBTTagList();
+                list.appendTag(explosion);
+                NBTTagCompound fw = new NBTTagCompound();
+                fw.setByte("Flight", (byte) 1);
+                fw.setTag("Explosions", list);
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setTag("Fireworks", fw);
+                rocket.setTagCompound(tag);
+                boolean used = ru.codex.offhand1710.Elytra112.useFirework(p, rocket);
+                log("INFO explosive rocket used=" + used + " flying=" + ru.codex.offhand1710.OffhandInventory.get(p).elytraFlying + " health=" + health[0]);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                float lost = health[0] - p().getHealth();
+                result("survival: a rocket with one explosion hurts the glider by 7 (5 + 2)", Math.abs(lost - 7.0F) < 0.01F, "lost=" + lost + " health=" + p().getHealth());
+                cmd("gamemode 1");
+            }
+        });
         finish();
     }
 
