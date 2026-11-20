@@ -46,6 +46,8 @@ public final class Items112 {
     public static final Item[] BED_ITEMS = new Item[16];
     public static final int RED = 14;
     public static final int GUI_BOX = 0;
+    /** The inventory of a llama; x is its entity id. */
+    public static final int GUI_LLAMA = 1;
 
     private Items112() {
     }

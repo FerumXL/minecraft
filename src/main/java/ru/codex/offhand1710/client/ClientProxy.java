@@ -15,6 +15,10 @@ import ru.codex.offhand1710.OffhandInventory;
 public final class ClientProxy extends CommonProxy {
     @Override
     public Object getClientGuiElement(int id, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
+        if (id == ru.codex.offhand1710.Items112.GUI_LLAMA) {
+            net.minecraft.entity.Entity e = world.getEntityByID(x);
+            return e instanceof ru.codex.offhand1710.MoreMobs.Llama ? new LlamaGui(player.inventory, (ru.codex.offhand1710.MoreMobs.Llama) e, y) : null;
+        }
         net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
         return id == ru.codex.offhand1710.Items112.GUI_BOX && tile instanceof ru.codex.offhand1710.BlockShulkerBox.Tile ? Items112Client.boxScreen(player.inventory, (ru.codex.offhand1710.BlockShulkerBox.Tile) tile) : null;
     }

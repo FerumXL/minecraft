@@ -1390,6 +1390,81 @@ public final class Scenarios {
                 result("client sees the spawned donkey as a plain EntityHorse of type 1", seen, "");
             }
         });
+        // llama chest, inventory window and caravan (AbstractChestHorse, EntityAILlamaFollowCaravan of 1.12.2)
+        final ru.codex.offhand1710.MoreMobs.Llama[] train = new ru.codex.offhand1710.MoreMobs.Llama[3];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                g2llama.setStrength(3);
+                g2llama.setLocationAndAngles(bx + 0.5D, dy, bz + 3.5D, 0.0F, 0.0F);
+                g2llama.getNavigator().clearPathEntity();
+                tp(bx + 0.5D, dy, bz + 1.5D, 0.0F, 20.0F);
+                p().inventory.mainInventory[p().inventory.currentItem] = new ItemStack(Blocks.chest, 1);
+                g2llama.interact(p());
+                p().inventory.mainInventory[p().inventory.currentItem] = null;
+                g2llama.inv.setInventorySlotContents(4, new ItemStack(Items.diamond, 5));
+                NBTTagCompound tag = new NBTTagCompound();
+                g2llama.writeToNBT(tag);
+                ru.codex.offhand1710.MoreMobs.Llama copy = new ru.codex.offhand1710.MoreMobs.Llama(w());
+                copy.readFromNBT(tag);
+                result("llama takes a chest; Strength, ChestedHorse, Items and the carpet survive saving",
+                    g2llama.chested() && copy.chested() && copy.strength() == 3 && copy.inv.getStackInSlot(4) != null && copy.inv.getStackInSlot(4).stackSize == 5 && copy.decor() == 14,
+                    "chested=" + g2llama.chested() + " copy: chested=" + copy.chested() + " strength=" + copy.strength() + " slot4=" + copy.inv.getStackInSlot(4) + " decor=" + copy.decor());
+                int s1 = 0, s5 = 0;
+                for (int i = 0; i < 2000; i++) {
+                    ru.codex.offhand1710.MoreMobs.Llama l = new ru.codex.offhand1710.MoreMobs.Llama(w());
+                    l.onSpawnWithEgg(null);
+                    s1 += l.strength() == 1 ? 1 : 0;
+                    s5 += l.strength() == 5 ? 1 : 0;
+                }
+                result("spawn strength 1-5 as 1.12 (about 33 % ones, about 0.8 % fives)", s1 > 560 && s1 < 780 && s5 > 2 && s5 < 40, "ones=" + s1 + "/2000 fives=" + s5 + "/2000");
+                p().setSneaking(true);
+                g2llama.interact(p());
+                p().setSneaking(false);
+                boolean server = p().openContainer instanceof ru.codex.offhand1710.LlamaContainer;
+                result("sneak + right click opens the llama inventory (carpet + 9 chest slots)", server && p().openContainer.inventorySlots.size() == 1 + 9 + 36,
+                    "container=" + p().openContainer.getClass().getSimpleName() + " slots=" + p().openContainer.inventorySlots.size());
+                // caravan: a leashed llama and three free ones behind it
+                g2llama.setLeashedToEntity(p(), true);
+                for (int i = 0; i < 3; i++) {
+                    train[i] = new ru.codex.offhand1710.MoreMobs.Llama(w());
+                    train[i].setLocationAndAngles(bx - 2.5D - 3.0D * i, dy, bz + 3.5D, 0.0F, 0.0F);
+                    w().spawnEntityInWorld(train[i]);
+                }
+            }
+        });
+        for (int k = 0; k < 4; k++) {
+            final int tick = k;
+            client(1, new Runnable() {
+                @Override
+                public void run() {
+                    log("INFO llama window tick " + tick + " client=" + mc.currentScreen + " clientContainer=" + mc.thePlayer.openContainer.getClass().getSimpleName()
+                        + " server=" + p().openContainer.getClass().getSimpleName());
+                }
+            });
+        }
+        client(1, new Runnable() {
+            @Override
+            public void run() {
+                result("client shows the llama window", mc.currentScreen instanceof LlamaGui, String.valueOf(mc.currentScreen) + " server=" + p().openContainer.getClass().getSimpleName()
+                    + " dist=" + g2llama.getDistanceToEntity(p()) + " clientContainer=" + mc.thePlayer.openContainer.getClass().getSimpleName());
+                shot("g2-llama-gui");
+                mc.thePlayer.closeScreen();
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                int linked = 0;
+                StringBuilder chain = new StringBuilder();
+                for (ru.codex.offhand1710.MoreMobs.Llama l : train) {
+                    linked += l.inCaravan() ? 1 : 0;
+                    chain.append(l.inCaravan() ? (l.caravanHead == g2llama ? "lead " : "llama ") : "none ").append(String.format("d=%.1f ", l.getDistanceToEntity(g2llama)));
+                }
+                result("free llamas form a caravan behind the leashed one", linked == 3 && g2llama.hasCaravanTail(), chain.toString() + " headLeashed=" + g2llama.getLeashed() + " holder=" + g2llama.getLeashedToEntity());
+                g2llama.clearLeashed(true, false);
+            }
+        });
         // @e in /effect, /tp, /execute and /kill (the 1.7.10 commands of these names only took players)
         server(5, new Runnable() {
             @Override

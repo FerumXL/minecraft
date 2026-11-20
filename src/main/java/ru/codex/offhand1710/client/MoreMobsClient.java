@@ -303,7 +303,15 @@ public final class MoreMobsClient {
             leg2 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, 3.5F, 10.0F, 6.0F, g);
             leg3 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, -3.5F, 10.0F, -5.0F, g);
             leg4 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, 3.5F, 10.0F, -5.0F, g);
+            // ModelLlama of 1.12.2: the two chests on the sides of a chested llama
+            chest1 = inflated(this, 45, 28, -3.0F, 0.0F, 0.0F, 8, 8, 3, -8.5F, 3.0F, 3.0F, g);
+            chest1.rotateAngleY = PI / 2.0F;
+            chest2 = inflated(this, 45, 41, -3.0F, 0.0F, 0.0F, 8, 8, 3, 5.5F, 3.0F, 3.0F, g);
+            chest2.rotateAngleY = PI / 2.0F;
         }
+
+        ModelRenderer chest1;
+        ModelRenderer chest2;
 
         private static ModelRenderer inflated(ModelBase model, int u, int v, float x, float y, float z, int w, int h, int d, float px, float py, float pz, float g) {
             ModelRenderer p = new ModelRenderer(model, u, v);
@@ -341,6 +349,10 @@ public final class MoreMobsClient {
                 leg2.render(scale);
                 leg3.render(scale);
                 leg4.render(scale);
+                if (entity instanceof MoreMobs.Llama && ((MoreMobs.Llama) entity).chested()) {
+                    chest1.render(scale);
+                    chest2.render(scale);
+                }
             }
         }
 
