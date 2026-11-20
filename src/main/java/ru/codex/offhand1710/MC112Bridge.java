@@ -56,6 +56,9 @@ public final class MC112Bridge {
         Combat112 combat = new Combat112();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(combat);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(combat);
+        Spectator112 spectator = new Spectator112();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(spectator);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(spectator);
         Shoulder112 shoulder = new Shoulder112();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(shoulder);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(shoulder);
@@ -70,6 +73,7 @@ public final class MC112Bridge {
         event.registerServerCommand(new Commands112.Tp("tp"));
         event.registerServerCommand(new Commands112.Kill());
         event.registerServerCommand(new Commands112.Effect());
+        event.registerServerCommand(new Spectator112.CommandGameMode());
         event.registerServerCommand(new Content120.CommandReplaceItem());
         event.registerServerCommand(new Content120.CommandBlockData());
         event.registerServerCommand(new Content120.CommandEntityData());

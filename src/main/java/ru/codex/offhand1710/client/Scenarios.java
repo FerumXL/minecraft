@@ -1543,6 +1543,89 @@ public final class Scenarios {
                 result("framed explorer map gets its marker back", ru.codex.offhand1710.Maps112.hasMarker(w(), frame[0].getDisplayedItem()), "");
             }
         });
+        // spectator mode: through a wall, no interaction, looking through a mob, back to creative
+        final net.minecraft.entity.passive.EntityPig[] pig = new net.minecraft.entity.passive.EntityPig[1];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                tp(bx + 0.5D, dy, bz - 6.5D, 0.0F, 0.0F);
+                for (int x = bx - 2; x <= bx + 2; x++) {
+                    for (int y = dy; y < dy + 4; y++) {
+                        for (int z = bz - 4; z <= bz - 2; z++) {
+                            w().setBlock(x, y, z, Blocks.stone, 0, 2);
+                        }
+                    }
+                }
+                cmd("gamemode spectator");
+                pig[0] = new net.minecraft.entity.passive.EntityPig(w());
+                pig[0].setLocationAndAngles(bx + 0.5D, dy, bz + 6.5D, 0.0F, 0.0F);
+                w().spawnEntityInWorld(pig[0]);
+                result("/gamemode spectator: flag, flying, creative base", ru.codex.offhand1710.Spectator112.is(p()) && p().capabilities.isFlying && p().capabilities.isCreativeMode,
+                    "flying=" + p().capabilities.isFlying);
+            }
+        });
+        for (int k = 0; k < 30; k++) {
+            client(1, new Runnable() {
+                @Override
+                public void run() {
+                    mc.thePlayer.rotationYaw = 0.0F;
+                    mc.thePlayer.motionZ = 0.5D;
+                    mc.thePlayer.motionY = 0.0D;
+                }
+            });
+        }
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                boolean client = mc.thePlayer.posZ > bz - 1.0D && mc.thePlayer.noClip && ru.codex.offhand1710.Spectator112.is(mc.thePlayer);
+                boolean server = p().posZ > bz - 1.0D && p().noClip;
+                result("spectator flies through a 3-block stone wall (client and server)", client && server,
+                    String.format("clientZ=%.1f serverZ=%.1f wall=%d..%d noClip=%s/%s", mc.thePlayer.posZ, p().posZ, bz - 4, bz - 2, mc.thePlayer.noClip, p().noClip));
+                net.minecraftforge.event.entity.player.PlayerInteractEvent ev = net.minecraftforge.event.ForgeEventFactory.onPlayerInteract(p(),
+                    net.minecraftforge.event.entity.player.PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK, bx, dy - 1, bz, 1, w());
+                result("spectator cannot use blocks", ev.isCanceled(), "");
+            }
+        });
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.Entity c = mc.theWorld.getEntityByID(pig[0].getEntityId());
+                if (c instanceof net.minecraft.entity.EntityLivingBase) {
+                    SpectatorClient.look((net.minecraft.entity.EntityLivingBase) c);
+                }
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                result("left click on a mob looks through its eyes; the server keeps the player at it", mc.renderViewEntity != mc.thePlayer && p().getDistanceToEntity(pig[0]) < 1.5F,
+                    "view=" + mc.renderViewEntity + " dist=" + p().getDistanceToEntity(pig[0]));
+                shot("g2-spectator");
+                mc.thePlayer.movementInput.sneak = true;
+                mc.thePlayer.setSneaking(true);
+            }
+        });
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.setSneaking(false);
+                mc.thePlayer.movementInput.sneak = false;
+                result("sneaking returns the view", mc.renderViewEntity == mc.thePlayer, String.valueOf(mc.renderViewEntity));
+            }
+        });
+        server(1, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode creative");
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                result("/gamemode creative leaves spectator on both sides", !ru.codex.offhand1710.Spectator112.is(p()) && !p().noClip && !mc.thePlayer.noClip
+                    && !ru.codex.offhand1710.Spectator112.is(mc.thePlayer), "serverNoClip=" + p().noClip + " clientNoClip=" + mc.thePlayer.noClip);
+            }
+        });
         finish();
     }
 

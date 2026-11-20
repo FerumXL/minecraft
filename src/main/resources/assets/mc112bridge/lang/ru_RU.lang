@@ -1403,3 +1403,4 @@ gui.advancements=Достижения
 gui.recipebook.toggleRecipes.all=Все рецепты
 gui.recipebook.toggleRecipes.craftable=Доступно к созданию
 key.advancements=Достижения
+gameMode.spectator=Режим наблюдателя

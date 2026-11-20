@@ -33,5 +33,7 @@ public final class OffhandNetwork {
         channel.registerMessage(ru.codex.offhand1710.client.DataClient.SyncHandler.class, Data112.Sync.class, 15, Side.CLIENT);
         channel.registerMessage(ru.codex.offhand1710.client.DataClient.ToastHandler.class, Data112.Toast.class, 16, Side.CLIENT);
         channel.registerMessage(ru.codex.offhand1710.client.MoreMobsClient.ShoulderHandler.class, Shoulder112.Msg.class, 17, Side.CLIENT);
+        channel.registerMessage(ru.codex.offhand1710.client.SpectatorClient.Handler.class, Spectator112.Msg.class, 18, Side.CLIENT);
+        channel.registerMessage(Spectator112.SpectateHandler.class, Spectator112.SpectateMsg.class, 19, Side.SERVER);
     }
 }

@@ -1403,3 +1403,4 @@ gui.advancements=Advancements
 gui.recipebook.toggleRecipes.all=Showing all
 gui.recipebook.toggleRecipes.craftable=Showing craftable
 key.advancements=Advancements
+gameMode.spectator=Spectator Mode
