@@ -75,6 +75,7 @@ public final class ClientProxy extends CommonProxy {
         MobRenderers2.register();
         MoreMobsClient.register();
         FMLCommonHandler.instance().bus().register(new MoreMobsClient.Ticker());
+        MinecraftForge.EVENT_BUS.register(new MoreMobsClient.ShoulderLayer());
         cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityGuardian.class, new RenderGuardian());
         cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityElderGuardian.class, new RenderGuardian());
     }

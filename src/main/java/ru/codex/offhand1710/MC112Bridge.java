@@ -56,6 +56,9 @@ public final class MC112Bridge {
         Combat112 combat = new Combat112();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(combat);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(combat);
+        Shoulder112 shoulder = new Shoulder112();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(shoulder);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(shoulder);
         proxy.preInitialize();
     }
 
@@ -66,6 +69,7 @@ public final class MC112Bridge {
         event.registerServerCommand(new Content120.CommandTeleport());
         event.registerServerCommand(new Content120.CommandReplaceItem());
         event.registerServerCommand(new Content120.CommandBlockData());
+        event.registerServerCommand(new Content120.CommandEntityData());
         event.registerServerCommand(new Content120.CommandParticle());
         event.registerServerCommand(new Content120.CommandExecute());
         event.registerServerCommand(new Content121.CommandTitle());
@@ -80,6 +84,7 @@ public final class MC112Bridge {
     @EventHandler
     public void initialize(FMLInitializationEvent event) {
         instance = this;
+        Trees112.applyBiomes();
         ironNugget = new Item()
                 .setUnlocalizedName(MOD_ID + ".iron_nugget")
                 .setTextureName(MOD_ID + ":iron_nugget")

@@ -49,6 +49,66 @@ public final class MoreMobsClient {
         }
     }
 
+    /** Parrot variants on players' shoulders by entity id: {left, right}, -1 = none. */
+    static final java.util.Map<Integer, int[]> SHOULDERS = new java.util.HashMap<Integer, int[]>();
+    private static ParrotModel shoulderModel;
+    private static MoreMobs.Parrot shoulderDummy;
+
+    public static final class ShoulderHandler implements IMessageHandler<ru.codex.offhand1710.Shoulder112.Msg, IMessage> {
+        @Override
+        public IMessage onMessage(final ru.codex.offhand1710.Shoulder112.Msg message, MessageContext context) {
+            Minecraft.getMinecraft().func_152344_a(new Runnable() {
+                @Override
+                public void run() {
+                    if (message.left < 0 && message.right < 0) {
+                        SHOULDERS.remove(message.entityId);
+                    } else {
+                        SHOULDERS.put(message.entityId, new int[] {message.left, message.right});
+                    }
+                }
+            });
+            return null;
+        }
+    }
+
+    /** LayerEntityOnShoulder of 1.12.2: the sitting parrot model at (+-0.4, -1.5 or -1.3 sneaking) in player model space. */
+    public static final class ShoulderLayer {
+        @SubscribeEvent
+        public void onSpecials(net.minecraftforge.client.event.RenderPlayerEvent.Specials.Post event) {
+            int[] s = SHOULDERS.get(event.entityPlayer.getEntityId());
+            if (s == null || event.entityPlayer.worldObj == null) {
+                return;
+            }
+            if (shoulderModel == null) {
+                shoulderModel = new ParrotModel();
+            }
+            if (shoulderDummy == null || shoulderDummy.worldObj != event.entityPlayer.worldObj) {
+                shoulderDummy = new MoreMobs.Parrot(event.entityPlayer.worldObj);
+                shoulderDummy.setSitting(true);
+            }
+            shoulderDummy.ticksExisted = event.entityPlayer.ticksExisted;
+            for (int i = 0; i < 2; i++) {
+                if (s[i] < 0) {
+                    continue;
+                }
+                Minecraft.getMinecraft().getTextureManager().bindTexture(ParrotRender.TEXTURES[s[i] < 5 ? s[i] : 0]);
+                GL11.glPushMatrix();
+                GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                GL11.glTranslatef(i == 0 ? 0.4F : -0.4F, event.entityPlayer.isSneaking() ? -1.3F : -1.5F, 0.0F);
+                shoulderModel.render(shoulderDummy, 0.0F, 0.0F, (float) shoulderDummy.ticksExisted + event.partialRenderTick, 0.0F, 0.0F, 0.0625F);
+                GL11.glPopMatrix();
+            }
+        }
+
+        @SubscribeEvent
+        public void onWorld(net.minecraftforge.event.world.WorldEvent.Unload event) {
+            if (event.world.isRemote) {
+                SHOULDERS.clear();
+                shoulderDummy = null;
+            }
+        }
+    }
+
     /** EntityLivingBase.travel of 1.12.2 under Levitation I. */
     public static final class Ticker {
         @SubscribeEvent
@@ -225,19 +285,31 @@ public final class MoreMobsClient {
         final ModelRenderer leg4;
 
         LlamaModel() {
+            this(0.0F);
+        }
+
+        /** g > 0: the inflated copy used for the carpet (ModelLlama(0.5F) in LayerLlamaDecor). */
+        LlamaModel(float g) {
             textureWidth = 128;
             textureHeight = 64;
             head = new ModelRenderer(this, 0, 0);
-            head.addBox(-2.0F, -14.0F, -10.0F, 4, 4, 9);
+            head.addBox(-2.0F, -14.0F, -10.0F, 4, 4, 9, g);
             head.setRotationPoint(0.0F, 7.0F, -6.0F);
-            head.setTextureOffset(0, 14).addBox(-4.0F, -16.0F, -6.0F, 8, 18, 6);
-            head.setTextureOffset(17, 0).addBox(-4.0F, -19.0F, -4.0F, 3, 3, 2);
-            head.setTextureOffset(17, 0).addBox(1.0F, -19.0F, -4.0F, 3, 3, 2);
-            body = part(this, 29, 0, -6.0F, -10.0F, -7.0F, 12, 18, 10, 0.0F, 5.0F, 2.0F);
-            leg1 = part(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, -3.5F, 10.0F, 6.0F);
-            leg2 = part(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, 3.5F, 10.0F, 6.0F);
-            leg3 = part(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, -3.5F, 10.0F, -5.0F);
-            leg4 = part(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, 3.5F, 10.0F, -5.0F);
+            head.setTextureOffset(0, 14).addBox(-4.0F, -16.0F, -6.0F, 8, 18, 6, g);
+            head.setTextureOffset(17, 0).addBox(-4.0F, -19.0F, -4.0F, 3, 3, 2, g);
+            head.setTextureOffset(17, 0).addBox(1.0F, -19.0F, -4.0F, 3, 3, 2, g);
+            body = inflated(this, 29, 0, -6.0F, -10.0F, -7.0F, 12, 18, 10, 0.0F, 5.0F, 2.0F, g);
+            leg1 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, -3.5F, 10.0F, 6.0F, g);
+            leg2 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, 3.5F, 10.0F, 6.0F, g);
+            leg3 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, -3.5F, 10.0F, -5.0F, g);
+            leg4 = inflated(this, 29, 29, -2.0F, 0.0F, -2.0F, 4, 14, 4, 3.5F, 10.0F, -5.0F, g);
+        }
+
+        private static ModelRenderer inflated(ModelBase model, int u, int v, float x, float y, float z, int w, int h, int d, float px, float py, float pz, float g) {
+            ModelRenderer p = new ModelRenderer(model, u, v);
+            p.addBox(x, y, z, w, h, d, g);
+            p.setRotationPoint(px, py, pz);
+            return p;
         }
 
         @Override
@@ -294,8 +366,29 @@ public final class MoreMobsClient {
             }
         }
 
+        private static final ResourceLocation[] DECOR = new ResourceLocation[16];
+
+        static {
+            String[] colors = {"white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "silver", "cyan", "purple", "blue", "brown", "green", "red", "black"};
+            for (int i = 0; i < 16; i++) {
+                DECOR[i] = new ResourceLocation(DOMAIN, ROOT + "llama/decor/decor_" + colors[i] + ".png");
+            }
+        }
+
         LlamaRender() {
             super(new LlamaModel(), 0.7F);
+            setRenderPassModel(new LlamaModel(0.5F));
+        }
+
+        /** LayerLlamaDecor: the carpet colour (0-15, wool metadata) drawn on the inflated model. */
+        @Override
+        protected int shouldRenderPass(net.minecraft.entity.EntityLivingBase entity, int pass, float partial) {
+            int decor = ((MoreMobs.Llama) entity).decor();
+            if (pass != 0 || decor < 0 || decor > 15) {
+                return -1;
+            }
+            bindTexture(DECOR[decor]);
+            return 1;
         }
 
         @Override

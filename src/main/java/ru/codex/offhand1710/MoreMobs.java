@@ -120,6 +120,9 @@ public final class MoreMobs {
                 motionY *= 0.6D;
             }
             fallDistance = 0.0F;
+            if (!worldObj.isRemote && !isDead) {
+                Shoulder112.tryLand(this);
+            }
             prevFlap = flap;
             prevFlapSpeed = flapSpeed;
             flapSpeed = Math.max(0.0F, Math.min(1.0F, flapSpeed + (float) (onGround ? -1 : 4) * 0.3F));
@@ -226,7 +229,10 @@ public final class MoreMobs {
     /** EntityLlama: four coats, spits at whoever hurts it. No caravans, carpets or chests yet. */
     public static class Llama extends EntityAnimal {
         private static final int WATCH_VARIANT = 18;
+        private static final int WATCH_DECOR = 19;
         private int spitCooldown;
+        private boolean tame;
+        private int temper;
 
         public Llama(World world) {
             super(world);
@@ -254,10 +260,20 @@ public final class MoreMobs {
         protected void entityInit() {
             super.entityInit();
             dataWatcher.addObject(WATCH_VARIANT, Integer.valueOf(0));
+            dataWatcher.addObject(WATCH_DECOR, Integer.valueOf(-1));
         }
 
         public int variant() {
             return dataWatcher.getWatchableObjectInt(WATCH_VARIANT);
+        }
+
+        /** Carpet colour on the back (wool metadata 0-15), -1 = none. */
+        public int decor() {
+            return dataWatcher.getWatchableObjectInt(WATCH_DECOR);
+        }
+
+        public boolean isTame() {
+            return tame;
         }
 
         @Override
@@ -271,12 +287,100 @@ public final class MoreMobs {
         public void writeEntityToNBT(NBTTagCompound tag) {
             super.writeEntityToNBT(tag);
             tag.setInteger("Variant", variant());
+            tag.setBoolean("Tame", tame);
+            tag.setInteger("Temper", temper);
+            if (decor() >= 0) {
+                tag.setTag("DecorItem", new ItemStack(Blocks.carpet, 1, decor()).writeToNBT(new NBTTagCompound()));
+            }
         }
 
         @Override
         public void readEntityFromNBT(NBTTagCompound tag) {
             super.readEntityFromNBT(tag);
             dataWatcher.updateObject(WATCH_VARIANT, Integer.valueOf(tag.getInteger("Variant")));
+            tame = tag.getBoolean("Tame");
+            temper = tag.getInteger("Temper");
+            ItemStack d = tag.hasKey("DecorItem") ? ItemStack.loadItemStackFromNBT(tag.getCompoundTag("DecorItem")) : null;
+            dataWatcher.updateObject(WATCH_DECOR, Integer.valueOf(d != null && d.getItem() == Item.getItemFromBlock(Blocks.carpet) ? d.getItemDamage() & 15 : -1));
+        }
+
+        /**
+         * AbstractHorse.processInteract / EntityLlama of 1.12.2: wheat and hay feed and add temper, an empty hand
+         * mounts, a tame adult takes a carpet (the old one drops).
+         */
+        @Override
+        public boolean interact(EntityPlayer player) {
+            ItemStack held = player.getCurrentEquippedItem();
+            if (held != null && held.getItem() == Item.getItemFromBlock(Blocks.carpet) && tame && !isChild()) {
+                if (!worldObj.isRemote) {
+                    if (decor() >= 0) {
+                        entityDropItem(new ItemStack(Blocks.carpet, 1, decor()), 0.5F);
+                    }
+                    dataWatcher.updateObject(WATCH_DECOR, Integer.valueOf(held.getItemDamage() & 15));
+                    playSound(SOUND + "llama.swag", 0.5F, 1.0F);
+                    if (!player.capabilities.isCreativeMode) {
+                        held.stackSize--;
+                    }
+                }
+                return true;
+            }
+            if (held != null && !tame && (held.getItem() == Items.wheat || held.getItem() == Item.getItemFromBlock(Blocks.hay_block)) && !isInLove()) {
+                boolean hay = held.getItem() != Items.wheat;
+                if (!worldObj.isRemote) {
+                    heal(hay ? 10.0F : 2.0F);
+                    temper = Math.min(30, temper + (hay ? 6 : 3));
+                    playSound(SOUND + "llama.eat", 1.0F, 1.0F);
+                    if (!player.capabilities.isCreativeMode) {
+                        held.stackSize--;
+                    }
+                }
+                return true;
+            }
+            if (held == null && !isChild() && riddenByEntity == null && !player.isSneaking()) {
+                if (!worldObj.isRemote) {
+                    player.mountEntity(this);
+                }
+                return true;
+            }
+            return super.interact(player);
+        }
+
+        @Override
+        public void onLivingUpdate() {
+            super.onLivingUpdate();
+            // EntityAIRunAroundLikeCrazy: now and then an untamed llama either accepts its rider or throws them off
+            if (!worldObj.isRemote && !tame && riddenByEntity instanceof EntityPlayer && rand.nextInt(50) == 0) {
+                if (rand.nextInt(30) < temper) {
+                    tame = true;
+                    worldObj.setEntityState(this, (byte) 7);
+                } else {
+                    temper = Math.min(30, temper + 5);
+                    riddenByEntity.mountEntity(null);
+                    playSound(SOUND + "llama.angry", 1.0F, 1.0F);
+                    worldObj.setEntityState(this, (byte) 6);
+                }
+            }
+        }
+
+        @Override
+        public void handleHealthUpdate(byte id) {
+            if (id == 6 || id == 7) {
+                String particle = id == 7 ? "heart" : "smoke";
+                for (int i = 0; i < 7; i++) {
+                    worldObj.spawnParticle(particle, posX + (double) (rand.nextFloat() * width * 2.0F) - (double) width, posY + 0.5D + (double) (rand.nextFloat() * height),
+                        posZ + (double) (rand.nextFloat() * width * 2.0F) - (double) width, rand.nextGaussian() * 0.02D, rand.nextGaussian() * 0.02D, rand.nextGaussian() * 0.02D);
+                }
+            } else {
+                super.handleHealthUpdate(id);
+            }
+        }
+
+        @Override
+        public void onDeath(DamageSource source) {
+            super.onDeath(source);
+            if (!worldObj.isRemote && decor() >= 0) {
+                entityDropItem(new ItemStack(Blocks.carpet, 1, decor()), 0.5F);
+            }
         }
 
         @Override

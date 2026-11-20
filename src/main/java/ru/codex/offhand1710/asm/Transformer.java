@@ -36,6 +36,21 @@ public final class Transformer implements IClassTransformer {
         }
     }
 
+    /** True when the instructions just before n are ALOAD 0, GETFIELD randomGenerator, after ISTORE of treesPerChunk. */
+    private static boolean prevIsTreesPerChunk(AbstractInsnNode n) {
+        for (AbstractInsnNode p = n.getPrevious(), k = null; p != null && (k == null || k != p); p = p.getPrevious()) {
+            if (p instanceof org.objectweb.asm.tree.FieldInsnNode) {
+                String f = ((org.objectweb.asm.tree.FieldInsnNode) p).name;
+                if (f.equals("treesPerChunk") || f.equals("field_76832_z")) {
+                    return true;
+                }
+                if (!(f.equals("randomGenerator") || f.equals("field_76813_b"))) {
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
     static byte[] write(ClassNode node) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         node.accept(writer);
@@ -373,6 +388,59 @@ public final class Transformer implements IClassTransformer {
                     load.add(new VarInsnNode(Opcodes.ILOAD, 1));
                     load.add(new VarInsnNode(Opcodes.ILOAD, 2));
                     guard(m, load, owner, "bookKey", "(" + gui + "CI)Z", Opcodes.RETURN, 0);
+                }
+            }
+            return write(node);
+        }
+        if ("net.minecraft.world.biome.BiomeDecorator".equals(transformedName)) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "genDecorations", "func_150513_a") && "(Lnet/minecraft/world/biome/BiomeGenBase;)V".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        AbstractInsnNode call = n.getNext(), jump = call == null ? null : call.getNext();
+                        if (n instanceof IntInsnNode && n.getOpcode() == Opcodes.BIPUSH && ((IntInsnNode) n).operand == 10
+                            && call instanceof MethodInsnNode && "nextInt".equals(((MethodInsnNode) call).name)
+                            && jump != null && jump.getOpcode() == Opcodes.IFNE && prevIsTreesPerChunk(n)) {
+                            m.instructions.set(n, new VarInsnNode(Opcodes.ALOAD, 1));
+                            m.instructions.set(call, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Trees112", "noExtraTree",
+                                "(Ljava/util/Random;Lnet/minecraft/world/biome/BiomeGenBase;)Z", false));
+                            break;
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
+        if ("com.hbm.world.gen.nbt.NBTStructure$GenStructure".equals(transformedName) || "com.hbm.world.gen.MapGenNTMFeatures".equals(transformedName)) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "canSpawnStructureAtCoords", "func_75047_a") && "(II)Z".equals(m.desc)) {
+                    // MapGenNTMFeatures overwrites its arguments; it copies them to locals 3 and 4 first (ILOAD 1, ISTORE 3, ILOAD 2, ISTORE 4)
+                    int keepX = 1, keepZ = 2;
+                    AbstractInsnNode first = m.instructions.getFirst();
+                    while (first != null && first.getOpcode() < 0) {
+                        first = first.getNext();
+                    }
+                    if (transformedName.endsWith("MapGenNTMFeatures")) {
+                        AbstractInsnNode s1 = first == null ? null : first.getNext(), s2 = s1 == null ? null : s1.getNext(), s3 = s2 == null ? null : s2.getNext();
+                        if (first instanceof VarInsnNode && s2 instanceof VarInsnNode && s1 instanceof VarInsnNode && s1.getOpcode() == Opcodes.ISTORE && s3 instanceof VarInsnNode && s3.getOpcode() == Opcodes.ISTORE
+                            && ((VarInsnNode) first).var == 1 && ((VarInsnNode) s2).var == 2) {
+                            keepX = ((VarInsnNode) s1).var;
+                            keepZ = ((VarInsnNode) s3).var;
+                        } else {
+                            continue;
+                        }
+                    }
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n.getOpcode() == Opcodes.IRETURN) {
+                            InsnList call = new InsnList();
+                            call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                            call.add(new VarInsnNode(Opcodes.ILOAD, keepX));
+                            call.add(new VarInsnNode(Opcodes.ILOAD, keepZ));
+                            call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/HbmVillageGuard", "allow", "(ZLnet/minecraft/world/gen/MapGenBase;II)Z", false));
+                            m.instructions.insertBefore(n, call);
+                        }
+                    }
                 }
             }
             return write(node);

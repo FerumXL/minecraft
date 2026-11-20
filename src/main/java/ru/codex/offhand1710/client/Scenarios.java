@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -324,6 +324,8 @@ public final class Scenarios {
             villager();
         } else if ("elytra".equals(STAGE)) {
             elytra();
+        } else if ("group2".equals(STAGE)) {
+            group2();
         } else if ("gui".equals(STAGE)) {
             gui();
         } else if ("more2".equals(STAGE)) {
@@ -389,6 +391,43 @@ public final class Scenarios {
         return "";
     }
 
+    /** HBM structure starts (NTMWorldGenerator.nbtGen.structureMap) whose box touches the given block square. */
+    private String hbmStarts(int bx0, int bz0, int bx1, int bz1) {
+        try {
+            java.lang.reflect.Field gens = cpw.mods.fml.common.registry.GameRegistry.class.getDeclaredField("worldGenerators");
+            gens.setAccessible(true);
+            StringBuilder out = new StringBuilder();
+            int n = 0;
+            for (Object g : (java.util.Set<?>) gens.get(null)) {
+                if (!g.getClass().getName().equals("com.hbm.world.gen.NTMWorldGenerator")) {
+                    continue;
+                }
+                java.lang.reflect.Field f = g.getClass().getDeclaredField("nbtGen");
+                f.setAccessible(true);
+                Object gen = f.get(g);
+                java.lang.reflect.Field map = null;
+                for (String name : new String[] {"structureMap", "field_75053_d"}) {
+                    try {
+                        map = net.minecraft.world.gen.structure.MapGenStructure.class.getDeclaredField(name);
+                        break;
+                    } catch (NoSuchFieldException ignored) {
+                    }
+                }
+                map.setAccessible(true);
+                for (Object s : ((java.util.Map<?, ?>) map.get(gen)).values()) {
+                    net.minecraft.world.gen.structure.StructureBoundingBox b = ((net.minecraft.world.gen.structure.StructureStart) s).getBoundingBox();
+                    if (b.maxX >= bx0 && b.minX <= bx1 && b.maxZ >= bz0 && b.minZ <= bz1) {
+                        n++;
+                        out.append(' ').append(b.minX).append(',').append(b.minY).append(',').append(b.minZ);
+                    }
+                }
+            }
+            return n + out.toString();
+        } catch (Throwable t) {
+            return "error " + t;
+        }
+    }
+
     private void terrain() {
         String genEnv = System.getenv("MC112_GEN");
         if (genEnv != null && genEnv.startsWith("find:")) {
@@ -444,6 +483,37 @@ public final class Scenarios {
                         log("FAIL save " + e);
                     }
                     log("TERRAIN generated");
+                    int hbm = 0, logs = 0, leaves = 0;
+                    java.util.Map<String, Integer> names = new java.util.TreeMap<String, Integer>();
+                    for (int cx = x0; cx <= x1; cx++) {
+                        for (int cz = z0; cz <= z1; cz++) {
+                            net.minecraft.world.chunk.Chunk c = w().getChunkFromChunkCoords(cx, cz);
+                            for (int bx = 0; bx < 16; bx++) {
+                                for (int bz = 0; bz < 16; bz++) {
+                                    for (int by = 1; by < 256; by++) {
+                                        net.minecraft.block.Block b = c.getBlock(bx, by, bz);
+                                        if (b == net.minecraft.init.Blocks.air) {
+                                            continue;
+                                        }
+                                        if (b instanceof net.minecraft.block.BlockLog) {
+                                            logs++;
+                                        } else if (b instanceof net.minecraft.block.BlockLeavesBase) {
+                                            leaves++;
+                                        } else {
+                                            String n = net.minecraft.block.Block.blockRegistry.getNameForObject(b);
+                                            if (n != null && n.startsWith("hbm:") && by >= 60) {
+                                                hbm++;
+                                                Integer k = names.get(n);
+                                                names.put(n, k == null ? 1 : k + 1);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    log("TERRAIN hbmStarts " + x0 + "," + z0 + " " + hbmStarts(x0 * 16, z0 * 16, x1 * 16 + 15, z1 * 16 + 15));
+                    log("TERRAIN count " + x0 + "," + z0 + " hbmSurface=" + hbm + " logs=" + logs + " leaves=" + leaves + " " + names);
                 }
             });
         }
@@ -1118,6 +1188,156 @@ public final class Scenarios {
         }
         speeds.clear();
         lanes.clear();
+    }
+
+    // ---- stage group2: @e and /entitydata, shoulder parrot, llama carpet, illusioner copies, recipe search ----
+
+    private ru.codex.offhand1710.MoreMobs.Parrot g2parrot;
+    private ru.codex.offhand1710.MoreMobs.Llama g2llama;
+    private ru.codex.offhand1710.Illagers.Illusioner g2ill;
+
+    private void group2() {
+        final int dy = 200;
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("difficulty 2");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 6000");
+                bx = w().getSpawnPoint().posX;
+                bz = w().getSpawnPoint().posZ;
+                for (int x = bx - 12; x <= bx + 12; x++) {
+                    for (int z = bz - 12; z <= bz + 12; z++) {
+                        w().setBlock(x, dy - 1, z, Blocks.stone, 0, 2);
+                        for (int y = dy; y < dy + 4; y++) {
+                            w().setBlockToAir(x, y, z);
+                        }
+                    }
+                }
+                fly(false);
+                tp(bx + 0.5D, dy, bz + 0.5D, 0.0F, 20.0F);
+                g2llama = new ru.codex.offhand1710.MoreMobs.Llama(w());
+                g2llama.setLocationAndAngles(bx + 3.5D, dy, bz + 3.5D, 0.0F, 0.0F);
+                w().spawnEntityInWorld(g2llama);
+                g2llama.setCustomNameTag("G2llama");
+                g2parrot = new ru.codex.offhand1710.MoreMobs.Parrot(w());
+                g2parrot.setLocationAndAngles(bx + 0.5D, dy, bz + 1.5D, 0.0F, 0.0F);
+                g2parrot.setTamed(true);
+                g2parrot.func_152115_b(p().getUniqueID().toString());
+                w().spawnEntityInWorld(g2parrot);
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                java.util.List<net.minecraft.entity.Entity> e = ru.codex.offhand1710.Content120.selectEntities(p(), "@e[type=mc112bridge.Llama,r=10]");
+                java.util.List<net.minecraft.entity.Entity> named = ru.codex.offhand1710.Content120.selectEntities(p(), "@e[name=G2llama]");
+                java.util.List<net.minecraft.entity.Entity> one = ru.codex.offhand1710.Content120.selectEntities(p(), "@e[c=1]");
+                result("@e type/r finds the llama", e.size() == 1 && e.get(0) == g2llama, "n=" + e.size());
+                result("@e name finds the llama", named.size() == 1 && named.get(0) == g2llama, "n=" + named.size());
+                result("@e c=1 nearest", one.size() == 1, "n=" + one.size() + " " + (one.isEmpty() ? "" : one.get(0).getClass().getSimpleName()));
+                cmd("entitydata @e[name=G2llama] {Tame:1b,Temper:7}");
+                NBTTagCompound tag = new NBTTagCompound();
+                g2llama.writeToNBT(tag);
+                result("/entitydata merges Tame and Temper", g2llama.isTame() && tag.getInteger("Temper") == 7, "tame=" + g2llama.isTame() + " temper=" + tag.getInteger("Temper"));
+                p().inventory.mainInventory[p().inventory.currentItem] = new ItemStack(Blocks.carpet, 3, 14);
+                g2llama.interact(p());
+                result("tame llama takes a red carpet", g2llama.decor() == 14, "decor=" + g2llama.decor());
+                tag = new NBTTagCompound();
+                g2llama.writeToNBT(tag);
+                result("carpet saved as DecorItem", tag.hasKey("DecorItem") && tag.getCompoundTag("DecorItem").getShort("Damage") == 14, String.valueOf(tag.getCompoundTag("DecorItem")));
+                p().inventory.mainInventory[p().inventory.currentItem] = null;
+            }
+        });
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.Entity c = mc.theWorld.getEntityByID(g2llama.getEntityId());
+                result("client sees the carpet", c instanceof ru.codex.offhand1710.MoreMobs.Llama && ((ru.codex.offhand1710.MoreMobs.Llama) c).decor() == 14, "");
+                mc.thePlayer.rotationYaw = 135.0F;
+                mc.thePlayer.rotationPitch = 25.0F;
+                mc.gameSettings.thirdPersonView = 0;
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                shot("g2-llama");
+            }
+        });
+        // the parrot needs 100 ticks of life, then walks into the owner
+        server(140, new Runnable() {
+            @Override
+            public void run() {
+                NBTTagCompound d = p().getEntityData();
+                result("tamed parrot lands on the shoulder", d.hasKey(ru.codex.offhand1710.Shoulder112.LEFT) && g2parrot.isDead, "left=" + d.hasKey(ru.codex.offhand1710.Shoulder112.LEFT) + " dead=" + g2parrot.isDead
+                    + " dist=" + Math.sqrt(g2parrot.getDistanceSqToEntity(p())) + " age=" + g2parrot.ticksExisted + " owner=" + (g2parrot.getOwner() != null)
+                    + " playerGround=" + p().onGround + " flying=" + p().capabilities.isFlying + " sitting=" + g2parrot.isSitting());
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                int[] s = MoreMobsClient.SHOULDERS.get(mc.thePlayer.getEntityId());
+                result("client knows the shoulder parrot", s != null && s[0] >= 0, s == null ? "none" : s[0] + "," + s[1]);
+                mc.gameSettings.thirdPersonView = 2;
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                shot("g2-shoulder");
+                mc.gameSettings.thirdPersonView = 0;
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                p().attackEntityFrom(net.minecraft.util.DamageSource.generic, 0.5F);
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                boolean off = !p().getEntityData().hasKey(ru.codex.offhand1710.Shoulder112.LEFT);
+                java.util.List<?> parrots = w().getEntitiesWithinAABB(ru.codex.offhand1710.MoreMobs.Parrot.class, p().boundingBox.expand(4, 4, 4));
+                result("hurt player drops the parrot", off && !parrots.isEmpty(), "off=" + off + " parrots=" + parrots.size());
+                g2ill = new ru.codex.offhand1710.Illagers.Illusioner(w());
+                g2ill.setLocationAndAngles(bx + 0.5D, dy, bz + 6.5D, 180.0F, 0.0F);
+                w().spawnEntityInWorld(g2ill);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                result("illusioner casts the mirror spell", g2ill.isPotionActive(net.minecraft.potion.Potion.invisibility), "");
+                g2ill.attackEntityFrom(net.minecraft.util.DamageSource.generic, 1.0F);
+            }
+        });
+        client(15, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.Entity c = mc.theWorld.getEntityByID(g2ill.getEntityId());
+                boolean moved = false;
+                if (c instanceof ru.codex.offhand1710.Illagers.Illusioner) {
+                    for (double[] o : ((ru.codex.offhand1710.Illagers.Illusioner) c).offsets) {
+                        moved |= o[0] != 0.0D || o[2] != 0.0D;
+                    }
+                }
+                result("illusioner copies moved after a hit", moved, "invisible=" + (c != null && c.isInvisible()));
+                mc.thePlayer.rotationYaw = 0.0F;
+                mc.thePlayer.rotationPitch = 15.0F;
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("g2-illusioner");
+            }
+        });
+        finish();
     }
 
     private void villager() {

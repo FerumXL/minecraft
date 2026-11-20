@@ -264,10 +264,111 @@ public final class Illagers {
             return result;
         }
 
+        private int castTime, spell, mirrorCooldown, blindCooldown, lastBlinded = -1;
+        /** Client: the four mirror images of RenderIllusionIllager, offsets [copy][x,y,z] now and a tick ago. */
+        public final double[][] offsets = new double[4][3], prevOffsets = new double[4][3];
+        private int ghostTime;
+
+        /**
+         * EntityIllusionIllager of 1.12.2: AIMirriorSpell (20 ticks, cooldown 340, Invisibility 1200 when not invisible)
+         * and AIBlindnessSpell (20 ticks, cooldown 180, Blindness 400 on a new target).
+         */
         @Override
         protected void updateAITasks() {
             super.updateAITasks();
-            setPose(getAttackTarget() != null ? POSE_BOW : POSE_CROSSED);
+            if (mirrorCooldown > 0) {
+                mirrorCooldown--;
+            }
+            if (blindCooldown > 0) {
+                blindCooldown--;
+            }
+            EntityLivingBase target = getAttackTarget();
+            if (castTime > 0) {
+                castTime--;
+                getNavigator().clearPathEntity();
+                if (castTime == 0) {
+                    if (spell == 1) {
+                        addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.invisibility.id, 1200));
+                        playSound(SOUND + "illusion_illager.mirror_move", 1.0F, 1.0F);
+                    } else if (spell == 2 && target != null) {
+                        target.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.blindness.id, 400));
+                        lastBlinded = target.getEntityId();
+                    }
+                    playSound(SOUND + "illusion_illager.cast_spell", 1.0F, 1.0F);
+                }
+                setPose(castTime > 0 ? POSE_SPELL : target != null ? POSE_BOW : POSE_CROSSED);
+                return;
+            }
+            if (mirrorCooldown <= 0 && !isPotionActive(net.minecraft.potion.Potion.invisibility)) {
+                spell = 1;
+                castTime = 20;
+                mirrorCooldown = 340;
+                playSound(SOUND + "illusion_illager.prepare_mirror", 1.0F, 1.0F);
+            } else if (target != null && blindCooldown <= 0 && target.getEntityId() != lastBlinded
+                && worldObj.difficultySetting.getDifficultyId() >= 2) {
+                spell = 2;
+                castTime = 20;
+                blindCooldown = 180;
+                playSound(SOUND + "illusion_illager.prepare_blindness", 1.0F, 1.0F);
+            }
+            setPose(castTime > 0 ? POSE_SPELL : target != null ? POSE_BOW : POSE_CROSSED);
+        }
+
+        @Override
+        public void onLivingUpdate() {
+            super.onLivingUpdate();
+            if (!worldObj.isRemote) {
+                return;
+            }
+            for (int i = 0; i < 4; i++) {
+                System.arraycopy(offsets[i], 0, prevOffsets[i], 0, 3);
+            }
+            if (isInvisible()) {
+                if (ghostTime > 0) {
+                    ghostTime--;
+                } else if (hurtTime == 1 || ticksExisted % 1200 == 0) {
+                    ghostTime = 3;
+                    float f = -6.0F, g = 13.0F;
+                    for (int i = 0; i < 4; i++) {
+                        prevOffsets[i][0] = offsets[i][0];
+                        prevOffsets[i][1] = offsets[i][1];
+                        prevOffsets[i][2] = offsets[i][2];
+                        offsets[i][0] = (double) (f + (float) rand.nextInt((int) g)) * 0.5D;
+                        offsets[i][1] = (double) Math.max(0, rand.nextInt(6) - 4);
+                        offsets[i][2] = (double) (f + (float) rand.nextInt((int) g)) * 0.5D;
+                    }
+                    for (int i = 0; i < 16; i++) {
+                        worldObj.spawnParticle("cloud", posX + (rand.nextDouble() - 0.5D) * width, posY + rand.nextDouble() * height, posZ + (rand.nextDouble() - 0.5D) * width, 0.0D, 0.0D, 0.0D);
+                    }
+                    worldObj.playSound(posX, posY, posZ, SOUND + "illusion_illager.mirror_move", 1.0F, 1.0F, false);
+                }
+            }
+        }
+
+        /** getRenderLocations of 1.12.2: interpolated while the copies move (ghostTime 3 to 0), fixed otherwise. */
+        public double[] renderOffset(int i, float partial) {
+            if (ghostTime <= 0) {
+                return offsets[i];
+            }
+            double t = ((double) ghostTime - (double) partial) / 3.0D;
+            t = Math.pow(t, 0.25D);
+            double[] r = new double[3];
+            for (int k = 0; k < 3; k++) {
+                r[k] = prevOffsets[i][k] + (offsets[i][k] - prevOffsets[i][k]) * (1.0D - t);
+            }
+            return r;
+        }
+
+        @Override
+        public void writeEntityToNBT(NBTTagCompound tag) {
+            super.writeEntityToNBT(tag);
+            tag.setInteger("SpellTicks", castTime);
+        }
+
+        @Override
+        public void readEntityFromNBT(NBTTagCompound tag) {
+            super.readEntityFromNBT(tag);
+            castTime = tag.getInteger("SpellTicks");
         }
 
         @Override

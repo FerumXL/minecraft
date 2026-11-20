@@ -97,6 +97,32 @@ final class MobRenderers2 {
             GL11.glScalef(scale, scale, scale);
         }
 
+        /** RenderIllusionIllager: while invisible, four visible copies at the mirror offsets. */
+        @Override
+        public void doRender(net.minecraft.entity.EntityLiving entity, double x, double y, double z, float yaw, float partial) {
+            if (entity instanceof ru.codex.offhand1710.Illagers.Illusioner && entity.isInvisible()) {
+                ru.codex.offhand1710.Illagers.Illusioner ill = (ru.codex.offhand1710.Illagers.Illusioner) entity;
+                for (int i = 0; i < 4; i++) {
+                    double[] o = ill.renderOffset(i, partial);
+                    super.doRender(entity, x + o[0] + (double) net.minecraft.util.MathHelper.cos((float) i + (float) entity.ticksExisted * 0.5F) * 0.025D,
+                        y + o[1] + (double) net.minecraft.util.MathHelper.cos((float) i + (float) entity.ticksExisted * 0.75F) * 0.0125D,
+                        z + o[2] + (double) net.minecraft.util.MathHelper.cos((float) i + (float) entity.ticksExisted * 0.7F) * 0.025D, yaw, partial);
+                }
+                return;
+            }
+            super.doRender(entity, x, y, z, yaw, partial);
+        }
+
+        @Override
+        protected void renderModel(EntityLivingBase entity, float limb, float amount, float age, float yaw, float pitch, float scale) {
+            if (entity instanceof ru.codex.offhand1710.Illagers.Illusioner && entity.isInvisible()) {
+                bindEntityTexture(entity);
+                mainModel.render(entity, limb, amount, age, yaw, pitch, scale);
+                return;
+            }
+            super.renderModel(entity, limb, amount, age, yaw, pitch, scale);
+        }
+
         /** LayerHeldItem of the illagers: the weapon is only out while the arms are. */
         @Override
         protected void renderEquippedItems(EntityLivingBase entity, float partial) {

@@ -645,6 +645,185 @@ public final class Content120 {
         }
     }
 
+    /**
+     * 1.12.2 entity selectors for our commands: @e, @p, @a, @r, @s with type= (! to negate), name=, r=, rm=,
+     * c= (negative = farthest first), x=, y=, z=; a plain word is a player name or an entity UUID.
+     */
+    public static java.util.List<net.minecraft.entity.Entity> selectEntities(ICommandSender sender, String token) {
+        java.util.List<net.minecraft.entity.Entity> out = new java.util.ArrayList<net.minecraft.entity.Entity>();
+        World world = sender.getEntityWorld();
+        if (!token.startsWith("@") || token.length() < 2) {
+            EntityPlayerMP p = net.minecraft.server.MinecraftServer.getServer().getConfigurationManager().func_152612_a(token);
+            if (p != null) {
+                out.add(p);
+                return out;
+            }
+            for (Object o : world.loadedEntityList) {
+                if (((net.minecraft.entity.Entity) o).getUniqueID().toString().equalsIgnoreCase(token)) {
+                    out.add((net.minecraft.entity.Entity) o);
+                }
+            }
+            return out;
+        }
+        char kind = token.charAt(1);
+        java.util.Map<String, String> a = new java.util.HashMap<String, String>();
+        int open = token.indexOf('['), close = token.lastIndexOf(']');
+        if (open > 0 && close > open) {
+            for (String part : token.substring(open + 1, close).split(",")) {
+                int eq = part.indexOf('=');
+                if (eq > 0) {
+                    a.put(part.substring(0, eq).trim(), part.substring(eq + 1).trim());
+                }
+            }
+        }
+        if (kind == 's') {
+            if (sender instanceof net.minecraft.entity.Entity) {
+                out.add((net.minecraft.entity.Entity) sender);
+            }
+            return out;
+        }
+        ChunkCoordinates c = sender.getPlayerCoordinates();
+        double ox = a.containsKey("x") ? Double.parseDouble(a.get("x")) : c.posX + 0.5D;
+        double oy = a.containsKey("y") ? Double.parseDouble(a.get("y")) : c.posY;
+        double oz = a.containsKey("z") ? Double.parseDouble(a.get("z")) : c.posZ + 0.5D;
+        if (sender instanceof net.minecraft.entity.Entity) {
+            net.minecraft.entity.Entity se = (net.minecraft.entity.Entity) sender;
+            ox = a.containsKey("x") ? ox : se.posX;
+            oy = a.containsKey("y") ? oy : se.posY;
+            oz = a.containsKey("z") ? oz : se.posZ;
+        }
+        String type = a.get("type");
+        boolean notType = type != null && type.startsWith("!");
+        if (notType) {
+            type = type.substring(1);
+        }
+        if (kind == 'p' || kind == 'a' || kind == 'r') {
+            type = "player";
+            notType = false;
+        }
+        double r = a.containsKey("r") ? Double.parseDouble(a.get("r")) : -1, rm = a.containsKey("rm") ? Double.parseDouble(a.get("rm")) : -1;
+        String name = a.get("name");
+        final double fx = ox, fy = oy, fz = oz;
+        for (Object o : world.loadedEntityList) {
+            net.minecraft.entity.Entity e = (net.minecraft.entity.Entity) o;
+            if (type != null && typeMatches(e, type) == notType) {
+                continue;
+            }
+            if (name != null) {
+                boolean neg = name.startsWith("!");
+                if (e.getCommandSenderName().equals(neg ? name.substring(1) : name) == neg) {
+                    continue;
+                }
+            }
+            double d = e.getDistanceSq(ox, oy, oz);
+            if (r >= 0 && d > r * r || rm >= 0 && d < rm * rm) {
+                continue;
+            }
+            out.add(e);
+        }
+        java.util.Collections.sort(out, new java.util.Comparator<net.minecraft.entity.Entity>() {
+            @Override
+            public int compare(net.minecraft.entity.Entity p, net.minecraft.entity.Entity q) {
+                return Double.compare(p.getDistanceSq(fx, fy, fz), q.getDistanceSq(fx, fy, fz));
+            }
+        });
+        int count = a.containsKey("c") ? Integer.parseInt(a.get("c")) : kind == 'p' || kind == 'r' ? 1 : 0;
+        if (kind == 'r') {
+            java.util.Collections.shuffle(out, world.rand);
+        }
+        if (count < 0) {
+            java.util.Collections.reverse(out);
+            count = -count;
+        }
+        return count > 0 && out.size() > count ? new java.util.ArrayList<net.minecraft.entity.Entity>(out.subList(0, count)) : out;
+    }
+
+    private static boolean typeMatches(net.minecraft.entity.Entity e, String type) {
+        String t = type.startsWith("minecraft:") ? type.substring(10) : type;
+        if (t.equals("player")) {
+            return e instanceof net.minecraft.entity.player.EntityPlayer;
+        }
+        String id = net.minecraft.entity.EntityList.getEntityString(e);
+        if (id == null) {
+            // mod entities (registerModEntity) are not in EntityList: modid.Name
+            cpw.mods.fml.common.registry.EntityRegistry.EntityRegistration reg = cpw.mods.fml.common.registry.EntityRegistry.instance().lookupModSpawn(e.getClass(), false);
+            if (reg != null) {
+                id = reg.getContainer().getModId() + "." + reg.getEntityName();
+            }
+        }
+        if (id == null) {
+            return false;
+        }
+        String norm = id.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase().replace("mc112bridge.", "");
+        String tn = t.replace("mc112bridge:", "").replace("mc112bridge.", "").toLowerCase();
+        return id.equalsIgnoreCase(t) || norm.equals(tn) || norm.endsWith("." + tn) || norm.replace("_", "").equals(tn.replace("_", ""));
+    }
+
+    public static final class CommandEntityData extends CommandBase {
+        @Override
+        public String getCommandName() {
+            return "entitydata";
+        }
+
+        @Override
+        public int getRequiredPermissionLevel() {
+            return 2;
+        }
+
+        @Override
+        public String getCommandUsage(ICommandSender sender) {
+            return "/entitydata <entity> <dataTag>";
+        }
+
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (args.length < 2) {
+                throw new WrongUsageException(getCommandUsage(sender));
+            }
+            java.util.List<net.minecraft.entity.Entity> targets = selectEntities(sender, args[0]);
+            if (targets.isEmpty()) {
+                throw new WrongUsageException("No entity was found");
+            }
+            NBTBase parsed;
+            try {
+                parsed = JsonToNBT.func_150315_a(func_147178_a(sender, args, 1).getUnformattedText());
+            } catch (NBTException e) {
+                throw new WrongUsageException(e.getMessage());
+            }
+            if (!(parsed instanceof NBTTagCompound)) {
+                throw new WrongUsageException("Not a compound");
+            }
+            int changed = 0;
+            for (net.minecraft.entity.Entity e : targets) {
+                if (e instanceof net.minecraft.entity.player.EntityPlayer) {
+                    sender.addChatMessage(new ChatComponentText("Unable to modify player data of " + e.getCommandSenderName()));
+                    continue;
+                }
+                NBTTagCompound tag = new NBTTagCompound();
+                e.writeToNBT(tag);
+                long most = tag.getLong("UUIDMost"), least = tag.getLong("UUIDLeast");
+                merge(tag, (NBTTagCompound) parsed);
+                tag.setLong("UUIDMost", most);
+                tag.setLong("UUIDLeast", least);
+                e.readFromNBT(tag);
+                changed++;
+            }
+            sender.addChatMessage(new ChatComponentText("Entity data updated: " + changed));
+        }
+
+        private static void merge(NBTTagCompound into, NBTTagCompound from) {
+            for (Object key : from.func_150296_c()) {
+                String k = (String) key;
+                NBTBase v = from.getTag(k);
+                if (v instanceof NBTTagCompound && into.getTag(k) instanceof NBTTagCompound) {
+                    merge(into.getCompoundTag(k), (NBTTagCompound) v);
+                } else {
+                    into.setTag(k, v.copy());
+                }
+            }
+        }
+    }
+
     public static final class CommandParticle extends CommandBase {
         @Override
         public String getCommandName() {

@@ -269,6 +269,7 @@ public final class DataClient {
         final List<Widget> all = new ArrayList<Widget>();
         int kind;
         int index;
+        int page;
         ResourceLocation background;
         int minX = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE;
@@ -339,6 +340,8 @@ public final class DataClient {
     public static final class Screen extends GuiScreen {
         private final List<Tab> tabs = new ArrayList<Tab>();
         private Tab selected;
+        private int tabPage;
+        private int pages = 1;
         private int built = -1;
         private boolean scrolling;
         private int scrollMouseX;
@@ -390,7 +393,7 @@ public final class DataClient {
                 w.a = a;
                 w.done = DONE.contains(a.id);
                 if (a.parent == null) {
-                    int index = tabs.size();
+                    int index = tabs.size() % 26;
                     int kind = 0;
                     while (kind < TAB_KINDS.length && index >= TAB_KINDS[kind][4]) {
                         index -= TAB_KINDS[kind][4];
@@ -403,6 +406,7 @@ public final class DataClient {
                     t.root = w;
                     t.kind = kind;
                     t.index = index;
+                    t.page = tabs.size() / 26;
                     t.background = background(a.background);
                     w.tab = t;
                     tabs.add(t);
@@ -446,6 +450,29 @@ public final class DataClient {
             }
             if (selected == null && !tabs.isEmpty()) {
                 selected = tabs.get(0);
+            }
+            pages = tabs.isEmpty() ? 1 : (tabs.size() + 25) / 26;
+            tabPage = selected == null ? 0 : selected.page;
+            buttonList.clear();
+            if (pages > 1) {
+                int left = (width - 252) / 2, top = (height - 140) / 2;
+                buttonList.add(new net.minecraft.client.gui.GuiButton(9401, left, top - 50, 20, 20, "<"));
+                buttonList.add(new net.minecraft.client.gui.GuiButton(9402, left + 252 - 20, top - 50, 20, 20, ">"));
+            }
+        }
+
+        /** Forge 1.12 GuiScreenAdvancements: more than 26 tabs go on pages switched by the < and > buttons. */
+        @Override
+        protected void actionPerformed(net.minecraft.client.gui.GuiButton b) {
+            if (b.id == 9401 || b.id == 9402) {
+                tabPage = Math.max(0, Math.min(pages - 1, tabPage + (b.id == 9401 ? -1 : 1)));
+                for (Tab t : tabs) {
+                    if (t.page == tabPage) {
+                        selected = t;
+                        lastTab = t.root.a.id;
+                        break;
+                    }
+                }
             }
         }
 
@@ -517,7 +544,7 @@ public final class DataClient {
                 int left = (width - 252) / 2;
                 int top = (height - 140) / 2;
                 for (Tab t : tabs) {
-                    if (t.over(left, top, x, y)) {
+                    if (t.page == tabPage && t.over(left, top, x, y)) {
                         selected = t;
                         lastTab = t.root.a.id;
                         break;
@@ -665,18 +692,28 @@ public final class DataClient {
             if (tabs.size() > 1) {
                 mc.getTextureManager().bindTexture(TABS);
                 for (Tab t : tabs) {
+                    if (t.page != tabPage) {
+                        continue;
+                    }
                     int[] k = TAB_KINDS[t.kind];
                     int u = k[0] + (t.index > 0 ? k[2] : 0) + (t.index == k[4] - 1 ? k[2] : 0);
                     int v = t == selected ? k[1] + k[3] : k[1];
                     blit(t.x(left), t.y(top), u, v, k[2], k[3]);
                 }
                 for (Tab t : tabs) {
+                    if (t.page != tabPage) {
+                        continue;
+                    }
                     int[] k = TAB_KINDS[t.kind];
                     icon(t.root.a.icon, t.x(left) + k[5], t.y(top) + k[6]);
                 }
             }
             GL11.glDisable(GL11.GL_BLEND);
             fontRendererObj.drawString(StatCollector.translateToLocal("gui.advancements"), left + 8, top + 6, 4210752);
+            if (pages > 1) {
+                String p = (tabPage + 1) + " / " + pages;
+                fontRendererObj.drawStringWithShadow(p, left + 126 - fontRendererObj.getStringWidth(p) / 2, top - 44, -1);
+            }
         }
 
         private void tooltips(int mouseX, int mouseY, int left, int top) {
@@ -708,7 +745,7 @@ public final class DataClient {
             }
             if (tabs.size() > 1) {
                 for (Tab other : tabs) {
-                    if (other.over(left, top, mouseX, mouseY)) {
+                    if (other.page == tabPage && other.over(left, top, mouseX, mouseY)) {
                         List<String> lines = new ArrayList<String>();
                         lines.add(StatCollector.translateToLocal(other.root.a.title));
                         drawHoveringText(lines, mouseX, mouseY, fontRendererObj);
@@ -1152,10 +1189,40 @@ public final class DataClient {
             return true;
         }
 
+        /** Lowercase search keys of a result, cached: SearchTreeManager.RECIPES of 1.12 indexes every tooltip line and the item id. */
+        private final java.util.Map<Data112.Recipe, List<String>> searchKeys = new java.util.IdentityHashMap<Data112.Recipe, List<String>>();
+
+        private List<String> keys(Data112.Recipe r) {
+            List<String> k = searchKeys.get(r);
+            if (k == null) {
+                k = new ArrayList<String>();
+                Minecraft mc = Minecraft.getMinecraft();
+                try {
+                    for (Object line : r.result.getTooltip(mc.thePlayer, false)) {
+                        String s = EnumChatFormatting.getTextWithoutFormattingCodes(String.valueOf(line)).trim().toLowerCase(Locale.ROOT);
+                        if (!s.isEmpty()) {
+                            k.add(s);
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    k.add(EnumChatFormatting.getTextWithoutFormattingCodes(r.result.getDisplayName()).toLowerCase(Locale.ROOT));
+                }
+                String id = net.minecraft.item.Item.itemRegistry.getNameForObject(r.result.getItem());
+                if (id != null) {
+                    k.add(id.toLowerCase(Locale.ROOT));
+                    k.add(id.substring(id.indexOf(':') + 1).toLowerCase(Locale.ROOT));
+                }
+                searchKeys.put(r, k);
+            }
+            return k;
+        }
+
         private boolean matches(Group g, String text) {
             for (Data112.Recipe r : g.recipes) {
-                if (EnumChatFormatting.getTextWithoutFormattingCodes(r.result.getDisplayName()).toLowerCase(Locale.ROOT).contains(text)) {
-                    return true;
+                for (String k : keys(r)) {
+                    if (k.contains(text)) {
+                        return true;
+                    }
                 }
             }
             return false;
