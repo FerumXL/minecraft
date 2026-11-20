@@ -66,7 +66,10 @@ public final class MC112Bridge {
     public void serverStarting(cpw.mods.fml.common.event.FMLServerStartingEvent event) {
         event.registerServerCommand(new Content119.CommandFill());
         event.registerServerCommand(new Content119.CommandClone());
-        event.registerServerCommand(new Content120.CommandTeleport());
+        event.registerServerCommand(new Commands112.Tp("teleport"));
+        event.registerServerCommand(new Commands112.Tp("tp"));
+        event.registerServerCommand(new Commands112.Kill());
+        event.registerServerCommand(new Commands112.Effect());
         event.registerServerCommand(new Content120.CommandReplaceItem());
         event.registerServerCommand(new Content120.CommandBlockData());
         event.registerServerCommand(new Content120.CommandEntityData());

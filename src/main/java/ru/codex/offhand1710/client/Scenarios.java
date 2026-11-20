@@ -1390,6 +1390,27 @@ public final class Scenarios {
                 result("client sees the spawned donkey as a plain EntityHorse of type 1", seen, "");
             }
         });
+        // @e in /effect, /tp, /execute and /kill (the 1.7.10 commands of these names only took players)
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("effect @e[name=G2llama] speed 10 1");
+                boolean speed = g2llama.isPotionActive(net.minecraft.potion.Potion.moveSpeed) && g2llama.getActivePotionEffect(net.minecraft.potion.Potion.moveSpeed).getAmplifier() == 1;
+                double z0 = g2llama.posZ;
+                cmd("tp @e[name=G2llama] ~ ~ ~5");
+                boolean moved = Math.abs(g2llama.posZ - z0 - 5.0D) < 0.01D;
+                cmd("execute @e[name=G2llama] ~ ~ ~ effect @s glowing 10");
+                boolean glow = g2llama.isPotionActive(ru.codex.offhand1710.Content120.glowing);
+                cmd("tp @p @e[name=G2llama]");
+                boolean toEntity = p().getDistanceSqToEntity(g2llama) < 0.01D;
+                cmd("kill @e[type=mc112bridge.Llama]");
+                boolean killed = g2llama.isDead || g2llama.getHealth() <= 0.0F;
+                result("@e in /effect /tp /execute /kill", speed && moved && glow && toEntity && killed,
+                    "speed=" + speed + " moved=" + moved + " glow=" + glow + " toEntity=" + toEntity + " killed=" + killed);
+                tp(bx + 0.5D, dy, bz + 0.5D, 0.0F, 20.0F);
+            }
+        });
         // item 6: gateway of a dragon kill, its shape, tile and beam
         final int[] gw = new int[3];
         server(5, new Runnable() {

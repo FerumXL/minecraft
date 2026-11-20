@@ -649,6 +649,9 @@ public final class Content120 {
      * 1.12.2 entity selectors for our commands: @e, @p, @a, @r, @s with type= (! to negate), name=, r=, rm=,
      * c= (negative = farthest first), x=, y=, z=; a plain word is a player name or an entity UUID.
      */
+    /** The entity /execute runs a command as (@s). */
+    static net.minecraft.entity.Entity executor;
+
     public static java.util.List<net.minecraft.entity.Entity> selectEntities(ICommandSender sender, String token) {
         java.util.List<net.minecraft.entity.Entity> out = new java.util.ArrayList<net.minecraft.entity.Entity>();
         World world = sender.getEntityWorld();
@@ -679,6 +682,8 @@ public final class Content120 {
         if (kind == 's') {
             if (sender instanceof net.minecraft.entity.Entity) {
                 out.add((net.minecraft.entity.Entity) sender);
+            } else if (executor != null) {
+                out.add(executor);
             }
             return out;
         }
@@ -867,7 +872,7 @@ public final class Content120 {
 
         @Override
         public String getCommandUsage(ICommandSender sender) {
-            return "/execute <player> <x> <y> <z> <command>";
+            return "/execute <entity> <x> <y> <z> <command>";
         }
 
         @Override
@@ -875,47 +880,58 @@ public final class Content120 {
             if (args.length < 5) {
                 throw new WrongUsageException(getCommandUsage(sender));
             }
-            final EntityPlayerMP player = getPlayer(sender, args[0]);
-            final ChunkCoordinates at = new ChunkCoordinates(
-                    MathHelper.floor_double(func_110666_a(sender, player.posX, args[1])),
-                    MathHelper.floor_double(func_110666_a(sender, player.posY, args[2])),
-                    MathHelper.floor_double(func_110666_a(sender, player.posZ, args[3])));
-            ICommandSender wrapped = new ICommandSender() {
-                @Override
-                public String getCommandSenderName() {
-                    return player.getCommandSenderName();
-                }
-
-                @Override
-                public IChatComponent func_145748_c_() {
-                    return player.func_145748_c_();
-                }
-
-                @Override
-                public void addChatMessage(IChatComponent message) {
-                    sender.addChatMessage(message);
-                }
-
-                @Override
-                public boolean canCommandSenderUseCommand(int level, String command) {
-                    return sender.canCommandSenderUseCommand(level, command);
-                }
-
-                @Override
-                public ChunkCoordinates getPlayerCoordinates() {
-                    return at;
-                }
-
-                @Override
-                public World getEntityWorld() {
-                    return player.worldObj;
-                }
-            };
+            java.util.List<net.minecraft.entity.Entity> targets = selectEntities(sender, args[0]);
+            if (targets.isEmpty()) {
+                throw new net.minecraft.command.CommandException("No entity was found");
+            }
             StringBuilder command = new StringBuilder();
             for (int i = 4; i < args.length; i++) {
                 command.append(i > 4 ? " " : "").append(args[i]);
             }
-            net.minecraft.server.MinecraftServer.getServer().getCommandManager().executeCommand(wrapped, command.toString());
+            for (final net.minecraft.entity.Entity entity : targets) {
+                final ChunkCoordinates at = new ChunkCoordinates(
+                        MathHelper.floor_double(func_110666_a(sender, entity.posX, args[1])),
+                        MathHelper.floor_double(func_110666_a(sender, entity.posY, args[2])),
+                        MathHelper.floor_double(func_110666_a(sender, entity.posZ, args[3])));
+                ICommandSender wrapped = new ICommandSender() {
+                    @Override
+                    public String getCommandSenderName() {
+                        return entity.getCommandSenderName();
+                    }
+
+                    @Override
+                    public IChatComponent func_145748_c_() {
+                        return entity.func_145748_c_();
+                    }
+
+                    @Override
+                    public void addChatMessage(IChatComponent message) {
+                        sender.addChatMessage(message);
+                    }
+
+                    @Override
+                    public boolean canCommandSenderUseCommand(int level, String command) {
+                        return sender.canCommandSenderUseCommand(level, command);
+                    }
+
+                    @Override
+                    public ChunkCoordinates getPlayerCoordinates() {
+                        return at;
+                    }
+
+                    @Override
+                    public World getEntityWorld() {
+                        return entity.worldObj;
+                    }
+                };
+                net.minecraft.entity.Entity before = executor;
+                executor = entity;
+                try {
+                    net.minecraft.server.MinecraftServer.getServer().getCommandManager().executeCommand(wrapped, command.toString());
+                } finally {
+                    executor = before;
+                }
+            }
         }
     }
 
