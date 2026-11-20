@@ -1404,3 +1404,4 @@ gui.recipebook.toggleRecipes.all=Все рецепты
 gui.recipebook.toggleRecipes.craftable=Доступно к созданию
 key.advancements=Достижения
 gameMode.spectator=Режим наблюдателя
+item.mc112bridge.knowledge_book.name=Книга знаний

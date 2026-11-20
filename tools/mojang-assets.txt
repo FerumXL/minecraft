@@ -1639,3 +1639,4 @@ src/main/resources/assets/minecraft/textures/items/boat.png	10a5a2feefe6aaf85c47
 src/main/resources/assets/minecraft/textures/particle/particles.png	838f5610dd984241bcd324a363fe7203b9e3cd7d	jar:assets/minecraft/textures/particle/particles.png
 src/main/resources/assets/mc112bridge/sounds/item/elytra/elytra_loop.ogg	90d599a1760137a7c4d7a52c77f5c65c02f137d4	asset:90d599a1760137a7c4d7a52c77f5c65c02f137d4
 src/main/resources/assets/mc112bridge/textures/gui/container/horse.png	32e36591f85e29eeb60dd529d6de5449d9663881	jar:assets/minecraft/textures/gui/container/horse.png
+src/main/resources/assets/mc112bridge/textures/items/knowledge_book.png	99889a6da7459a035a48d15b30eb5646f05bfdf3	jar:assets/minecraft/textures/items/knowledge_book.png

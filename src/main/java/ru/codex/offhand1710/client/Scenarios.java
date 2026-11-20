@@ -1626,6 +1626,81 @@ public final class Scenarios {
                     && !ru.codex.offhand1710.Spectator112.is(mc.thePlayer), "serverNoClip=" + p().noClip + " clientNoClip=" + mc.thePlayer.noClip);
             }
         });
+        // skeleton trap: waits while no player is within 10 blocks, then four skeleton horsemen
+        final net.minecraft.entity.passive.EntityHorse[] trap = new net.minecraft.entity.passive.EntityHorse[1];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                fly(true);
+                tp(bx + 0.5D, dy + 1.0D, bz - 11.5D, 0.0F, 0.0F);
+                trap[0] = ru.codex.offhand1710.SkeletonTrap112.spawnTrap(w(), bx + 0.5D, dy, bz + 11.5D);
+                log("INFO additional difficulty here " + ru.codex.offhand1710.SkeletonTrap112.additionalDifficulty(w(), bx, bz));
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                boolean fire = false;
+                for (int x = -2; x <= 2; x++) {
+                    for (int z = -2; z <= 2; z++) {
+                        fire |= w().getBlock(bx + x, dy, bz + 11 + z) == Blocks.fire;
+                    }
+                }
+                result("trap skeleton horse waits (type 4, no fire from the harmless bolt)", trap[0].isEntityAlive() && trap[0].getHorseType() == 4
+                    && ru.codex.offhand1710.SkeletonTrap112.isTrap(trap[0]) && trap[0].riddenByEntity == null && !fire, "fire=" + fire + " type=" + trap[0].getHorseType());
+                tp(bx + 0.5D, dy + 1.0D, bz + 5.5D, 0.0F, 0.0F);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                int riders = 0, bows = 0, helmets = 0;
+                for (Object o : w().getEntitiesWithinAABB(net.minecraft.entity.passive.EntityHorse.class, trap[0].boundingBox.expand(12.0D, 6.0D, 12.0D))) {
+                    net.minecraft.entity.passive.EntityHorse h = (net.minecraft.entity.passive.EntityHorse) o;
+                    if (h.getHorseType() == 4 && h.riddenByEntity instanceof net.minecraft.entity.monster.EntitySkeleton) {
+                        riders++;
+                        net.minecraft.entity.monster.EntitySkeleton s = (net.minecraft.entity.monster.EntitySkeleton) h.riddenByEntity;
+                        bows += s.getHeldItem() != null && s.getHeldItem().getItem() == Items.bow && s.getHeldItem().isItemEnchanted() ? 1 : 0;
+                        helmets += s.getEquipmentInSlot(4) != null && s.getEquipmentInSlot(4).getItem() == Items.iron_helmet ? 1 : 0;
+                    }
+                }
+                result("a player within 10 blocks fires the trap: 4 skeleton horsemen, enchanted bows, iron helmets",
+                    !ru.codex.offhand1710.SkeletonTrap112.isTrap(trap[0]) && trap[0].isTame() && riders == 4 && bows == 4 && helmets == 4,
+                    "riders=" + riders + " bows=" + bows + " helmets=" + helmets + " tame=" + trap[0].isTame());
+                cmd("gamemode 1");
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("g2-skeleton-trap");
+            }
+        });
+        // knowledge book: unlocks its recipes and is used up; a book with an unknown name does nothing
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("recipe take @p minecraft:crafting_table");
+                ItemStack book = new ItemStack(ru.codex.offhand1710.Items112.knowledgeBook);
+                NBTTagCompound tag = new NBTTagCompound();
+                net.minecraft.nbt.NBTTagList list = new net.minecraft.nbt.NBTTagList();
+                list.appendTag(new net.minecraft.nbt.NBTTagString("minecraft:crafting_table"));
+                tag.setTag("Recipes", list);
+                book.setTagCompound(tag);
+                book.getItem().onItemRightClick(book, w(), p());
+                boolean known = ru.codex.offhand1710.Data112.unlockRecipes(p(), java.util.Collections.singletonList("minecraft:crafting_table")) == 0;
+                ItemStack bad = new ItemStack(ru.codex.offhand1710.Items112.knowledgeBook);
+                NBTTagCompound badTag = new NBTTagCompound();
+                net.minecraft.nbt.NBTTagList badList = new net.minecraft.nbt.NBTTagList();
+                badList.appendTag(new net.minecraft.nbt.NBTTagString("minecraft:no_such_recipe"));
+                badTag.setTag("Recipes", badList);
+                bad.setTagCompound(badTag);
+                bad.getItem().onItemRightClick(bad, w(), p());
+                result("knowledge book unlocks its recipe and is used up; an invalid one is kept", known && book.stackSize == 0 && bad.stackSize == 1,
+                    "known=" + known + " used=" + book.stackSize + " bad=" + bad.stackSize);
+            }
+        });
         finish();
     }
 

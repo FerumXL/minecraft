@@ -369,6 +369,26 @@ public final class Data112 {
         return out;
     }
 
+    /** EntityPlayerMP.unlockRecipes of 1.12.2 for known recipe names; returns how many were new. */
+    public static int unlockRecipes(EntityPlayerMP p, java.util.Collection<String> names) {
+        Set<String> known = set(p, "recipes");
+        int added = 0;
+        for (String n : names) {
+            if (RECIPES.containsKey(n) && known.add(n)) {
+                added++;
+            }
+        }
+        if (added > 0) {
+            write(p, "recipes", known);
+            sync(p);
+        }
+        return added;
+    }
+
+    public static boolean isRecipe(String name) {
+        return RECIPES.containsKey(name);
+    }
+
     private static void write(EntityPlayer p, String key, Set<String> values) {
         NBTTagList list = new NBTTagList();
         for (String v : values) {

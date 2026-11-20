@@ -56,6 +56,7 @@ public final class MC112Bridge {
         Combat112 combat = new Combat112();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(combat);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(combat);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new SkeletonTrap112());
         Spectator112 spectator = new Spectator112();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(spectator);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(spectator);

@@ -497,6 +497,14 @@ public final class Transformer implements IClassTransformer {
             ClassNode node = read(bytes);
             for (MethodNode m : node.methods) {
                 if ("func_147456_g".equals(m.name) && "()V".equals(m.desc)) {
+                    // the thunderstorm bolt goes through SkeletonTrap112.strike, which may make it a skeleton trap (1.12)
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n instanceof MethodInsnNode && ("addWeatherEffect".equals(((MethodInsnNode) n).name) || "func_72942_c".equals(((MethodInsnNode) n).name))
+                            && "(Lnet/minecraft/entity/Entity;)Z".equals(((MethodInsnNode) n).desc)) {
+                            m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/SkeletonTrap112", "strike",
+                                "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;)Z", false));
+                        }
+                    }
                     // after super.func_147456_g(), which builds the active set (setActivePlayerChunksAndCheckLight)
                     for (AbstractInsnNode n : m.instructions.toArray()) {
                         if (n.getOpcode() == Opcodes.INVOKESPECIAL && "func_147456_g".equals(((MethodInsnNode) n).name)) {

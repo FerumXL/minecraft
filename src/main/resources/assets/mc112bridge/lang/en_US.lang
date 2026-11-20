@@ -1404,3 +1404,4 @@ gui.recipebook.toggleRecipes.all=Showing all
 gui.recipebook.toggleRecipes.craftable=Showing craftable
 key.advancements=Advancements
 gameMode.spectator=Spectator Mode
+item.mc112bridge.knowledge_book.name=Knowledge Book

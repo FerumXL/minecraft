@@ -40,6 +40,42 @@ public final class Items112 {
     public static Item beetrootSeeds;
     public static Item beetrootSoup;
     public static Item shulkerShell;
+    public static Item knowledgeBook;
+
+    /**
+     * ItemKnowledgeBook of 1.12.2: not in the creative inventory, stacks to 1; a right click unlocks the recipes named
+     * in its "Recipes" list and uses the book up. A name that is not a recipe fails the whole book, as in 1.12.2.
+     */
+    public static final class KnowledgeBook extends Item {
+        KnowledgeBook() {
+            setMaxStackSize(1);
+        }
+
+        @Override
+        public ItemStack onItemRightClick(ItemStack stack, net.minecraft.world.World world, net.minecraft.entity.player.EntityPlayer player) {
+            net.minecraft.nbt.NBTTagCompound tag = stack.getTagCompound();
+            if (!world.isRemote && player instanceof net.minecraft.entity.player.EntityPlayerMP) {
+                if (tag == null || !tag.hasKey("Recipes", 9)) {
+                    return stack;
+                }
+                net.minecraft.nbt.NBTTagList list = tag.getTagList("Recipes", 8);
+                java.util.List<String> names = new java.util.ArrayList<String>();
+                for (int i = 0; i < list.tagCount(); i++) {
+                    String n = list.getStringTagAt(i);
+                    String full = n.contains(":") ? n : "minecraft:" + n;
+                    if (!Data112.isRecipe(full)) {
+                        org.apache.logging.log4j.LogManager.getLogger("mc112bridge").error("Invalid recipe: {}", n);
+                        return stack;
+                    }
+                    names.add(full);
+                }
+                Data112.unlockRecipes((net.minecraft.entity.player.EntityPlayerMP) player, names);
+                // 1.12.2 empties the slot, in creative mode too
+                stack.stackSize = 0;
+            }
+            return stack;
+        }
+    }
     public static Item armorStand;
     public static final BlockShulkerBox[] BOXES = new BlockShulkerBox[16];
     public static final Block[] BEDS = new Block[16];
@@ -73,6 +109,7 @@ public final class Items112 {
         GameRegistry.addShapelessRecipe(new ItemStack(Items.dye, 1, 1), beetroot);
 
         shulkerShell = item(new Item(), "shulker_shell", CreativeTabs.tabMaterials);
+        knowledgeBook = item(new KnowledgeBook(), "knowledge_book", null);
         for (int i = 0; i < 16; i++) {
             BOXES[i] = new BlockShulkerBox(i);
             GameRegistry.registerBlock(BOXES[i], BlockShulkerBox.BoxItem.class, "shulker_box_" + MC112Bridge.COLOR_NAMES[i]);
