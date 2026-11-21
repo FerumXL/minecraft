@@ -1656,7 +1656,7 @@ public final class Scenarios {
             @Override
             public void run() {
                 int riders = 0, bows = 0, helmets = 0;
-                for (Object o : w().getEntitiesWithinAABB(net.minecraft.entity.passive.EntityHorse.class, trap[0].boundingBox.expand(12.0D, 6.0D, 12.0D))) {
+                for (Object o : w().getEntitiesWithinAABB(net.minecraft.entity.passive.EntityHorse.class, trap[0].boundingBox.expand(24.0D, 200.0D, 24.0D))) {
                     net.minecraft.entity.passive.EntityHorse h = (net.minecraft.entity.passive.EntityHorse) o;
                     if (h.getHorseType() == 4 && h.riddenByEntity instanceof net.minecraft.entity.monster.EntitySkeleton) {
                         riders++;
@@ -1799,6 +1799,79 @@ public final class Scenarios {
                 result("the structure block window opens in save mode", mc.currentScreen instanceof StructureGui, String.valueOf(mc.currentScreen));
                 shot("g2-structure-gui");
                 mc.displayGuiScreen(null);
+            }
+        });
+        // chase speeds of the old-AI mobs against EntityAIAttackMelee 1.0 x movementSpeed of 1.12.2
+        final String[] names = {"spider", "cave spider", "angry pigman", "silverfish"};
+        final double[] want = {walkSpeed(0.3D), walkSpeed(0.3D), walkSpeed(0.28D), walkSpeed(0.25D)};
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("time set 18000");
+                cmd("gamemode 0");
+                cmd("difficulty 2");
+                fly(false);
+                for (int x = bx - 2; x <= bx + 2; x++) {
+                    for (int z = bz - 12; z <= bz + 12; z++) {
+                        w().setBlock(x, dy - 1, z, Blocks.stone, 0, 2);
+                        for (int y = dy; y < dy + 4; y++) {
+                            w().setBlockToAir(x, y, z);
+                        }
+                    }
+                }
+                // a glass niche keeps the player from being knocked off the platform
+                for (int y = dy; y < dy + 3; y++) {
+                    w().setBlock(bx - 1, y, bz - 12, Blocks.glass, 0, 2);
+                    w().setBlock(bx + 1, y, bz - 12, Blocks.glass, 0, 2);
+                    w().setBlock(bx, y, bz - 13, Blocks.glass, 0, 2);
+                }
+                tp(bx + 0.5D, dy, bz - 11.5D, 0.0F, 0.0F);
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.resistance.id, 2000, 10));
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.regeneration.id, 2000, 5));
+            }
+        });
+        for (int k = 0; k < 4; k++) {
+            final int i = k;
+            server(5, new Runnable() {
+                @Override
+                public void run() {
+                    endSpeeds();
+                    tp(bx + 0.5D, dy, bz - 11.5D, 0.0F, 0.0F);
+                    p().setHealth(p().getMaxHealth());
+                    net.minecraft.entity.EntityLiving e = i == 0 ? new net.minecraft.entity.monster.EntitySpider(w()) : i == 1 ? new net.minecraft.entity.monster.EntityCaveSpider(w())
+                        : i == 2 ? new net.minecraft.entity.monster.EntityPigZombie(w()) : new net.minecraft.entity.monster.EntitySilverfish(w());
+                    lane(e, names[i], bx + 0.5D, dy, bz + 11.5D + 6.0D, 0.0D);
+                    e.setLocationAndAngles(bx + 0.5D, dy, bz + 2.5D, 180.0F, 0.0F);
+                    if (i == 2) {
+                        e.attackEntityFrom(net.minecraft.util.DamageSource.causePlayerDamage(p()), 0.0F);
+                    }
+                    log("INFO speed " + names[i] + " movementSpeed=" + e.getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.movementSpeed).getAttributeValue());
+                }
+            });
+            server(80, new Runnable() {
+                @Override
+                public void run() {
+                    Speed s = speed(names[i]);
+                    List<Double> mv = new java.util.ArrayList<Double>();
+                    for (int j = 1; j < s.d.size(); j++) {
+                        if (s.d.get(j) > 0.02D && s.d.get(j) < 1.0D) {
+                            mv.add(s.d.get(j));
+                        }
+                    }
+                    java.util.Collections.sort(mv);
+                    double med = mv.isEmpty() ? 0.0D : mv.get(mv.size() / 2);
+                    result("chase speed of the " + names[i] + " as 1.12.2", Math.abs(med - want[i]) < 0.012D,
+                        String.format("median=%.4f p90=%.4f want=%.4f movingTicks=%d dist=%.1f", med, mv.isEmpty() ? 0.0D : mv.get((int) (mv.size() * 0.9D)), want[i], mv.size(), s.e.getDistanceToEntity(p())));
+                    s.e.setDead();
+                }
+            });
+        }
+        server(1, new Runnable() {
+            @Override
+            public void run() {
+                endSpeeds();
+                cmd("gamemode 1");
+                cmd("time set 6000");
             }
         });
         finish();
