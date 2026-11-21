@@ -431,6 +431,20 @@ public final class Transformer implements IClassTransformer {
         if ("com.hbm.world.gen.nbt.NBTStructure$GenStructure".equals(transformedName) || "com.hbm.world.gen.MapGenNTMFeatures".equals(transformedName)) {
             ClassNode node = read(bytes);
             for (MethodNode m : node.methods) {
+                // a start whose pieces reach into the area of a possible village keeps no pieces (large bunkers start far away)
+                if (named(m, "getStructureStart", "func_75049_b") && "(II)Lnet/minecraft/world/gen/structure/StructureStart;".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n.getOpcode() == Opcodes.ARETURN) {
+                            InsnList call = new InsnList();
+                            call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                            call.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                            call.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                            call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/HbmVillageGuard", "filterStart",
+                                "(Lnet/minecraft/world/gen/structure/StructureStart;Lnet/minecraft/world/gen/MapGenBase;II)Lnet/minecraft/world/gen/structure/StructureStart;", false));
+                            m.instructions.insertBefore(n, call);
+                        }
+                    }
+                }
                 if (named(m, "canSpawnStructureAtCoords", "func_75047_a") && "(II)Z".equals(m.desc)) {
                     // MapGenNTMFeatures overwrites its arguments; it copies them to locals 3 and 4 first (ILOAD 1, ISTORE 3, ILOAD 2, ISTORE 4)
                     int keepX = 1, keepZ = 2;

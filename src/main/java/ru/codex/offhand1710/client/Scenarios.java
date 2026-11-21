@@ -485,6 +485,7 @@ public final class Scenarios {
                     log("TERRAIN generated");
                     int hbm = 0, logs = 0, leaves = 0;
                     java.util.Map<String, Integer> names = new java.util.TreeMap<String, Integer>();
+                    final int[] box = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
                     for (int cx = x0; cx <= x1; cx++) {
                         for (int cz = z0; cz <= z1; cz++) {
                             net.minecraft.world.chunk.Chunk c = w().getChunkFromChunkCoords(cx, cz);
@@ -503,6 +504,11 @@ public final class Scenarios {
                                             String n = net.minecraft.block.Block.blockRegistry.getNameForObject(b);
                                             if (n != null && n.startsWith("hbm:") && by >= 60) {
                                                 hbm++;
+                                                if (n.contains("brick_concrete") || n.contains("deco_steel") || n.contains("fence_metal") || n.contains("yellow_barrel") || n.contains("brick_light")) {
+                                                    int wx = cx * 16 + bx, wz = cz * 16 + bz;
+                                                    box[0] = Math.min(box[0], wx); box[1] = Math.min(box[1], by); box[2] = Math.min(box[2], wz);
+                                                    box[3] = Math.max(box[3], wx); box[4] = Math.max(box[4], by); box[5] = Math.max(box[5], wz);
+                                                }
                                                 Integer k = names.get(n);
                                                 names.put(n, k == null ? 1 : k + 1);
                                             }
@@ -512,7 +518,8 @@ public final class Scenarios {
                             }
                         }
                     }
-                    log("TERRAIN hbmStarts " + x0 + "," + z0 + " " + hbmStarts(x0 * 16, z0 * 16, x1 * 16 + 15, z1 * 16 + 15));
+                    log("TERRAIN hbmStarts blocked=" + ru.codex.offhand1710.HbmVillageGuard.blocked + " " + x0 + "," + z0 + " " + hbmStarts(x0 * 16, z0 * 16, x1 * 16 + 15, z1 * 16 + 15));
+                    log("TERRAIN hbmBuilt " + java.util.Arrays.toString(box));
                     log("TERRAIN count " + x0 + "," + z0 + " hbmSurface=" + hbm + " logs=" + logs + " leaves=" + leaves + " " + names);
                 }
             });
@@ -1813,7 +1820,8 @@ public final class Scenarios {
                 fly(false);
                 for (int x = bx - 2; x <= bx + 2; x++) {
                     for (int z = bz - 12; z <= bz + 12; z++) {
-                        w().setBlock(x, dy - 1, z, Blocks.stone, 0, 2);
+                        // sandstone: a silverfish would hide in stone
+                        w().setBlock(x, dy - 1, z, Blocks.sandstone, 0, 2);
                         for (int y = dy; y < dy + 4; y++) {
                             w().setBlockToAir(x, y, z);
                         }
