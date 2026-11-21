@@ -38,7 +38,7 @@ final class SoundPatches {
             || n.equals("entity.item.EntityItemFrame") || n.equals("entity.item.EntityPainting") || n.equals("entity.EntityLeashKnot")
             || n.equals("item.ItemHangingEntity") || n.equals("tileentity.TileEntityBrewingStand") || n.equals("block.BlockFurnace")
             || n.equals("inventory.ContainerEnchantment") || n.equals("item.ItemEnderEye") || n.equals("entity.item.EntityEnderEye")
-            || n.equals("item.ItemFishingRod"))) {
+            || n.equals("item.ItemFishingRod") || n.equals("item.ItemLilyPad"))) {
             return bytes;
         }
         ClassNode node = Transformer.read(bytes);
@@ -282,6 +282,35 @@ final class SoundPatches {
                     if (isCall(i, "setDead", "func_70106_y")) {
                         m.instructions.insertBefore(i, self("eyeDeath"));
                         c++;
+                    }
+                }
+            }
+        } else if (n.equals("item.ItemLilyPad")) {
+            if (Transformer.named(m, "onItemRightClick", "func_77659_a")) {
+                for (AbstractInsnNode i : m.instructions.toArray()) {
+                    if (i.getOpcode() == Opcodes.GETSTATIC && ("waterlily".equals(((FieldInsnNode) i).name) || "field_150392_bi".equals(((FieldInsnNode) i).name))) {
+                        // world.setBlock(x, y + 1, z, waterlily): the five loads before it give the place again
+                        java.util.List<AbstractInsnNode> args = new java.util.ArrayList<AbstractInsnNode>();
+                        for (AbstractInsnNode p = i.getPrevious(); p != null && args.size() < 6; p = p.getPrevious()) {
+                            if (p.getOpcode() >= 0) {
+                                args.add(0, p);
+                            }
+                        }
+                        AbstractInsnNode call = i.getNext();
+                        while (call != null && call.getOpcode() < 0) {
+                            call = call.getNext();
+                        }
+                        if (args.size() == 6 && args.get(0).getOpcode() == Opcodes.ALOAD && call != null && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                            && call.getNext() != null && call.getNext().getOpcode() == Opcodes.POP) {
+                            InsnList l = new InsnList();
+                            for (AbstractInsnNode a : args) {
+                                l.add(a.clone(null));
+                            }
+                            l.add(call("lilyPlaced", "(" + WORLD + "III)V"));
+                            m.instructions.insert(call.getNext(), l);
+                            c++;
+                        }
+                        break;
                     }
                 }
             }

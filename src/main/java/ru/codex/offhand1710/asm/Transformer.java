@@ -549,6 +549,25 @@ public final class Transformer implements IClassTransformer {
             System.out.println("[mc112bridge] fortress chest loot 1.12 in " + transformedName + ": " + n);
             return write(node);
         }
+        if ("net.minecraft.util.WeightedRandomChestContent".equals(transformedName) && System.getProperty("mc112.lootPools17") == null) {
+            // chests and dispensers whose list comes from a 1.12.2 table are filled by its pools (Loot112.fillPools)
+            ClassNode node = read(bytes);
+            int n = 0;
+            for (MethodNode m : node.methods) {
+                boolean chest = named(m, "generateChestContents", "func_76293_a") && m.desc.endsWith("Lnet/minecraft/inventory/IInventory;I)V");
+                boolean dispenser = named(m, "generateDispenserContents", "func_150706_a");
+                if ((chest || dispenser) && (m.access & Opcodes.ACC_STATIC) != 0) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                    guard(m, load, "ru/codex/offhand1710/Loot112", "fillPools", "(Ljava/util/Random;[Lnet/minecraft/util/WeightedRandomChestContent;Lnet/minecraft/inventory/IInventory;)Z", Opcodes.RETURN, 0);
+                    n++;
+                }
+            }
+            System.out.println("[mc112bridge] chest loot by 1.12 pools: " + n + " methods");
+            return write(node);
+        }
         if ("net.minecraft.world.chunk.Chunk".equals(transformedName) && System.getProperty("mc112.traceBlocks") != null) {
             // debugging only: who sets which block where (BlockTrace)
             ClassNode node = read(bytes);

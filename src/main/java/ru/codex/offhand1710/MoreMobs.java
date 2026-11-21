@@ -120,6 +120,7 @@ public final class MoreMobs {
                 motionY *= 0.6D;
             }
             fallDistance = 0.0F;
+            Sounds112.parrotMimic(this);
             if (!worldObj.isRemote && !isDead) {
                 Shoulder112.tryLand(this);
             }
@@ -203,7 +204,12 @@ public final class MoreMobs {
 
         @Override
         protected String getLivingSound() {
-            return SOUND + "parrot.ambient";
+            return Sounds112.parrotAmbient(worldObj, rand);
+        }
+
+        @Override
+        protected float getSoundPitch() {
+            return Sounds112.parrotPitch(rand);
         }
 
         @Override

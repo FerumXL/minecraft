@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -202,7 +202,7 @@ public final class Scenarios {
             mc.gameSettings.pauseOnLostFocus = false;
             String rd = System.getenv("MC112_BENCH_RD");
             mc.gameSettings.renderDistanceChunks = rd == null ? 8 : Integer.parseInt(rd);
-            if ("terrain".equals(STAGE)) {
+            if ("terrain".equals(STAGE) || "idle".equals(STAGE)) {
                 // MC112_WORLD: save folder (loaded if it exists, else created with MC112_SEED, DEFAULT, structures on)
                 String tw = System.getenv("MC112_WORLD") == null ? "audit112t" : System.getenv("MC112_WORLD");
                 String seed = System.getenv("MC112_SEED");
@@ -332,6 +332,8 @@ public final class Scenarios {
             registry();
         } else if ("sounds".equals(STAGE)) {
             sounds();
+        } else if ("idle".equals(STAGE)) {
+            idle();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -2058,6 +2060,12 @@ public final class Scenarios {
                 endSpeeds();
                 cmd("gamemode 0");
                 cmd("time set 18000");
+                // night: no other monster may pick a fight with the blaze and become its target
+                cmd("gamerule doMobSpawning false");
+                for (Object o : w().getEntitiesWithinAABB(net.minecraft.entity.monster.EntityMob.class,
+                    net.minecraft.util.AxisAlignedBB.getBoundingBox(bx - 64, dy - 32, bz - 64, bx + 64, dy + 32, bz + 64))) {
+                    ((net.minecraft.entity.Entity) o).setDead();
+                }
                 tp(bx + 0.5D, dy, bz - 11.5D, 0.0F, 0.0F);
                 p().setHealth(p().getMaxHealth());
                 p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.fireResistance.id, 2000, 0));
@@ -2472,7 +2480,63 @@ public final class Scenarios {
                 } catch (Throwable e) {
                     log("FAIL fortress chest " + e);
                 }
-                result("fortress chests 1.12", chests >= 150 && obsidian > 0 && most <= 4 && fewest >= 1, "chests=" + chests + " obsidianStacks=" + obsidian + " stacks=" + fewest + ".." + most);
+                int rollsLo = 99;
+                int rollsHi = 0;
+                for (int i = 0; i < 300; i++) {
+                    int n = ru.codex.offhand1710.Loot112.generate(ru.codex.offhand1710.Loot112.table(ru.codex.offhand1710.Loot112.NETHER_BRIDGE), rand).size();
+                    rollsLo = Math.min(rollsLo, n);
+                    rollsHi = Math.max(rollsHi, n);
+                }
+                result("fortress chests 1.12", chests >= 150 && obsidian > 0 && fewest >= 1 && rollsLo == 2 && rollsHi == 4,
+                    "chests=" + chests + " obsidianStacks=" + obsidian + " stacks=" + fewest + ".." + most + " rolls=" + rollsLo + ".." + rollsHi);
+                // chests by the pools of 1.12.2, through the same call the structures make
+                {
+                    java.util.Random lr = new java.util.Random(1712L);
+                    int badFirst = 0;
+                    int badThird = 0;
+                    int badTools = 0;
+                    int logMeta = 0;
+                    java.util.Set<Item> first = new java.util.HashSet<Item>(java.util.Arrays.asList(Items.saddle, Items.golden_apple, Items.record_13, Items.record_cat,
+                        Items.name_tag, Items.golden_horse_armor, Items.iron_horse_armor, Items.diamond_horse_armor, Items.enchanted_book, Items.book));
+                    java.util.Set<Item> third = new java.util.HashSet<Item>(java.util.Arrays.asList(Items.bone, Items.gunpowder, Items.rotten_flesh, Items.string));
+                    for (int i = 0; i < 300; i++) {
+                        net.minecraft.inventory.InventoryBasic inv = new net.minecraft.inventory.InventoryBasic("t", false, 27);
+                        net.minecraft.util.WeightedRandomChestContent.generateChestContents(lr, net.minecraftforge.common.ChestGenHooks.getItems(net.minecraftforge.common.ChestGenHooks.DUNGEON_CHEST, lr),
+                            inv, net.minecraftforge.common.ChestGenHooks.getCount(net.minecraftforge.common.ChestGenHooks.DUNGEON_CHEST, lr));
+                        int f = 0;
+                        int q = 0;
+                        for (int s = 0; s < 27; s++) {
+                            ItemStack st = inv.getStackInSlot(s);
+                            if (st != null && first.contains(st.getItem())) {
+                                f += st.stackSize;
+                            }
+                            if (st != null && third.contains(st.getItem())) {
+                                q += st.stackSize;
+                            }
+                        }
+                        badFirst += f < 1 || f > 3 ? 1 : 0;
+                        badThird += q < 3 || q > 24 ? 1 : 0;
+                        inv = new net.minecraft.inventory.InventoryBasic("t", false, 27);
+                        net.minecraft.util.WeightedRandomChestContent.generateChestContents(lr, net.minecraftforge.common.ChestGenHooks.getItems(net.minecraftforge.common.ChestGenHooks.BONUS_CHEST, lr),
+                            inv, net.minecraftforge.common.ChestGenHooks.getCount(net.minecraftforge.common.ChestGenHooks.BONUS_CHEST, lr));
+                        int axes = 0;
+                        int picks = 0;
+                        for (int s = 0; s < 27; s++) {
+                            ItemStack st = inv.getStackInSlot(s);
+                            if (st == null) {
+                                continue;
+                            }
+                            axes += st.getItem() == Items.stone_axe || st.getItem() == Items.wooden_axe ? 1 : 0;
+                            picks += st.getItem() == Items.stone_pickaxe || st.getItem() == Items.wooden_pickaxe ? 1 : 0;
+                            if (st.getItem() == Item.getItemFromBlock(Blocks.log) && st.getItemDamage() > 0) {
+                                logMeta++;
+                            }
+                        }
+                        badTools += axes != 1 || picks != 1 ? 1 : 0;
+                    }
+                    result("dungeon chests by 1.12 pools", badFirst == 0 && badThird == 0, "300 chests: first pool outside 1..3 in " + badFirst + ", third pool outside 3..24 in " + badThird);
+                    result("bonus chests by 1.12 pools", badTools == 0 && logMeta > 0, "300 chests: not one axe and one pickaxe in " + badTools + ", logs with data>0 " + logMeta);
+                }
                 result("registry names", missing <= 1, "missing=" + missing + " (air has no item in 1.7.10)");
                 for (Object k : Item.itemRegistry.getKeys()) {
                     Item it = (Item) Item.itemRegistry.getObject(k);
@@ -2626,6 +2690,32 @@ public final class Scenarios {
                 heard("cow milk", "entity.cow.milk");
                 inHand(new ItemStack(Items.ender_eye));
                 result("sound eye launch name", "entity.endereye.launch".equals(ru.codex.offhand1710.Sounds112.rename(pl, "random.bow")), "");
+                net.minecraft.entity.passive.EntityHorse horse = new net.minecraft.entity.passive.EntityHorse(w);
+                horse.setPosition(sx - 5.5D, sy, sz + 0.5D);
+                w.spawnEntityInWorld(horse);
+                horse.playSound("eating", 1.0F, 1.0F);
+                heard("horse eats", "entity.horse.eat");
+                witch.setDead();
+                wither.setDead();
+                zv.setDead();
+                snow.setDead();
+                // parrot: a zombie near it is repeated (one time in 50 per tick)
+                net.minecraft.entity.monster.EntityZombie near = new net.minecraft.entity.monster.EntityZombie(w);
+                near.setPosition(sx - 5.5D, sy, sz - 5.5D);
+                w.spawnEntityInWorld(near);
+                ru.codex.offhand1710.MoreMobs.Parrot parrot = new ru.codex.offhand1710.MoreMobs.Parrot(w);
+                parrot.setPosition(sx - 5.5D, sy, sz - 3.5D);
+                w.spawnEntityInWorld(parrot);
+                ru.codex.offhand1710.Sounds112.last = "";
+                int tries = 0;
+                while (tries < 2000 && !ru.codex.offhand1710.Sounds112.parrotMimic(parrot)) {
+                    tries++;
+                }
+                heard("parrot repeats a zombie", "entity.parrot.imitate.zombie");
+                log("INFO parrot mimic after " + tries + " ticks (1.12: one in 50)");
+                horse.setDead();
+                near.setDead();
+                parrot.setDead();
                 witch.setDead();
                 wither.setDead();
                 zv.setDead();
@@ -2660,6 +2750,9 @@ public final class Scenarios {
                 inHand(bottle);
                 Items.glass_bottle.onItemRightClick(bottle, w, pl);
                 heard("bottle fill", "item.bottle.fill");
+                Item.getItemFromBlock(Blocks.waterlily).onItemRightClick(new ItemStack(Blocks.waterlily), w, pl);
+                heard("lily pad placed", w.getBlock(sx + 4, sy, sz) == Blocks.waterlily ? "block.waterlily.place" : "(no pad)");
+                w.setBlock(sx + 4, sy, sz, Blocks.air);
                 w.setBlock(sx + 2, sy - 1, sz, Blocks.stone);
                 w.setBlock(sx + 4, sy - 1, sz, Blocks.stone);
                 look(sx + 0.5D, sy, sz + 0.5D);
@@ -2867,6 +2960,68 @@ public final class Scenarios {
             @Override
             public void run() {
                 result("sound toast in and out", ru.codex.offhand1710.Sounds112.toastSounds >= 2, "played=" + ru.codex.offhand1710.Sounds112.toastSounds);
+            }
+        });
+        finish();
+    }
+
+    private final java.util.List<Integer> idleFps = new java.util.ArrayList<Integer>();
+    private final java.util.List<Double> idleTick = new java.util.ArrayList<Double>();
+
+    private static int debugFps() {
+        for (String n : new String[] {"debugFPS", "field_71470_ab"}) {
+            try {
+                java.lang.reflect.Field f = net.minecraft.client.Minecraft.class.getDeclaredField(n);
+                f.setAccessible(true);
+                return f.getInt(null);
+            } catch (Exception ignored) {
+            }
+        }
+        return -1;
+    }
+
+    /** An existing save left alone: after 30 s, one minute of FPS and server tick times (MinecraftServer.tickTimeArray). */
+    private void idle() {
+        client(600, new Runnable() {
+            @Override
+            public void run() {
+                log("INFO idle start at " + (int) mc.thePlayer.posX + "," + (int) mc.thePlayer.posY + "," + (int) mc.thePlayer.posZ
+                    + " renderDistance=" + mc.gameSettings.renderDistanceChunks + " entities=" + mc.theWorld.loadedEntityList.size());
+            }
+        });
+        for (int i = 0; i < 60; i++) {
+            client(20, new Runnable() {
+                @Override
+                public void run() {
+                    idleFps.add(debugFps());
+                    long[] t = MinecraftServer.getServer().tickTimeArray;
+                    long sum = 0L;
+                    for (long v : t) {
+                        sum += v;
+                    }
+                    idleTick.add(sum / (double) t.length / 1.0E6D);
+                }
+            });
+        }
+        client(1, new Runnable() {
+            @Override
+            public void run() {
+                int fmin = Integer.MAX_VALUE;
+                long fsum = 0L;
+                for (int f : idleFps) {
+                    fmin = Math.min(fmin, f);
+                    fsum += f;
+                }
+                double tmax = 0.0D;
+                double tsum = 0.0D;
+                for (double d : idleTick) {
+                    tmax = Math.max(tmax, d);
+                    tsum += d;
+                }
+                double tavg = tsum / idleTick.size();
+                log("INFO idle fps avg=" + (fsum / idleFps.size()) + " min=" + fmin + " tick ms avg=" + String.format("%.2f", tavg) + " max=" + String.format("%.2f", tmax)
+                    + " tps=" + String.format("%.1f", Math.min(20.0D, 1000.0D / Math.max(50.0D, tmax))));
+                result("idle server keeps 20 TPS", tmax < 50.0D, "max mean tick " + String.format("%.2f", tmax) + " ms");
             }
         });
         finish();

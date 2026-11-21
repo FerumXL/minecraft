@@ -262,11 +262,117 @@ public final class Sounds112 {
         }
     }
 
+    /** ItemLilyPad.onItemRightClick, after the pad is set. */
+    public static void lilyPlaced(World world, int x, int y, int z) {
+        if (!OFF && !world.isRemote) {
+            at(world, x + 0.5D, y + 0.5D, z + 0.5D, "block.waterlily.place", 1.0F, 1.0F);
+        }
+    }
+
     /** End112.BlockChorusFlower: 1.12 playEvent 1033 (grown) and 1034 (dead). */
     public static void chorus(World world, int x, int y, int z, boolean grown) {
         if (!OFF && !world.isRemote) {
             at(world, x + 0.5D, y + 0.5D, z + 0.5D, grown ? "block.chorus_flower.grow" : "block.chorus_flower.death", 1.0F, 1.0F);
         }
+    }
+
+    // ---- parrot imitations (EntityParrot.playMimicSound / getAmbientSound of 1.12.2) ---------------------------
+
+    private static final String[] IMITATED = {"blaze", "creeper", "elder_guardian", "enderdragon", "enderman", "endermite",
+        "evocation_illager", "ghast", "husk", "illusion_illager", "magmacube", "polar_bear", "shulker", "silverfish", "skeleton",
+        "slime", "spider", "stray", "vex", "vindication_illager", "witch", "wither", "wither_skeleton", "wolf", "zombie",
+        "zombie_pigman", "zombie_villager"};
+
+    /** The imitation event of a mob, or null when a parrot does not repeat it. Subclasses are tested first. */
+    public static String imitation(Entity e) {
+        String k = null;
+        if (e instanceof net.minecraft.entity.monster.EntityBlaze) {
+            k = "blaze";
+        } else if (e instanceof net.minecraft.entity.monster.EntitySpider) {
+            k = "spider";
+        } else if (e instanceof net.minecraft.entity.monster.EntityCreeper) {
+            k = "creeper";
+        } else if (e instanceof EntityElderGuardian) {
+            k = "elder_guardian";
+        } else if (e instanceof net.minecraft.entity.boss.EntityDragon) {
+            k = "enderdragon";
+        } else if (e instanceof net.minecraft.entity.monster.EntityEnderman) {
+            k = "enderman";
+        } else if (e instanceof Content119.EntityEndermite) {
+            k = "endermite";
+        } else if (e instanceof Illagers.Evoker) {
+            k = "evocation_illager";
+        } else if (e instanceof net.minecraft.entity.monster.EntityGhast) {
+            k = "ghast";
+        } else if (e instanceof EntityHusk) {
+            k = "husk";
+        } else if (e instanceof Illagers.Illusioner) {
+            k = "illusion_illager";
+        } else if (e instanceof net.minecraft.entity.monster.EntityMagmaCube) {
+            k = "magmacube";
+        } else if (e instanceof EntityPolarBear) {
+            k = "polar_bear";
+        } else if (e instanceof MoreMobs.Shulker) {
+            k = "shulker";
+        } else if (e instanceof net.minecraft.entity.monster.EntitySilverfish) {
+            k = "silverfish";
+        } else if (e instanceof EntityStray) {
+            k = "stray";
+        } else if (e instanceof EntitySkeleton) {
+            k = ((EntitySkeleton) e).getSkeletonType() == 1 ? "wither_skeleton" : "skeleton";
+        } else if (e instanceof net.minecraft.entity.monster.EntitySlime) {
+            k = "slime";
+        } else if (e instanceof Illagers.Vex) {
+            k = "vex";
+        } else if (e instanceof Illagers.Vindicator) {
+            k = "vindication_illager";
+        } else if (e instanceof EntityWitch) {
+            k = "witch";
+        } else if (e instanceof net.minecraft.entity.boss.EntityWither) {
+            k = "wither";
+        } else if (e instanceof net.minecraft.entity.passive.EntityWolf) {
+            k = "wolf";
+        } else if (e instanceof net.minecraft.entity.monster.EntityPigZombie) {
+            k = "zombie_pigman";
+        } else if (e instanceof EntityZombie) {
+            k = ((EntityZombie) e).isVillager() ? "zombie_villager" : "zombie";
+        }
+        return k == null ? null : "entity.parrot.imitate." + k;
+    }
+
+    /** EntityParrot.getPitch: (r - r) * 0.2 + 1. */
+    public static float parrotPitch(Random rand) {
+        return (rand.nextFloat() - rand.nextFloat()) * 0.2F + 1.0F;
+    }
+
+    /** One time in 1000 (not on peaceful) the parrot's own call is the voice of a random mob. */
+    public static String parrotAmbient(World world, Random rand) {
+        if (!OFF && world.difficultySetting != net.minecraft.world.EnumDifficulty.PEACEFUL && rand.nextInt(1000) == 0) {
+            return P + "entity.parrot.imitate." + IMITATED[rand.nextInt(IMITATED.length)];
+        }
+        return P + "entity.parrot.ambient";
+    }
+
+    /** Every tick, one time in 50: a mob within 20 blocks that a parrot repeats is heard at volume 0.7. */
+    public static boolean parrotMimic(EntityLiving parrot) {
+        World w = parrot.worldObj;
+        if (OFF || w.isRemote || w.rand.nextInt(50) != 0) {
+            return false;
+        }
+        java.util.List<?> list = w.getEntitiesWithinAABB(EntityLiving.class, parrot.boundingBox.expand(20.0D, 20.0D, 20.0D));
+        java.util.List<Entity> fit = new java.util.ArrayList<Entity>();
+        for (Object o : list) {
+            if (o != parrot && !((Entity) o).isDead && imitation((Entity) o) != null) {
+                fit.add((Entity) o);
+            }
+        }
+        if (fit.isEmpty()) {
+            return false;
+        }
+        String event = imitation(fit.get(w.rand.nextInt(fit.size())));
+        last = event;
+        w.playSoundEffect(parrot.posX, parrot.posY, parrot.posZ, P + event, 0.7F, parrotPitch(w.rand));
+        return true;
     }
 
     /** The 1.12 event for a 1.7.10 entity sound, or null to keep it. */
@@ -276,6 +382,9 @@ public final class Sounds112 {
         }
         if (name.equals("damage.thorns")) {
             return "enchant.thorns.hit";
+        }
+        if (e instanceof net.minecraft.entity.passive.EntityHorse && "eating".equals(name)) {
+            return "entity.horse.eat";
         }
         if (e instanceof EntityWitch && name.startsWith("mob.witch.")) {
             String s = name.substring(10);
