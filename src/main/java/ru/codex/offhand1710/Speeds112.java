@@ -20,6 +20,8 @@ import net.minecraftforge.event.entity.living.LivingEvent.LivingUpdateEvent;
  */
 public final class Speeds112 {
     public static final boolean OLD = "1".equals(System.getProperty("mc112.speeds17"));
+    /** -Dmc112.blaze17=1: the 1.7.10 blaze movement only. */
+    public static final boolean BLAZE_OLD = "1".equals(System.getProperty("mc112.blaze17"));
 
     @SubscribeEvent
     public void onUpdate(LivingUpdateEvent event) {
@@ -35,6 +37,26 @@ public final class Speeds112 {
             base = chasing ? 0.784D - 0.45D : 0.529D;
         } else if (e instanceof EntitySilverfish) {
             base = 0.625D;
+        } else if (e instanceof net.minecraft.entity.monster.EntityBlaze && !BLAZE_OLD) {
+            // EntityBlaze.AIFireballAttack of 1.12.2: closer than 2 blocks it moves in (speed 1.0), from 2 to 48
+            // (followRange) it hovers and shoots without moving, further away it flies towards the target.
+            // In the air both versions push by speed x jumpMovementFactor 0.02, so the attribute stays 0.23 there;
+            // on the ground the 1.12.2 walk needs 10 a^2 = 0.529 under the old AI.
+            net.minecraft.entity.Entity t = e.getEntityToAttack();
+            // EntityAINearestAttackableTarget of 1.12.2: players within followRange 48 that it can see (1.7.10: 16)
+            if (t == null && e.ticksExisted % 10 == 0) {
+                net.minecraft.entity.player.EntityPlayer p = e.worldObj.getClosestVulnerablePlayerToEntity(e, 48.0D);
+                if (p != null && e.canEntityBeSeen(p) && !Spectator112.is(p)) {
+                    e.setTarget(p);
+                    t = p;
+                }
+            }
+            double d2 = t == null ? 0.0D : e.getDistanceSqToEntity(t);
+            if (t != null && d2 >= 4.0D && d2 < 48.0D * 48.0D) {
+                base = 0.0D;
+            } else {
+                base = e.onGround ? 0.529D : 0.23D;
+            }
         } else {
             return;
         }

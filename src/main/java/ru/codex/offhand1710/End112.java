@@ -988,7 +988,7 @@ public final class End112 implements IWorldGenerator {
      * WorldGenEndGateway of 1.12.2: the gateway block, air around it in its layer, bedrock in a cross one block
      * above and below and a single bedrock two blocks above and below.
      */
-    static void buildGateway(World world, int x, int y, int z) {
+    public static void buildGateway(World world, int x, int y, int z) {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -2; dy <= 2; dy++) {
                 for (int dz = -1; dz <= 1; dz++) {
@@ -1010,6 +1010,9 @@ public final class End112 implements IWorldGenerator {
     }
 
     /** TileEntityEndGateway of 1.12.2: age (a beam for the first 200 ticks) and the 40-tick cooldown after a teleport. */
+    /** -Dmc112.gateway17=1: the earlier simplified gateway exit. */
+    static final boolean GATEWAY_OLD = "1".equals(System.getProperty("mc112.gateway17"));
+
     public static final class GatewayTile extends net.minecraft.tileentity.TileEntityEndPortal {
         public long age;
         public int cooldown;
@@ -1040,16 +1043,165 @@ public final class End112 implements IWorldGenerator {
             return super.receiveClientEvent(id, value);
         }
 
+        /** ExitPortal and ExactTeleport of TileEntityEndGateway (1.12.2). */
+        public int[] exit;
+        public boolean exact;
+
         @Override
         public void writeToNBT(net.minecraft.nbt.NBTTagCompound tag) {
             super.writeToNBT(tag);
             tag.setLong("Age", age);
+            if (exit != null) {
+                net.minecraft.nbt.NBTTagCompound e = new net.minecraft.nbt.NBTTagCompound();
+                e.setInteger("X", exit[0]);
+                e.setInteger("Y", exit[1]);
+                e.setInteger("Z", exit[2]);
+                tag.setTag("ExitPortal", e);
+            }
+            if (exact) {
+                tag.setBoolean("ExactTeleport", true);
+            }
         }
 
         @Override
         public void readFromNBT(net.minecraft.nbt.NBTTagCompound tag) {
             super.readFromNBT(tag);
             age = tag.getLong("Age");
+            if (tag.hasKey("ExitPortal", 10)) {
+                net.minecraft.nbt.NBTTagCompound e = tag.getCompoundTag("ExitPortal");
+                exit = new int[] {e.getInteger("X"), e.getInteger("Y"), e.getInteger("Z")};
+            }
+            exact = tag.getBoolean("ExactTeleport");
+        }
+
+        /** TileEntityEndGateway.teleportEntity: a thrown ender pearl takes its thrower, everything else goes itself. */
+        public void teleport(Entity entity) {
+            World w = worldObj;
+            if (exit == null) {
+                findExitPortal();
+            }
+            if (exit == null) {
+                return;
+            }
+            int[] to = exact ? exit : findExitPosition();
+            Entity mover = entity;
+            if (entity instanceof net.minecraft.entity.item.EntityEnderPearl && ((net.minecraft.entity.item.EntityEnderPearl) entity).getThrower() != null) {
+                mover = ((net.minecraft.entity.item.EntityEnderPearl) entity).getThrower();
+                entity.setDead();
+            }
+            cooldown = 40;
+            w.addBlockEvent(xCoord, yCoord, zCoord, gateway, 1, 0);
+            markDirty();
+            if (mover instanceof net.minecraft.entity.player.EntityPlayerMP) {
+                ((net.minecraft.entity.player.EntityPlayerMP) mover).playerNetServerHandler.setPlayerLocation(to[0] + 0.5D, to[1] + 0.5D, to[2] + 0.5D, mover.rotationYaw, mover.rotationPitch);
+            } else {
+                mover.setLocationAndAngles(to[0] + 0.5D, to[1] + 0.5D, to[2] + 0.5D, mover.rotationYaw, mover.rotationPitch);
+            }
+            mover.fallDistance = 0.0F;
+        }
+
+        /** findExitPosition: the highest block within 5 of the exit, one above it. */
+        int[] findExitPosition() {
+            int[] h = highest(worldObj, exit[0], exit[1], exit[2], 5, false);
+            return new int[] {h[0], h[1] + 1, h[2]};
+        }
+
+        /**
+         * findExitPortal of 1.12.2: from 1024 blocks out along the gateway's direction, step 16 back towards the
+         * centre while that chunk has blocks and then 16 out while it has none; on that island the end stone nearest
+         * the origin with two air blocks over it (or a new small island at y 75), the highest block within 16 of it,
+         * 10 above that a new gateway that leads back here exactly.
+         */
+        void findExitPortal() {
+            World w = worldObj;
+            double len = Math.sqrt((double) xCoord * xCoord + (double) zCoord * zCoord);
+            if (len < 1.0E-4D) {
+                return;
+            }
+            double dx = xCoord / len, dz = zCoord / len;
+            double vx = dx * 1024.0D, vz = dz * 1024.0D;
+            for (int i = 16; hasBlocks(w, vx, vz) && i-- > 0; vx -= dx * 16.0D, vz -= dz * 16.0D) {
+            }
+            for (int j = 16; !hasBlocks(w, vx, vz) && j-- > 0; vx += dx * 16.0D, vz += dz * 16.0D) {
+            }
+            int[] spot = spawnInChunk(w, MathHelper.floor_double(vx) >> 4, MathHelper.floor_double(vz) >> 4);
+            if (spot == null) {
+                spot = new int[] {MathHelper.floor_double(vx + 0.5D), 75, MathHelper.floor_double(vz + 0.5D)};
+                smallIsland(w, spot[0], spot[1], spot[2], w.rand);
+            }
+            int[] top = highest(w, spot[0], spot[1], spot[2], 16, true);
+            exit = new int[] {top[0], top[1] + 10, top[2]};
+            buildGateway(w, exit[0], exit[1], exit[2]);
+            net.minecraft.tileentity.TileEntity back = w.getTileEntity(exit[0], exit[1], exit[2]);
+            if (back instanceof GatewayTile) {
+                ((GatewayTile) back).exit = new int[] {xCoord, yCoord, zCoord};
+                ((GatewayTile) back).exact = true;
+                back.markDirty();
+            }
+            markDirty();
+        }
+
+        private static boolean hasBlocks(World w, double x, double z) {
+            net.minecraft.world.chunk.Chunk c = w.getChunkFromChunkCoords(MathHelper.floor_double(x) >> 4, MathHelper.floor_double(z) >> 4);
+            return c.getTopFilledSegment() > 0;
+        }
+
+        /** findSpawnpointInChunk: end stone with air above, the one nearest the origin. */
+        private static int[] spawnInChunk(World w, int cx, int cz) {
+            net.minecraft.world.chunk.Chunk c = w.getChunkFromChunkCoords(cx, cz);
+            int[] best = null;
+            double bestD = 0.0D;
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int y = c.getTopFilledSegment() + 15; y > 30; y--) {
+                        if (c.getBlock(x, y, z) == Blocks.end_stone && c.getBlock(x, y + 1, z).getMaterial() == Material.air
+                            && c.getBlock(x, y + 2, z).getMaterial() == Material.air) {
+                            int wx = cx * 16 + x, wz = cz * 16 + z;
+                            double d = (double) wx * wx + (double) y * y + (double) wz * wz;
+                            if (best == null || d < bestD) {
+                                best = new int[] {wx, y, wz};
+                                bestD = d;
+                            }
+                        }
+                    }
+                }
+            }
+            return best;
+        }
+
+        /** findHighestBlock: the highest non-air block within radius (bedrock only if allowed), on that column. */
+        private static int[] highest(World w, int x0, int y0, int z0, int r, boolean bedrock) {
+            int[] best = null;
+            for (int x = -r; x <= r; x++) {
+                for (int z = -r; z <= r; z++) {
+                    if (x == 0 && z == 0 && !bedrock) {
+                        continue;
+                    }
+                    for (int y = 255; y > (best == null ? 0 : best[1]); y--) {
+                        Block b = w.getBlock(x0 + x, y, z0 + z);
+                        if (b.isNormalCube() && (bedrock || b != Blocks.bedrock)) {
+                            best = new int[] {x0 + x, y, z0 + z};
+                            break;
+                        }
+                    }
+                }
+            }
+            return best == null ? new int[] {x0, y0, z0} : best;
+        }
+
+        /** WorldGenEndIsland: a small cone of end stone, radius 4-6 shrinking by 0.5-1.25 a layer. */
+        private static void smallIsland(World w, int x, int y, int z, java.util.Random rand) {
+            float f = (float) (rand.nextInt(3) + 4);
+            for (int i = 0; f > 0.5F; i--) {
+                for (int j = MathHelper.floor_float(-f); j <= MathHelper.ceiling_float_int(f); j++) {
+                    for (int k = MathHelper.floor_float(-f); k <= MathHelper.ceiling_float_int(f); k++) {
+                        if ((float) (j * j + k * k) <= (f + 1.0F) * (f + 1.0F)) {
+                            w.setBlock(x + j, y + i, z + k, Blocks.end_stone, 0, 3);
+                        }
+                    }
+                }
+                f = (float) ((double) f - ((double) rand.nextInt(2) + 0.5D));
+            }
         }
 
         @Override
@@ -1117,14 +1269,23 @@ public final class End112 implements IWorldGenerator {
         public void addCollisionBoxesToList(World world, int x, int y, int z, AxisAlignedBB mask, List list, Entity entity) {
         }
 
+        /** BlockEndGateway.onEntityCollidedWithBlock -> TileEntityEndGateway.teleportEntity of 1.12.2. */
         @Override
         public void onEntityCollidedWithBlock(World world, int x, int y, int z, Entity entity) {
-            if (world.isRemote || entity.ridingEntity != null || entity.riddenByEntity != null || !(entity instanceof EntityPlayer)
-                    || entity.timeUntilPortal > 0) {
+            if (world.isRemote || entity.ridingEntity != null || entity.riddenByEntity != null) {
+                return;
+            }
+            net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
+            if (!GATEWAY_OLD && tile instanceof GatewayTile) {
+                if (((GatewayTile) tile).cooldown <= 0 && !(entity instanceof net.minecraft.entity.boss.EntityDragon) && !(entity instanceof net.minecraft.entity.boss.EntityWither)) {
+                    ((GatewayTile) tile).teleport(entity);
+                }
+                return;
+            }
+            if (!(entity instanceof EntityPlayer) || entity.timeUntilPortal > 0) {
                 return;
             }
             entity.timeUntilPortal = 100;
-            net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
             if (tile instanceof GatewayTile) {
                 ((GatewayTile) tile).cooldown = 40;
             }

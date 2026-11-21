@@ -90,6 +90,9 @@ public final class ClientProxy extends CommonProxy {
         SpectatorClient spectator = new SpectatorClient();
         MinecraftForge.EVENT_BUS.register(spectator);
         FMLCommonHandler.instance().bus().register(spectator);
+        SpectatorMenu menu = new SpectatorMenu();
+        MinecraftForge.EVENT_BUS.register(menu);
+        FMLCommonHandler.instance().bus().register(menu);
         cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityGuardian.class, new RenderGuardian());
         cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.EntityElderGuardian.class, new RenderGuardian());
     }

@@ -68,6 +68,26 @@ public final class HbmVillageGuard {
         return start;
     }
 
+    /** Dungeons not built because they would reach into a village area (for tests). */
+    public static int dungeonsBlocked;
+
+    /**
+     * From HbmWorldGen.generateSurface instead of dungeon.generate(world, rand, x, y, z): these buildings start at
+     * (x, z) and reach up to about 80 blocks in +x and +z (DesertAtom001), so the square from 16 before to 96 past the
+     * corner is checked against the village areas.
+     */
+    public static boolean dungeon(net.minecraft.world.gen.feature.WorldGenerator gen, World world, Random rand, int x, int y, int z) {
+        if (!"1".equals(System.getProperty("mc112.hbmInVillages")) && world.provider != null && world.provider.dimensionId == 0
+            && world.getWorldInfo().isMapFeaturesEnabled() && villageArea(world, x - 16, z - 16, x + 96, z + 96)) {
+            dungeonsBlocked++;
+            if (DEBUG) {
+                org.apache.logging.log4j.LogManager.getLogger("mc112bridge").info("HBM dungeon " + gen.getClass().getName() + " at " + x + "," + y + "," + z + " not built: village area");
+            }
+            return false;
+        }
+        return gen.generate(world, rand, x, y, z);
+    }
+
     static int jigsawReach(MapGenBase gen) {
         try {
             Field next = gen.getClass().getDeclaredField("nextSpawn");

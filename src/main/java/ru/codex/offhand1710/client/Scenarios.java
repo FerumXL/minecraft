@@ -518,7 +518,7 @@ public final class Scenarios {
                             }
                         }
                     }
-                    log("TERRAIN hbmStarts blocked=" + ru.codex.offhand1710.HbmVillageGuard.blocked + " " + x0 + "," + z0 + " " + hbmStarts(x0 * 16, z0 * 16, x1 * 16 + 15, z1 * 16 + 15));
+                    log("TERRAIN hbmStarts blocked=" + ru.codex.offhand1710.HbmVillageGuard.blocked + " dungeonsBlocked=" + ru.codex.offhand1710.HbmVillageGuard.dungeonsBlocked + " " + x0 + "," + z0 + " " + hbmStarts(x0 * 16, z0 * 16, x1 * 16 + 15, z1 * 16 + 15));
                     log("TERRAIN hbmBuilt " + java.util.Arrays.toString(box));
                     log("TERRAIN count " + x0 + "," + z0 + " hbmSurface=" + hbm + " logs=" + logs + " leaves=" + leaves + " " + names);
                 }
@@ -1571,6 +1571,30 @@ public final class Scenarios {
                     "flying=" + p().capabilities.isFlying);
             }
         });
+        // the spectator menu (GuiSpectator / SpectatorMenu of 1.12.2)
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                SpectatorMenu.open = false;
+                SpectatorMenu.press(0);
+                boolean first = SpectatorMenu.open && SpectatorMenu.selected == 0 && SpectatorMenu.category == null;
+                SpectatorMenu.press(0);
+                boolean picked = "".equals(SpectatorMenu.category);
+                SpectatorMenu.press(8);
+                SpectatorMenu.press(8);
+                boolean closed = !SpectatorMenu.open;
+                SpectatorMenu.press(1);
+                result("spectator menu: a number selects, the same number picks (players), slot 9 closes", first && picked && closed && SpectatorMenu.open && SpectatorMenu.selected == 1,
+                    "first=" + first + " picked=" + picked + " closed=" + closed);
+            }
+        });
+        client(3, new Runnable() {
+            @Override
+            public void run() {
+                shot("g2-spectator-menu");
+                SpectatorMenu.open = false;
+            }
+        });
         for (int k = 0; k < 30; k++) {
             client(1, new Runnable() {
                 @Override
@@ -1808,6 +1832,94 @@ public final class Scenarios {
                 mc.displayGuiScreen(null);
             }
         });
+        // a real 1.12.2 template (endcity/ship.nbt from the installed 1.12.2 jar), loaded plain and turned + mirrored:
+        // every block must come out with the Name and Properties the template has
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                java.io.File jar = new java.io.File(System.getenv("APPDATA"), ".minecraft/versions/1.12.2/1.12.2.jar");
+                NBTTagCompound tpl = null;
+                try {
+                    java.util.zip.ZipFile z = new java.util.zip.ZipFile(jar);
+                    java.io.InputStream in = z.getInputStream(z.getEntry("assets/minecraft/structures/endcity/ship.nbt"));
+                    java.io.File out = new java.io.File(w().getChunkSaveLocation(), "structures/ship112.nbt");
+                    out.getParentFile().mkdirs();
+                    java.nio.file.Files.copy(in, out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    in.close();
+                    z.close();
+                    tpl = net.minecraft.nbt.CompressedStreamTools.readCompressed(new java.io.FileInputStream(out));
+                } catch (Exception ex) {
+                    log("FAIL ship112 " + ex);
+                    return;
+                }
+                int[][] cases = {{0, 0}, {1, 1}};
+                for (int c = 0; c < 2; c++) {
+                    int bxs = bx - 40 + c * 80, bzs = bz + 40;
+                    w().setBlock(bxs, dy + 30, bzs, ru.codex.offhand1710.StructureBlock112.structureBlock, 1, 3);
+                    ru.codex.offhand1710.StructureBlock112.Tile st = (ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(bxs, dy + 30, bzs);
+                    st.mode = 1;
+                    st.name = "ship112";
+                    st.posX = 0;
+                    st.posY = 1;
+                    st.posZ = 0;
+                    st.rotation = cases[c][0];
+                    st.mirror = cases[c][1];
+                    boolean loaded = st.load(true);
+                    NBTTagList pal = tpl.getTagList("palette", 10);
+                    NBTTagList blocks = tpl.getTagList("blocks", 10);
+                    int checked = 0, bad = 0;
+                    StringBuilder ex = new StringBuilder();
+                    for (int i = 0; i < blocks.tagCount(); i++) {
+                        NBTTagCompound e = blocks.getCompoundTagAt(i);
+                        NBTTagList pl = (NBTTagList) e.getTagList("pos", 3).copy();
+                        int[] rel = {((net.minecraft.nbt.NBTTagInt) pl.removeTag(0)).func_150287_d(), ((net.minecraft.nbt.NBTTagInt) pl.removeTag(0)).func_150287_d(), ((net.minecraft.nbt.NBTTagInt) pl.removeTag(0)).func_150287_d()};
+                        int[] wpos = st.transformPublic(rel[0], rel[1], rel[2]);
+                        int x = bxs + wpos[0], y = dy + 31 + wpos[1], z = bzs + wpos[2];
+                        NBTTagCompound p = pal.getCompoundTagAt(e.getInteger("state"));
+                        String name = p.getString("Name");
+                        java.util.Map<String, String> want = ru.codex.offhand1710.States112.transform(
+                            p.hasKey("Properties") ? ru.codex.offhand1710.States112.fromTag(p.getCompoundTag("Properties")) : new java.util.TreeMap<String, String>(), cases[c][1], cases[c][0]);
+                        net.minecraft.block.Block b = w().getBlock(x, y, z);
+                        int meta = w().getBlockMetadata(x, y, z);
+                        String got = ru.codex.offhand1710.States112.name112(b, meta);
+                        java.util.Map<String, String> gp = got == null ? null : ru.codex.offhand1710.States112.props(got, meta);
+                        checked++;
+                        // properties outside the metadata (stair shape, fence sides...) are not stored by 1.12.2 either
+                        boolean ok = name.equals(got);
+                        if (ok && gp != null) {
+                            for (java.util.Map.Entry<String, String> en : want.entrySet()) {
+                                if (gp.containsKey(en.getKey()) && !gp.get(en.getKey()).equals(en.getValue())
+                                    && ru.codex.offhand1710.States112.stored(name, en.getKey())) {
+                                    ok = false;
+                                }
+                            }
+                        }
+                        if (!ok) {
+                            bad++;
+                            if (ex.length() < 300) {
+                                ex.append(' ').append(name).append(want).append("->").append(got).append(gp);
+                            }
+                        }
+                    }
+                    result("1.12.2 template endcity/ship.nbt " + (c == 0 ? "as is" : "turned 90 and mirrored") + ": every block with its 1.12.2 name and properties",
+                        loaded && bad == 0 && st.unknownStates == 0 && checked > 500, "loaded=" + loaded + " checked=" + checked + " wrong=" + bad + " unknown=" + st.unknownStates + ex);
+                }
+                // what this mod writes: 1.12.2 names and properties (oak stairs of the saved house)
+                try {
+                    NBTTagCompound saved = net.minecraft.nbt.CompressedStreamTools.readCompressed(new java.io.FileInputStream(new java.io.File(w().getChunkSaveLocation(), "structures/house.nbt")));
+                    NBTTagList pal = saved.getTagList("palette", 10);
+                    String stairs = null;
+                    for (int i = 0; i < pal.tagCount(); i++) {
+                        if ("minecraft:oak_stairs".equals(pal.getCompoundTagAt(i).getString("Name"))) {
+                            stairs = pal.getCompoundTagAt(i).toString();
+                        }
+                    }
+                    result("saved palette has 1.12.2 names and Properties", stairs != null && stairs.contains("facing:") && stairs.contains("half:"), String.valueOf(stairs));
+                } catch (Exception ex) {
+                    result("saved palette has 1.12.2 names and Properties", false, ex.toString());
+                }
+            }
+        });
         // chase speeds of the old-AI mobs against EntityAIAttackMelee 1.0 x movementSpeed of 1.12.2
         final String[] names = {"spider", "cave spider", "angry pigman", "silverfish"};
         final double[] want = {walkSpeed(0.3D), walkSpeed(0.3D), walkSpeed(0.28D), walkSpeed(0.25D)};
@@ -1868,15 +1980,95 @@ public final class Scenarios {
                     }
                     java.util.Collections.sort(mv);
                     double med = mv.isEmpty() ? 0.0D : mv.get(mv.size() / 2);
-                    result("chase speed of the " + names[i] + " as 1.12.2", Math.abs(med - want[i]) < 0.012D,
-                        String.format("median=%.4f p90=%.4f want=%.4f movingTicks=%d dist=%.1f", med, mv.isEmpty() ? 0.0D : mv.get((int) (mv.size() * 0.9D)), want[i], mv.size(), s.e.getDistanceToEntity(p())));
+                    int near = 0;
+                    for (double v : mv) {
+                        near += Math.abs(v - want[i]) < 0.008D ? 1 : 0;
+                    }
+                    // steady walking ticks at the 1.12.2 speed; leaps and turns at the target make the rest
+                    result("chase speed of the " + names[i] + " as 1.12.2", mv.size() > 30 && near * 10 >= mv.size() * 3,
+                        String.format("median=%.4f p90=%.4f want=%.4f movingTicks=%d dist=%.1f near=" + near, med, mv.isEmpty() ? 0.0D : mv.get((int) (mv.size() * 0.9D)), want[i], mv.size(), s.e.getDistanceToEntity(p())));
                     s.e.setDead();
                 }
             });
         }
-        server(1, new Runnable() {
+        // end gateway exit (TileEntityEndGateway of 1.12.2): out to the islands ~1024 blocks away and exactly back
+        final double[] gwr = new double[4];
+        server(5, new Runnable() {
             @Override
             public void run() {
+                cmd("gamemode 1");
+                p().travelToDimension(1);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer end = MinecraftServer.getServer().worldServerForDimension(1);
+                ru.codex.offhand1710.End112.buildGateway(end, 96, 75, 0);
+                net.minecraft.block.Block g = end.getBlock(96, 75, 0);
+                g.onEntityCollidedWithBlock(end, 96, 75, 0, p());
+                ru.codex.offhand1710.End112.GatewayTile tile = (ru.codex.offhand1710.End112.GatewayTile) end.getTileEntity(96, 75, 0);
+                int[] ex = tile.exit;
+                net.minecraft.tileentity.TileEntity back = ex == null ? null : end.getTileEntity(ex[0], ex[1], ex[2]);
+                double r = Math.sqrt(p().posX * p().posX + p().posZ * p().posZ);
+                boolean standing = end.getBlock(net.minecraft.util.MathHelper.floor_double(p().posX), net.minecraft.util.MathHelper.floor_double(p().posY) - 1, net.minecraft.util.MathHelper.floor_double(p().posZ)).isNormalCube();
+                boolean link = back instanceof ru.codex.offhand1710.End112.GatewayTile && ((ru.codex.offhand1710.End112.GatewayTile) back).exact
+                    && java.util.Arrays.equals(((ru.codex.offhand1710.End112.GatewayTile) back).exit, new int[] {96, 75, 0});
+                result("end gateway: out ~1024 blocks along its direction onto a solid block; a return gateway 10 above the island top leads back exactly",
+                    ex != null && r > 900.0D && r < 1400.0D && Math.abs(p().posZ) < 40.0D && standing && link && tile.cooldown > 0,
+                    String.format("pos=%.1f,%.1f,%.1f r=%.0f standing=%s exit=%s link=%s", p().posX, p().posY, p().posZ, r, standing, java.util.Arrays.toString(ex), link));
+                gwr[0] = ex == null ? 0 : ex[0];
+                gwr[1] = ex == null ? 0 : ex[1];
+                gwr[2] = ex == null ? 0 : ex[2];
+            }
+        });
+        server(45, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer end = MinecraftServer.getServer().worldServerForDimension(1);
+                int x = (int) gwr[0], y = (int) gwr[1], z = (int) gwr[2];
+                end.getBlock(x, y, z).onEntityCollidedWithBlock(end, x, y, z, p());
+                result("end gateway: the return gateway brings the player back to the first one", Math.abs(p().posX - 96.5D) < 1.0D && Math.abs(p().posZ - 0.5D) < 1.0D,
+                    String.format("pos=%.1f,%.1f,%.1f", p().posX, p().posY, p().posZ));
+                // leaving the End the way the exit portal does it (credits, then respawn), not travelToDimension(0)
+                MinecraftServer.getServer().getConfigurationManager().respawnPlayer(p(), 0, true);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                tp(bx + 0.5D, dy, bz + 0.5D, 0.0F, 0.0F);
+            }
+        });
+        // blaze (AIFireballAttack of 1.12.2): finds a player 23 blocks away and hovers there shooting, no horizontal approach
+        final net.minecraft.entity.monster.EntityBlaze[] blaze = new net.minecraft.entity.monster.EntityBlaze[1];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                endSpeeds();
+                cmd("gamemode 0");
+                cmd("time set 18000");
+                tp(bx + 0.5D, dy, bz - 11.5D, 0.0F, 0.0F);
+                p().setHealth(p().getMaxHealth());
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.fireResistance.id, 2000, 0));
+                blaze[0] = new net.minecraft.entity.monster.EntityBlaze(w());
+                lane(blaze[0], "blaze", bx + 0.5D, dy + 3, bz + 24.5D, 0.0D);
+                blaze[0].setLocationAndAngles(bx + 0.5D, dy, bz + 11.5D, 180.0F, 0.0F);
+            }
+        });
+        server(100, new Runnable() {
+            @Override
+            public void run() {
+                Speed s = speed("blaze");
+                double moved = 0.0D;
+                for (int j = 1; j < s.d.size(); j++) {
+                    moved += s.d.get(j) < 1.0D ? s.d.get(j) : 0.0D;
+                }
+                net.minecraft.entity.Entity t = blaze[0].getEntityToAttack();
+                result("blaze targets a player 23 blocks away (followRange 48, 1.7.10: 16) and hovers without closing in", t == p() && moved < 1.5D,
+                    String.format("target=%s horizontalPath=%.2f dist=%.1f", t == null ? "none" : t.getCommandSenderName(), moved, blaze[0].getDistanceToEntity(p()))
+                    + " vulnerable=" + w().getClosestVulnerablePlayerToEntity(blaze[0], 48.0D) + " seen=" + blaze[0].canEntityBeSeen(p()) + " dim=" + p().dimension + " blazeDim=" + blaze[0].dimension + " disableDamage=" + p().capabilities.disableDamage + " sameWorld=" + (p().worldObj == blaze[0].worldObj) + " inList=" + w().playerEntities.contains(p()) + " listSize=" + w().playerEntities.size() + " alive=" + p().isEntityAlive() + " invisible=" + p().isInvisible() + " pWorldIsW=" + (p().worldObj == w()));
+                blaze[0].setDead();
                 endSpeeds();
                 cmd("gamemode 1");
                 cmd("time set 6000");

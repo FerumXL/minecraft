@@ -407,7 +407,8 @@ public final class Transformer implements IClassTransformer {
                     }
                 }
             }
-            return write(node);
+            // no return: the Client122 hooks further down patch EntityRenderer too (glow after the hand, 0.30.0)
+            bytes = write(node);
         }
         if ("net.minecraft.world.biome.BiomeDecorator".equals(transformedName)) {
             ClassNode node = read(bytes);
@@ -426,6 +427,27 @@ public final class Transformer implements IClassTransformer {
                     }
                 }
             }
+            return write(node);
+        }
+        if ("com.hbm.lib.HbmWorldGen".equals(transformedName)) {
+            // the old HBM surface generator builds its "dungeons" (DesertAtom001, Antenna, Radio, Factory...) straight
+            // from IWorldGenerator.generate, not as structures: every such generate call goes through the village check
+            ClassNode node = read(bytes);
+            int patched = 0;
+            for (MethodNode m : node.methods) {
+                for (AbstractInsnNode n : m.instructions.toArray()) {
+                    if (n instanceof MethodInsnNode && n.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                        MethodInsnNode mi = (MethodInsnNode) n;
+                        if (mi.owner.startsWith("com/hbm/world/dungeon/") && ("func_76484_a".equals(mi.name) || "generate".equals(mi.name))
+                            && "(Lnet/minecraft/world/World;Ljava/util/Random;III)Z".equals(mi.desc)) {
+                            m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/HbmVillageGuard", "dungeon",
+                                "(Lnet/minecraft/world/gen/feature/WorldGenerator;Lnet/minecraft/world/World;Ljava/util/Random;III)Z", false));
+                            patched++;
+                        }
+                    }
+                }
+            }
+            org.apache.logging.log4j.LogManager.getLogger("mc112bridge").info("HBM surface dungeons routed through the village check: " + patched + " calls");
             return write(node);
         }
         if ("com.hbm.world.gen.nbt.NBTStructure$GenStructure".equals(transformedName) || "com.hbm.world.gen.MapGenNTMFeatures".equals(transformedName)) {
@@ -498,6 +520,23 @@ public final class Transformer implements IClassTransformer {
         }
         if ("net.minecraft.world.gen.layer.IntCache".equals(transformedName)) {
             return intCache(bytes);
+        }
+        if ("net.minecraft.world.chunk.Chunk".equals(transformedName) && System.getProperty("mc112.traceBlocks") != null) {
+            // debugging only: who sets which block where (BlockTrace)
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if ("func_150807_a".equals(m.name) && "(IIILnet/minecraft/block/Block;I)Z".equals(m.desc)) {
+                    InsnList call = new InsnList();
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    call.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                    call.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                    call.add(new VarInsnNode(Opcodes.ILOAD, 3));
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 4));
+                    call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/BlockTrace", "onSet", "(Lnet/minecraft/world/chunk/Chunk;IIILnet/minecraft/block/Block;)V", false));
+                    m.instructions.insert(call);
+                }
+            }
+            return write(node);
         }
         if ("net.minecraft.world.World".equals(transformedName)) {
             return nullChunkGuard(bytes);

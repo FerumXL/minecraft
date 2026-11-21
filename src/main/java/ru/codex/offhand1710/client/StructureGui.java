@@ -280,6 +280,16 @@ public final class StructureGui extends GuiScreen {
 
     /** TileEntityStructureRenderer of 1.12.2: the white box of the structure in save and load mode. */
     public static final class Render extends TileEntitySpecialRenderer {
+        private static void cube(Tessellator t, double x0, double y0, double z0, double x1, double y1, double z1) {
+            double[][] e = {{x0, y0, z0, x1, y0, z0}, {x0, y0, z1, x1, y0, z1}, {x0, y1, z0, x1, y1, z0}, {x0, y1, z1, x1, y1, z1},
+                {x0, y0, z0, x0, y1, z0}, {x1, y0, z0, x1, y1, z0}, {x0, y0, z1, x0, y1, z1}, {x1, y0, z1, x1, y1, z1},
+                {x0, y0, z0, x0, y0, z1}, {x1, y0, z0, x1, y0, z1}, {x0, y1, z0, x0, y1, z1}, {x1, y1, z0, x1, y1, z1}};
+            for (double[] l : e) {
+                t.addVertex(l[0], l[1], l[2]);
+                t.addVertex(l[3], l[4], l[5]);
+            }
+        }
+
         @Override
         public void renderTileEntityAt(TileEntity te, double x, double y, double z, float partial) {
             if (!(te instanceof StructureBlock112.Tile)) {
@@ -306,6 +316,30 @@ public final class StructureGui extends GuiScreen {
                 tes.addVertex(l[3], l[4], l[5]);
             }
             tes.draw();
+            // TileEntityStructureRenderer.renderInvisibleBlocks: air as a small blue cube, structure void as a pink one
+            if (t.showAir && t.mode == 0 && t.sizeX * t.sizeY * t.sizeZ <= 32768) {
+                tes.startDrawing(GL11.GL_LINES);
+                int bx = t.xCoord + t.posX, by = t.yCoord + t.posY, bz = t.zCoord + t.posZ;
+                for (int ix = 0; ix < t.sizeX; ix++) {
+                    for (int iy = 0; iy < t.sizeY; iy++) {
+                        for (int iz = 0; iz < t.sizeZ; iz++) {
+                            net.minecraft.block.Block b = te.getWorldObj().getBlock(bx + ix, by + iy, bz + iz);
+                            boolean air = b.getMaterial() == net.minecraft.block.material.Material.air && b != ru.codex.offhand1710.StructureBlock112.structureVoid;
+                            boolean voidBlock = b == ru.codex.offhand1710.StructureBlock112.structureVoid;
+                            if (air || voidBlock) {
+                                double lo = air ? 0.45D : 0.4D, hi = air ? 0.55D : 0.6D;
+                                if (air) {
+                                    tes.setColorRGBA_F(0.5F, 0.5F, 1.0F, 1.0F);
+                                } else {
+                                    tes.setColorRGBA_F(1.0F, 0.75F, 0.75F, 1.0F);
+                                }
+                                cube(tes, x0 + ix + lo, y0 + iy + lo, z0 + iz + lo, x0 + ix + hi, y0 + iy + hi, z0 + iz + hi);
+                            }
+                        }
+                    }
+                }
+                tes.draw();
+            }
             GL11.glLineWidth(1.0F);
             GL11.glEnable(GL11.GL_FOG);
             GL11.glEnable(GL11.GL_TEXTURE_2D);

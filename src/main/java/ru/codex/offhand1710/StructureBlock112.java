@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Map;
 
 import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -196,6 +197,8 @@ public final class StructureBlock112 {
         public boolean ignoreEntities = true, powered, showAir, showBoundingBox = true;
         public float integrity = 1.0F;
         public long seed;
+        /** Palette entries of a loaded template that had no 1.7.10 block or state (for tests). */
+        public int unknownStates;
 
         @Override
         public boolean canUpdate() {
@@ -324,8 +327,21 @@ public final class StructureBlock112 {
                         if (state == null) {
                             state = index.size();
                             index.put(key, state);
+                            // Name and Properties as a 1.12.2 template has them (States112); Meta and the 1.7.10 name for this mod
                             NBTTagCompound p = new NBTTagCompound();
-                            p.setString("Name", id);
+                            String n12 = States112.name112(b, meta);
+                            if (n12 != null) {
+                                p.setString("Name", n12);
+                                Map<String, String> props = States112.props(n12, meta);
+                                if (props != null && !props.isEmpty()) {
+                                    p.setTag("Properties", States112.propsTag(props));
+                                }
+                                if (!n12.equals(id)) {
+                                    p.setString("mc112Block", id);
+                                }
+                            } else {
+                                p.setString("Name", id);
+                            }
                             p.setInteger("Meta", meta);
                             palette.appendTag(p);
                         }
@@ -419,11 +435,41 @@ public final class StructureBlock112 {
             NBTTagList palette = t.getTagList("palette", 10);
             Block[] pb = new Block[palette.tagCount()];
             int[] pm = new int[palette.tagCount()];
+            boolean[] turnByBlock = new boolean[palette.tagCount()];
             for (int i = 0; i < pb.length; i++) {
                 NBTTagCompound p = palette.getCompoundTagAt(i);
-                Block b = Block.getBlockFromName(p.getString("Name"));
+                String name = p.getString("Name");
+                Block b;
+                int meta;
+                if (p.hasKey("Meta")) {
+                    // written by this mod: exact block and metadata
+                    b = Block.getBlockFromName(p.hasKey("mc112Block") ? p.getString("mc112Block") : name);
+                    meta = p.getInteger("Meta");
+                } else {
+                    // a 1.12.2 template: the state from Name and Properties
+                    b = States112.block17(name);
+                    meta = States112.meta(name, p.hasKey("Properties") ? States112.fromTag(p.getCompoundTag("Properties")) : new java.util.TreeMap<String, String>());
+                    if (meta < 0) {
+                        Map<String, String> def = States112.props(name, 0);
+                        meta = 0;
+                        unknownStates++;
+                    }
+                }
                 pb[i] = b == null ? Blocks.air : b;
-                pm[i] = p.getInteger("Meta");
+                if (b == null) {
+                    unknownStates++;
+                }
+                // mirror and rotation by the block's properties (IBlockState.withMirror / withRotation of 1.12.2)
+                String n12 = States112.name112(pb[i], meta & 15);
+                int turned = -1;
+                if (n12 != null && (mirror != 0 || rotation != 0)) {
+                    Map<String, String> pr = States112.props(n12, meta & 15);
+                    if (pr != null) {
+                        turned = States112.meta(n12, States112.transform(pr, mirror, rotation));
+                    }
+                }
+                pm[i] = turned >= 0 ? turned : meta & 15;
+                turnByBlock[i] = turned < 0 && rotation != 0;
             }
             int ox = xCoord + posX, oy = yCoord + posY, oz = zCoord + posZ;
             Random rand = seed == 0L ? new Random() : new Random(seed);
@@ -444,7 +490,13 @@ public final class StructureBlock112 {
                 int x = ox + w[0], y = oy + w[1], z = oz + w[2];
                 int s = e.getInteger("state");
                 Block b = s >= 0 && s < pb.length ? pb[s] : Blocks.air;
-                worldObj.setBlock(x, y, z, b, s >= 0 && s < pm.length ? pm[s] & 15 : 0, 2);
+                int wantMeta = s >= 0 && s < pm.length ? pm[s] & 15 : 0;
+                worldObj.setBlock(x, y, z, b, wantMeta, 2);
+                // 1.7.10 blocks such as the chest turn themselves on placement (onBlockAdded); the template's metadata wins
+                if (worldObj.getBlock(x, y, z) == b && worldObj.getBlockMetadata(x, y, z) != wantMeta) {
+                    worldObj.setBlockMetadataWithNotify(x, y, z, wantMeta, 2);
+                }
+                boolean byBlock = s >= 0 && s < turnByBlock.length && turnByBlock[s];
                 if (e.hasKey("nbt")) {
                     TileEntity te = worldObj.getTileEntity(x, y, z);
                     if (te != null) {
@@ -456,12 +508,12 @@ public final class StructureBlock112 {
                         te.markDirty();
                     }
                 }
-                placed.add(new int[] {x, y, z});
+                placed.add(new int[] {x, y, z, byBlock ? 1 : 0});
             }
-            // Block.rotateBlock turns the 1.7.10 metadata of stairs, logs, doors, torches and the like
+            // blocks without a 1.12.2 state (other mods) are turned by Block.rotateBlock
             for (int[] p : placed) {
                 Block b = worldObj.getBlock(p[0], p[1], p[2]);
-                for (int r = 0; r < rotation; r++) {
+                for (int r = 0; p[3] == 1 && r < rotation; r++) {
                     b.rotateBlock(worldObj, p[0], p[1], p[2], ForgeDirection.UP);
                 }
                 worldObj.markBlockForUpdate(p[0], p[1], p[2]);
@@ -485,6 +537,10 @@ public final class StructureBlock112 {
             }
             changed();
             return true;
+        }
+
+        public int[] transformPublic(int x, int y, int z) {
+            return transform(x, y, z);
         }
 
         /** Template.transformedBlockPos: mirror first (LEFT_RIGHT flips z, FRONT_BACK flips x), then rotation. */

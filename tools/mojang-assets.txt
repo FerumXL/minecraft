@@ -1647,3 +1647,4 @@ src/main/resources/assets/mc112bridge/textures/blocks/structure_block_data.png	e
 src/main/resources/assets/mc112bridge/textures/items/structure_void.png	518c6eb0d79c497d9a889a65225dab5118f7178e	jar:assets/minecraft/textures/items/structure_void.png
 src/main/resources/assets/mc112bridge/textures/blocks/structure_block.png	9791ef0fd500ff23c0f2255abdac27d262282d53	jar:assets/minecraft/textures/blocks/structure_block.png
 src/main/resources/assets/mc112bridge/textures/blocks/structure_block_corner.png	7450a85b0abae28fc013720528eedd927dec0744	jar:assets/minecraft/textures/blocks/structure_block_corner.png
+src/main/resources/assets/mc112bridge/textures/gui/spectator_widgets.png	231a54ffb7998279885a6d98f072971e5d0c82a6	jar:assets/minecraft/textures/gui/spectator_widgets.png

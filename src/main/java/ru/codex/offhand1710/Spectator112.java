@@ -222,6 +222,45 @@ public final class Spectator112 {
         }
     }
 
+    /** Client -> server: CPacketSpectate of 1.12.2, teleport this spectator to the named player (any dimension). */
+    public static final class TeleportMsg implements IMessage {
+        public String name;
+
+        public TeleportMsg() {
+        }
+
+        public TeleportMsg(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf b) {
+            name = cpw.mods.fml.common.network.ByteBufUtils.readUTF8String(b);
+        }
+
+        @Override
+        public void toBytes(ByteBuf b) {
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(b, name);
+        }
+    }
+
+    public static final class TeleportHandler implements IMessageHandler<TeleportMsg, IMessage> {
+        @Override
+        public IMessage onMessage(TeleportMsg m, MessageContext context) {
+            EntityPlayerMP p = context.getServerHandler().playerEntity;
+            EntityPlayerMP target = net.minecraft.server.MinecraftServer.getServer().getConfigurationManager().func_152612_a(m.name);
+            if (!is(p) || target == null || target == p) {
+                return null;
+            }
+            SPECTATING.remove(p);
+            if (target.dimension != p.dimension) {
+                net.minecraft.server.MinecraftServer.getServer().getConfigurationManager().transferPlayerToDimension(p, target.dimension);
+            }
+            p.playerNetServerHandler.setPlayerLocation(target.posX, target.posY, target.posZ, target.rotationYaw, target.rotationPitch);
+            return null;
+        }
+    }
+
     /** Server -> clients: a player entered or left spectator mode. */
     public static final class Msg implements IMessage {
         public int entityId;
