@@ -19,7 +19,7 @@ import net.minecraft.util.WeightedRandomChestContent;
 import net.minecraftforge.common.ChestGenHooks;
 
 /** Fills the vanilla chest categories from the loot tables of 1.12.2 kept as data in the mod. */
-final class Loot112 {
+public final class Loot112 {
     private static final Map<String, String> ALIAS = new HashMap<String, String>();
 
     static {
@@ -157,5 +157,20 @@ final class Loot112 {
         fill(ChestGenHooks.STRONGHOLD_LIBRARY, "stronghold_library");
         fill(ChestGenHooks.VILLAGE_BLACKSMITH, "village_blacksmith");
         fill(ChestGenHooks.BONUS_CHEST, "spawn_bonus_chest");
+        fill(NETHER_BRIDGE, "nether_bridge");
+    }
+
+    /** Own category: 1.7.10 fills fortress chests from a fixed array, the coremod points them here. */
+    public static final String NETHER_BRIDGE = "mc112NetherBridge";
+
+    /** Called by StructureNetherBridgePieces$Corridor/Corridor2 in place of their chest list. */
+    public static WeightedRandomChestContent[] netherBridge() {
+        return ChestGenHooks.getItems(NETHER_BRIDGE, new Random());
+    }
+
+    /** The bound of "2 + rand.nextInt(bound)" there: 3 gives the 2..4 rolls of nether_bridge.json. */
+    public static int netherBridgeSpan() {
+        ChestGenHooks info = ChestGenHooks.getInfo(NETHER_BRIDGE);
+        return Math.max(1, info.getMax() - info.getMin() + 1);
     }
 }

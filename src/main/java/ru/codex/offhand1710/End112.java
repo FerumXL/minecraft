@@ -1489,6 +1489,7 @@ public final class End112 implements IWorldGenerator {
             if (grow && surrounded(world, x, y + 1, z, 0, 0) && world.isAirBlock(x, y + 2, z)) {
                 world.setBlock(x, y, z, chorusPlant, 0, 2);
                 world.setBlock(x, y + 1, z, this, age, 2);
+                Sounds112.chorus(world, x, y + 1, z, true);
             } else if (age < 4) {
                 int tries = random.nextInt(4);
                 if (island) {
@@ -1502,6 +1503,7 @@ public final class End112 implements IWorldGenerator {
                     int nz = z + s[1];
                     if (world.isAirBlock(nx, y, nz) && world.isAirBlock(nx, y - 1, nz) && surrounded(world, nx, y, nz, -s[0], -s[1])) {
                         world.setBlock(nx, y, nz, this, age + 1, 2);
+                        Sounds112.chorus(world, nx, y, nz, true);
                         branched = true;
                     }
                 }
@@ -1509,9 +1511,11 @@ public final class End112 implements IWorldGenerator {
                     world.setBlock(x, y, z, chorusPlant, 0, 2);
                 } else {
                     world.setBlockMetadataWithNotify(x, y, z, 5, 2);
+                    Sounds112.chorus(world, x, y, z, false);
                 }
             } else {
                 world.setBlockMetadataWithNotify(x, y, z, 5, 2);
+                Sounds112.chorus(world, x, y, z, false);
             }
         }
 

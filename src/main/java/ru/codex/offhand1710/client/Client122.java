@@ -243,7 +243,9 @@ public final class Client122 {
         if (!subtitles || event.sound == null) {
             return;
         }
-        String key = CAPTIONS.get(event.sound.getPositionedSoundLocation().toString());
+        // after Sounds112Client, which may have put the 1.12 sound in its place
+        net.minecraft.client.audio.ISound sound = event.result != null ? event.result : event.sound;
+        String key = CAPTIONS.get(sound.getPositionedSoundLocation().toString());
         if (key == null) {
             key = CAPTIONS.get(event.name);
         }
@@ -254,18 +256,18 @@ public final class Client122 {
         for (Caption c : SHOWN) {
             if (c.text.equals(text)) {
                 c.time = System.currentTimeMillis();
-                c.x = event.sound.getXPosF();
-                c.y = event.sound.getYPosF();
-                c.z = event.sound.getZPosF();
+                c.x = sound.getXPosF();
+                c.y = sound.getYPosF();
+                c.z = sound.getZPosF();
                 return;
             }
         }
         Caption c = new Caption();
         c.text = text;
         c.time = System.currentTimeMillis();
-        c.x = event.sound.getXPosF();
-        c.y = event.sound.getYPosF();
-        c.z = event.sound.getZPosF();
+        c.x = sound.getXPosF();
+        c.y = sound.getYPosF();
+        c.z = sound.getZPosF();
         SHOWN.add(c);
     }
 

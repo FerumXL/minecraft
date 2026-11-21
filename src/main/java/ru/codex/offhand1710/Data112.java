@@ -186,6 +186,10 @@ public final class Data112 {
         String[] alias = ALIASES.get(name + ":" + data);
         if (alias == null) {
             alias = ALIASES.get(name + ":0");
+            if (alias != null && alias[0].equals(name)) {
+                // an identity entry only says the 1.12 name exists here; the metadata carries over (podzol, damaged anvils)
+                alias = null;
+            }
         }
         String registry = alias == null ? name : alias[0];
         int meta = alias == null ? data : Integer.parseInt(alias[1]);

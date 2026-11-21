@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -328,6 +328,10 @@ public final class Scenarios {
             group2();
         } else if ("gui".equals(STAGE)) {
             gui();
+        } else if ("registry".equals(STAGE)) {
+            registry();
+        } else if ("sounds".equals(STAGE)) {
+            sounds();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -1780,6 +1784,12 @@ public final class Scenarios {
                 result("SAVE writes structures/house.nbt (namespace dropped as in 1.12) with size, palette, blocks, entities and no void cell", saved && t != null
                     && t.getTagList("size", 3).tagCount() == 3 && t.getTagList("blocks", 10).tagCount() == 17 && t.getTagList("entities", 10).tagCount() == 1,
                     "saved=" + saved + " exists=" + f.exists() + (t == null ? "" : " blocks=" + t.getTagList("blocks", 10).tagCount() + " entities=" + t.getTagList("entities", 10).tagCount()));
+                if (t != null) {
+                    net.minecraft.nbt.NBTTagList es = t.getTagList("entities", 10);
+                    for (int i = 0; i < es.tagCount(); i++) {
+                        log("INFO saved entity " + es.getCompoundTagAt(i).getCompoundTag("nbt").getString("id") + " " + es.getCompoundTagAt(i).getTagList("pos", 6));
+                    }
+                }
                 pig.setDead();
                 // load at a second block 8 east, turned clockwise 90
                 w().setBlock(ax + 8, dy, az, sbk, 1, 3);
@@ -2370,6 +2380,496 @@ public final class Scenarios {
             flightLog.append(String.format(" [s%d y=%.0f v=%.2f mspt=%.1f srvChunks=%d genQueue=%d sendQueue=%d flying=%s]", flightTick / 20, p.posY, flightMaxSpeed, sum / (double) ticks.length / 1000000.0D,
                     w().theChunkProviderServer.getLoadedChunkCount(), ru.codex.offhand1710.ChunkStream.pending(), p.loadedChunks.size(), ru.codex.offhand1710.OffhandInventory.get(p).elytraFlying));
         }
+    }
+
+    /** Resolves every item of a 1.12.2 registry dump (MC112_ITEMS: "item	name	meta	unlocalized	tab") through the mod's 1.12 names. */
+    private void registry() {
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                int total = 0;
+                int missing = 0;
+                int renamed = 0;
+                try {
+                    java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(System.getenv("MC112_ITEMS")), "UTF-8"));
+                    for (String l; (l = r.readLine()) != null;) {
+                        String[] f = l.split("	");
+                        if (!"item".equals(f[0])) {
+                            continue;
+                        }
+                        total++;
+                        ItemStack s = ru.codex.offhand1710.Data112.item(f[1], Integer.parseInt(f[2]));
+                        if (s == null) {
+                            missing++;
+                            log("REG MISSING " + f[1] + " " + f[2] + " " + f[3] + " " + f[4]);
+                            continue;
+                        }
+                        String ours;
+                        try {
+                            ours = s.getUnlocalizedName();
+                        } catch (Throwable e) {
+                            ours = "!" + e;
+                        }
+                        String a = f[3].substring(f[3].lastIndexOf('.') + 1);
+                        String b = ours.substring(ours.lastIndexOf('.') + 1);
+                        if (!a.equalsIgnoreCase(b)) {
+                            renamed++;
+                            log("REG NAME " + f[1] + " " + f[2] + " " + f[3] + " -> " + ours + " " + Item.itemRegistry.getNameForObject(s.getItem()) + ":" + s.getItemDamage());
+                        }
+                    }
+                    r.close();
+                } catch (IOException e) {
+                    log("FAIL registry " + e);
+                }
+                log("REG total=" + total + " missing=" + missing + " renamed=" + renamed);
+                // 1.12 fortress chests: real Corridor pieces with their chest forced on
+                int chests = 0;
+                int obsidian = 0;
+                int most = 0;
+                int fewest = 99;
+                java.util.Random rand = new java.util.Random(112L);
+                try {
+                    java.lang.reflect.Field made = null;
+                    for (java.lang.reflect.Field f : net.minecraft.world.gen.structure.StructureNetherBridgePieces.Corridor.class.getDeclaredFields()) {
+                        if (f.getType() == boolean.class) {
+                            made = f;
+                        }
+                    }
+                    made.setAccessible(true);
+                    for (int i = 0; i < 200; i++) {
+                        int x = 3000 + (i % 20) * 8;
+                        int z = 3000 + (i / 20) * 8;
+                        net.minecraft.world.gen.structure.StructureNetherBridgePieces.Corridor c = net.minecraft.world.gen.structure.StructureNetherBridgePieces.Corridor
+                            .createValidComponent(new java.util.ArrayList(), rand, x, 100, z, 0, 0);
+                        made.setBoolean(c, true);
+                        net.minecraft.world.gen.structure.StructureBoundingBox box = c.getBoundingBox();
+                        c.addComponentParts(w(), rand, new net.minecraft.world.gen.structure.StructureBoundingBox(box.minX - 1, box.minY - 1, box.minZ - 1, box.maxX + 1, box.maxY + 1, box.maxZ + 1));
+                        for (int bx = box.minX; bx <= box.maxX; bx++) {
+                            for (int by = box.minY; by <= box.maxY; by++) {
+                                for (int bz = box.minZ; bz <= box.maxZ; bz++) {
+                                    net.minecraft.tileentity.TileEntity te = w().getTileEntity(bx, by, bz);
+                                    if (te instanceof net.minecraft.tileentity.TileEntityChest) {
+                                        net.minecraft.tileentity.TileEntityChest chest = (net.minecraft.tileentity.TileEntityChest) te;
+                                        int stacks = 0;
+                                        for (int s = 0; s < chest.getSizeInventory(); s++) {
+                                            ItemStack st = chest.getStackInSlot(s);
+                                            if (st != null) {
+                                                stacks++;
+                                                if (st.getItem() == Item.getItemFromBlock(net.minecraft.init.Blocks.obsidian)) {
+                                                    obsidian++;
+                                                }
+                                                chest.setInventorySlotContents(s, null);
+                                            }
+                                        }
+                                        chests++;
+                                        most = Math.max(most, stacks);
+                                        fewest = Math.min(fewest, stacks);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable e) {
+                    log("FAIL fortress chest " + e);
+                }
+                result("fortress chests 1.12", chests >= 150 && obsidian > 0 && most <= 4 && fewest >= 1, "chests=" + chests + " obsidianStacks=" + obsidian + " stacks=" + fewest + ".." + most);
+                result("registry names", missing <= 1, "missing=" + missing + " (air has no item in 1.7.10)");
+                for (Object k : Item.itemRegistry.getKeys()) {
+                    Item it = (Item) Item.itemRegistry.getObject(k);
+                    java.util.List<ItemStack> subs = new java.util.ArrayList<ItemStack>();
+                    try {
+                        it.getSubItems(it, null, subs);
+                    } catch (Throwable e) {
+                        subs.clear();
+                    }
+                    if (subs.isEmpty()) {
+                        subs.add(new ItemStack(it));
+                    }
+                    for (ItemStack s : subs) {
+                        String un;
+                        try {
+                            un = s.getUnlocalizedName();
+                        } catch (Throwable e) {
+                            un = "?";
+                        }
+                        log("REG MOD " + k + " " + s.getItemDamage() + " " + un);
+                    }
+                }
+            }
+        });
+        finish();
+    }
+
+    /** Hears what Sounds112 played or renamed last; the squid's names come straight from its own methods. */
+    public static final class SoundEar {
+        String entity = "";
+        String client = "";
+
+        @cpw.mods.fml.common.eventhandler.SubscribeEvent(priority = cpw.mods.fml.common.eventhandler.EventPriority.LOWEST)
+        public void onEntity(net.minecraftforge.event.entity.PlaySoundAtEntityEvent event) {
+            entity = String.valueOf(event.name);
+        }
+
+        @cpw.mods.fml.common.eventhandler.SubscribeEvent(priority = cpw.mods.fml.common.eventhandler.EventPriority.LOWEST)
+        public void onClient(net.minecraftforge.client.event.sound.PlaySoundEvent17 event) {
+            client = String.valueOf((event.result != null ? event.result : event.sound).getPositionedSoundLocation());
+        }
+    }
+
+    private final SoundEar ear = new SoundEar();
+    private int sx;
+    private int sy;
+    private int sz;
+
+    private void heard(String label, String want) {
+        String got = ru.codex.offhand1710.Sounds112.last;
+        result("sound " + label, want.equals(got), "got=" + got);
+        ru.codex.offhand1710.Sounds112.last = "";
+    }
+
+    private void inHand(ItemStack s) {
+        p().inventory.setInventorySlotContents(p().inventory.currentItem, s);
+    }
+
+    private void look(double x, double y, double z) {
+        EntityPlayerMP pl = p();
+        pl.setPositionAndUpdate(x, y, z);
+        pl.prevPosX = pl.posX;
+        pl.prevPosY = pl.posY;
+        pl.prevPosZ = pl.posZ;
+        pl.rotationPitch = 90.0F;
+        pl.prevRotationPitch = 90.0F;
+        pl.rotationYaw = 0.0F;
+        pl.prevRotationYaw = 0.0F;
+    }
+
+    /** The 1.12.2 sounds that 1.7.10 lacks, each made the way the game makes it (Sounds112, asm.SoundPatches). */
+    private void sounds() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(ear);
+                cmd("gamemode 0");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 6000");
+                WorldServer w = w();
+                sx = (int) Math.floor(p().posX) + 20;
+                sy = 30;
+                sz = (int) Math.floor(p().posZ);
+                for (int dx = -12; dx <= 12; dx++) {
+                    for (int dz = -12; dz <= 12; dz++) {
+                        w.setBlock(sx + dx, sy - 1, sz + dz, Blocks.stone);
+                        for (int dy = 0; dy < 6; dy++) {
+                            w.setBlock(sx + dx, sy + dy, sz + dz, Blocks.air);
+                        }
+                    }
+                }
+                look(sx + 0.5D, sy, sz + 0.5D);
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer w = w();
+                EntityPlayerMP pl = p();
+                ru.codex.offhand1710.Sounds112.last = "";
+                net.minecraft.entity.monster.EntityWitch witch = new net.minecraft.entity.monster.EntityWitch(w);
+                witch.setPosition(sx + 3.5D, sy, sz + 3.5D);
+                w.spawnEntityInWorld(witch);
+                witch.playLivingSound();
+                heard("witch ambient", "entity.witch.ambient");
+                net.minecraft.entity.passive.EntityCow cow = new net.minecraft.entity.passive.EntityCow(w);
+                cow.setPosition(sx - 3.5D, sy, sz + 3.5D);
+                w.spawnEntityInWorld(cow);
+                witch.attackEntityWithRangedAttack(cow, 1.0F);
+                heard("witch throw", "entity.witch.throw");
+                witch.setFire(30);
+                for (int i = 0; i < 400 && !"entity.witch.drink".equals(ru.codex.offhand1710.Sounds112.last); i++) {
+                    witch.onLivingUpdate();
+                }
+                heard("witch drink", "entity.witch.drink");
+                net.minecraft.entity.monster.EntitySkeleton wither = new net.minecraft.entity.monster.EntitySkeleton(w);
+                wither.setSkeletonType(1);
+                wither.setPosition(sx + 3.5D, sy, sz - 3.5D);
+                w.spawnEntityInWorld(wither);
+                wither.playLivingSound();
+                heard("wither skeleton", "entity.wither_skeleton.ambient");
+                net.minecraft.entity.monster.EntityZombie zv = new net.minecraft.entity.monster.EntityZombie(w);
+                zv.setVillager(true);
+                zv.setPosition(sx - 3.5D, sy, sz - 3.5D);
+                w.spawnEntityInWorld(zv);
+                zv.playLivingSound();
+                heard("zombie villager", "entity.zombie_villager.ambient");
+                net.minecraft.entity.monster.EntitySnowman snow = new net.minecraft.entity.monster.EntitySnowman(w);
+                snow.setPosition(sx + 5.5D, sy, sz + 0.5D);
+                w.spawnEntityInWorld(snow);
+                ear.entity = "";
+                snow.attackEntityFrom(net.minecraft.util.DamageSource.generic, 1.0F);
+                result("sound snowman hurt", "mc112bridge:entity.snowman.hurt".equals(ear.entity), "got=" + ear.entity);
+                net.minecraft.entity.passive.EntitySquid squid = new net.minecraft.entity.passive.EntitySquid(w);
+                squid.setPosition(sx + 5.5D, sy, sz + 5.5D);
+                w.spawnEntityInWorld(squid);
+                ear.entity = "";
+                squid.playLivingSound();
+                result("sound squid ambient", "mc112bridge:entity.squid.ambient".equals(ear.entity), "got=" + ear.entity);
+                net.minecraft.enchantment.Enchantment.thorns.func_151367_b(pl, witch, 10);
+                heard("thorns", "enchant.thorns.hit");
+                pl.hurtResistantTime = 0;
+                pl.attackEntityFrom(net.minecraft.util.DamageSource.drown, 1.0F);
+                heard("player drown", "entity.player.hurt_drown");
+                pl.hurtResistantTime = 0;
+                pl.attackEntityFrom(net.minecraft.util.DamageSource.onFire, 1.0F);
+                heard("player burning", "entity.player.hurt_on_fire");
+                pl.setHealth(pl.getMaxHealth());
+                inHand(new ItemStack(Items.bucket));
+                pl.interactWith(cow);
+                heard("cow milk", "entity.cow.milk");
+                inHand(new ItemStack(Items.ender_eye));
+                result("sound eye launch name", "entity.endereye.launch".equals(ru.codex.offhand1710.Sounds112.rename(pl, "random.bow")), "");
+                witch.setDead();
+                wither.setDead();
+                zv.setDead();
+                snow.setDead();
+                squid.setDead();
+                cow.setDead();
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer w = w();
+                EntityPlayerMP pl = p();
+                // buckets: a water source in the floor, the player above it looking down
+                w.setBlock(sx + 2, sy - 1, sz, Blocks.water);
+                look(sx + 2.5D, sy, sz + 0.5D);
+                ItemStack empty = new ItemStack(Items.bucket);
+                inHand(empty);
+                Items.bucket.onItemRightClick(empty, w, pl);
+                heard("bucket fill", "item.bucket.fill");
+                look(sx - 6.5D, sy, sz - 6.5D);
+                Items.water_bucket.onItemRightClick(new ItemStack(Items.water_bucket), w, pl);
+                heard("bucket empty", "item.bucket.empty");
+                look(sx - 8.5D, sy, sz - 8.5D);
+                Items.lava_bucket.onItemRightClick(new ItemStack(Items.lava_bucket), w, pl);
+                heard("bucket empty lava", "item.bucket.empty_lava");
+                w.setBlock(sx - 6, sy, sz - 6, Blocks.air);
+                w.setBlock(sx - 8, sy, sz - 8, Blocks.air);
+                w.setBlock(sx + 4, sy - 1, sz, Blocks.water);
+                look(sx + 4.5D, sy, sz + 0.5D);
+                ItemStack bottle = new ItemStack(Items.glass_bottle);
+                inHand(bottle);
+                Items.glass_bottle.onItemRightClick(bottle, w, pl);
+                heard("bottle fill", "item.bottle.fill");
+                w.setBlock(sx + 2, sy - 1, sz, Blocks.stone);
+                w.setBlock(sx + 4, sy - 1, sz, Blocks.stone);
+                look(sx + 0.5D, sy, sz + 0.5D);
+                // armour put on with a right click
+                pl.inventory.armorInventory[2] = null;
+                Items.diamond_chestplate.onItemRightClick(new ItemStack(Items.diamond_chestplate), w, pl);
+                heard("equip diamond", "item.armor.equip_diamond");
+                pl.inventory.armorInventory[2] = null;
+                ru.codex.offhand1710.Elytra112.elytra.onItemRightClick(new ItemStack(ru.codex.offhand1710.Elytra112.elytra), w, pl);
+                heard("equip elytra", "item.armor.equip_elytra");
+                pl.inventory.armorInventory[2] = null;
+                pl.inventory.armorInventory[0] = null;
+                Items.leather_boots.onItemRightClick(new ItemStack(Items.leather_boots), w, pl);
+                heard("equip leather", "item.armor.equip_leather");
+                pl.inventory.armorInventory[0] = null;
+                // cauldron filled with a bucket
+                w.setBlock(sx - 2, sy, sz, Blocks.cauldron, 0, 3);
+                inHand(new ItemStack(Items.water_bucket));
+                Blocks.cauldron.onBlockActivated(w, sx - 2, sy, sz, pl, 1, 0.5F, 0.5F, 0.5F);
+                heard("cauldron bucket", "item.bucket.empty");
+            }
+        });
+        server(2, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer w = w();
+                EntityPlayerMP pl = p();
+                inHand(new ItemStack(Items.glass_bottle));
+                Blocks.cauldron.onBlockActivated(w, sx - 2, sy, sz, pl, 1, 0.5F, 0.5F, 0.5F);
+                heard("cauldron bottle", "item.bottle.fill");
+                // item frame on a wall: placed, item in, turned, item out, broken
+                for (int dx = -2; dx <= 2; dx++) {
+                    for (int dy = 0; dy < 4; dy++) {
+                        w.setBlock(sx + dx, sy + dy, sz + 3, Blocks.stone);
+                        w.setBlock(sx + dx, sy + dy, sz + 7, Blocks.stone);
+                    }
+                }
+                ItemStack frameItem = new ItemStack(Items.item_frame);
+                Items.item_frame.onItemUse(frameItem, pl, w, sx, sy + 1, sz + 3, 2, 0.5F, 0.5F, 0.0F);
+                heard("item frame place", "entity.itemframe.place");
+                java.util.List frames = w.getEntitiesWithinAABB(net.minecraft.entity.item.EntityItemFrame.class,
+                    net.minecraft.util.AxisAlignedBB.getBoundingBox(sx - 1, sy, sz + 1, sx + 2, sy + 3, sz + 4));
+                if (frames.isEmpty()) {
+                    log("FAIL sound item frame missing");
+                } else {
+                    net.minecraft.entity.item.EntityItemFrame frame = (net.minecraft.entity.item.EntityItemFrame) frames.get(0);
+                    inHand(new ItemStack(Items.diamond));
+                    frame.interactFirst(pl);
+                    heard("item frame add", "entity.itemframe.add_item");
+                    frame.interactFirst(pl);
+                    heard("item frame rotate", "entity.itemframe.rotate_item");
+                    frame.attackEntityFrom(net.minecraft.util.DamageSource.causePlayerDamage(pl), 1.0F);
+                    heard("item frame remove", "entity.itemframe.remove_item");
+                    frame.attackEntityFrom(net.minecraft.util.DamageSource.causePlayerDamage(pl), 1.0F);
+                    heard("item frame break", "entity.itemframe.break");
+                }
+                Items.painting.onItemUse(new ItemStack(Items.painting), pl, w, sx, sy + 1, sz + 7, 2, 0.5F, 0.5F, 0.0F);
+                heard("painting place", "entity.painting.place");
+                // a lead from a leashed cow tied to a fence: a new knot, then broken
+                w.setBlock(sx + 6, sy, sz - 6, Blocks.fence);
+                net.minecraft.entity.passive.EntityCow cow = new net.minecraft.entity.passive.EntityCow(w);
+                cow.setPosition(sx + 5.5D, sy, sz - 4.5D);
+                w.spawnEntityInWorld(cow);
+                cow.setLeashedToEntity(pl, true);
+                look(sx + 5.5D, sy, sz - 5.0D);
+                net.minecraft.item.ItemLead.func_150909_a(pl, w, sx + 6, sy, sz - 6);
+                heard("leash knot place", "entity.leashknot.place");
+                java.util.List knots = w.getEntitiesWithinAABB(net.minecraft.entity.EntityLeashKnot.class,
+                    net.minecraft.util.AxisAlignedBB.getBoundingBox(sx + 5, sy - 1, sz - 7, sx + 8, sy + 2, sz - 5));
+                if (!knots.isEmpty()) {
+                    ((net.minecraft.entity.Entity) knots.get(0)).attackEntityFrom(net.minecraft.util.DamageSource.causePlayerDamage(pl), 1.0F);
+                    heard("leash knot break", "entity.leashknot.break");
+                } else {
+                    log("FAIL sound leash knot missing");
+                }
+                cow.setDead();
+                look(sx + 0.5D, sy, sz + 0.5D);
+                // brewing finished
+                w.setBlock(sx - 4, sy, sz - 3, Blocks.brewing_stand);
+                net.minecraft.tileentity.TileEntityBrewingStand stand = (net.minecraft.tileentity.TileEntityBrewingStand) w.getTileEntity(sx - 4, sy, sz - 3);
+                stand.setInventorySlotContents(0, new ItemStack(Items.potionitem, 1, 0));
+                stand.setInventorySlotContents(3, new ItemStack(Items.nether_wart));
+                try {
+                    for (java.lang.reflect.Method m : net.minecraft.tileentity.TileEntityBrewingStand.class.getDeclaredMethods()) {
+                        if (("brewPotions".equals(m.getName()) || "func_145940_l".equals(m.getName())) && m.getParameterTypes().length == 0) {
+                            m.setAccessible(true);
+                            m.invoke(stand);
+                        }
+                    }
+                } catch (Exception e) {
+                    log("FAIL sound brewing " + e);
+                }
+                heard("brewing", "block.brewing_stand.brew");
+                // enchanting table
+                w.setBlock(sx - 4, sy, sz + 2, Blocks.enchanting_table);
+                net.minecraft.inventory.ContainerEnchantment table = new net.minecraft.inventory.ContainerEnchantment(pl.inventory, w, sx - 4, sy, sz + 2);
+                table.putStackInSlot(0, new ItemStack(Items.iron_sword));
+                pl.experienceLevel = 30;
+                boolean enchanted = table.enchantItem(pl, 0);
+                heard("enchanting table", enchanted ? "block.enchantment_table.use" : "(not enchanted)");
+                table.putStackInSlot(0, null);
+                // eyes of ender: one into a lone frame, then the last of twelve opens a portal
+                w.setBlock(sx + 9, sy, sz + 9, Blocks.end_portal_frame, 0, 3);
+                Items.ender_eye.onItemUse(new ItemStack(Items.ender_eye), pl, w, sx + 9, sy, sz + 9, 1, 0.5F, 0.5F, 0.5F);
+                heard("portal frame fill", "block.end_portal_frame.fill");
+                int cx = sx - 8;
+                int cz = sz + 8;
+                for (int i = -1; i <= 1; i++) {
+                    w.setBlock(cx + i, sy, cz - 2, Blocks.end_portal_frame, i == 0 ? 0 : 4, 3);
+                    w.setBlock(cx + i, sy, cz + 2, Blocks.end_portal_frame, 2 | 4, 3);
+                    w.setBlock(cx - 2, sy, cz + i, Blocks.end_portal_frame, 3 | 4, 3);
+                    w.setBlock(cx + 2, sy, cz + i, Blocks.end_portal_frame, 1 | 4, 3);
+                }
+                Items.ender_eye.onItemUse(new ItemStack(Items.ender_eye), pl, w, cx, sy, cz - 2, 1, 0.5F, 0.5F, 0.5F);
+                heard("end portal opens", "block.end_portal.spawn");
+                result("end portal built", w.getBlock(cx, sy, cz) == Blocks.end_portal, "");
+                net.minecraft.entity.item.EntityEnderEye eye = new net.minecraft.entity.item.EntityEnderEye(w, sx + 0.5D, sy + 2.0D, sz + 0.5D);
+                w.spawnEntityInWorld(eye);
+                for (int i = 0; i < 90 && !eye.isDead; i++) {
+                    eye.onUpdate();
+                }
+                heard("eye of ender breaks", eye.isDead ? "entity.endereye.death" : "(alive)");
+                // fishing rod: cast, then reeled in
+                ItemStack rod = new ItemStack(Items.fishing_rod);
+                inHand(rod);
+                Items.fishing_rod.onItemRightClick(rod, w, pl);
+                heard("bobber throw", "entity.bobber.throw");
+                Items.fishing_rod.onItemRightClick(rod, w, pl);
+                heard("bobber retrieve", "entity.bobber.retrieve");
+                // chorus flower on end stone: grows or dies
+                w.setBlock(sx + 9, sy - 1, sz - 9, Blocks.end_stone);
+                w.setBlock(sx + 9, sy, sz - 9, ru.codex.offhand1710.End112.chorusFlower, 0, 3);
+                java.util.Random rand = new java.util.Random(5L);
+                for (int i = 0; i < 40 && !ru.codex.offhand1710.Sounds112.last.startsWith("block.chorus_flower"); i++) {
+                    ru.codex.offhand1710.End112.chorusFlower.updateTick(w, sx + 9, sy, sz - 9, rand);
+                }
+                String chorus = ru.codex.offhand1710.Sounds112.last;
+                result("sound chorus flower", chorus.equals("block.chorus_flower.grow") || chorus.equals("block.chorus_flower.death"), "got=" + chorus);
+                ru.codex.offhand1710.Sounds112.last = "";
+                // blocks for the client renames
+                w.setBlock(sx - 1, sy, sz - 1, Blocks.chest);
+                w.setBlock(sx - 1, sy, sz - 3, Blocks.ender_chest);
+                w.setBlock(sx + 1, sy, sz - 1, Blocks.wooden_door, 0, 3);
+                w.setBlock(sx + 1, sy, sz - 3, Blocks.iron_door, 0, 3);
+                w.setBlock(sx + 3, sy, sz - 1, Blocks.trapdoor, 0, 3);
+                w.setBlock(sx + 3, sy, sz - 3, ru.codex.offhand1710.PortedBlocks.ironTrapdoor, 0, 3);
+                w.setBlock(sx + 5, sy, sz - 1, Blocks.fence_gate, 0, 3);
+                w.setBlock(sx - 3, sy, sz - 1, Blocks.gold_block);
+                w.setBlock(sx - 3, sy + 1, sz - 1, Blocks.noteblock);
+                w.setBlock(sx - 5, sy, sz - 1, ru.codex.offhand1710.PortedBlocks.boneBlock);
+                w.setBlock(sx - 5, sy + 1, sz - 1, Blocks.noteblock);
+                w.setBlock(sx - 7, sy + 1, sz - 1, Blocks.noteblock);
+                w.setBlock(sx - 7, sy, sz - 3, Blocks.farmland);
+                w.setBlock(sx - 9, sy + 1, sz - 1, Blocks.lit_furnace, 2, 3);
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.world.World cw = mc.theWorld;
+                String[][] cases = {
+                    {"chest", "random.chestopen", "-1", "0", "-1", "block.chest.open"},
+                    {"ender chest", "random.chestclosed", "-1", "0", "-3", "block.enderchest.close"},
+                    {"wooden door", "random.door_open", "1", "0", "-1", "block.wooden_door.open"},
+                    {"iron door", "random.door_close", "1", "0", "-3", "block.iron_door.close"},
+                    {"trapdoor", "random.door_open", "3", "0", "-1", "block.wooden_trapdoor.open"},
+                    {"iron trapdoor", "random.door_open", "3", "0", "-3", "block.iron_trapdoor.open"},
+                    {"fence gate", "random.door_close", "5", "0", "-1", "block.fence_gate.close"},
+                    {"note on gold", "note.harp", "-3", "1", "-1", "block.note.bell"},
+                    {"note on bone", "note.bd", "-5", "1", "-1", "block.note.xylophone"},
+                    {"note harp", "note.harp", "-7", "1", "-1", "block.note.harp"},
+                    {"hoe", "step.gravel", "-7", "0", "-3", "item.hoe.till"},
+                };
+                for (String[] c : cases) {
+                    float x = sx + Integer.parseInt(c[2]) + 0.5F;
+                    float y = sy + Integer.parseInt(c[3]) + 0.5F;
+                    float z = sz + Integer.parseInt(c[4]) + 0.5F;
+                    String got = ru.codex.offhand1710.client.Sounds112Client.rename(cw, c[1], x, y, z, 1.0F);
+                    result("sound " + c[0], c[5].equals(got), "got=" + got);
+                }
+                result("sound walking on farmland kept", ru.codex.offhand1710.client.Sounds112Client.rename(cw, "step.gravel", sx - 6.7F, sy + 1.0F, sz - 2.2F, 0.15F) == null, "");
+                ru.codex.offhand1710.Sounds112.last = "";
+                java.util.Random rand = new java.util.Random(1L);
+                for (int i = 0; i < 100 && ru.codex.offhand1710.Sounds112.last.length() == 0; i++) {
+                    Blocks.lit_furnace.randomDisplayTick(cw, sx - 9, sy + 1, sz - 1, rand);
+                }
+                heard("furnace crackle", "block.furnace.fire_crackle");
+                // end to end through the sound system, when there is one
+                ear.client = "";
+                cw.playSound(sx - 0.5D, sy + 0.5D, sz - 0.5D, "random.chestopen", 0.5F, 1.0F, false);
+                log("INFO client sound path heard=" + ear.client + " (empty: no sound system in this run)");
+                if (ear.client.length() > 0) {
+                    result("sound chest through the sound system", "mc112bridge:block.chest.open".equals(ear.client), "got=" + ear.client);
+                }
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Sounds112.toastSounds = 0;
+                cmd("advancement grant @p only minecraft:story/mine_stone");
+            }
+        });
+        client(160, new Runnable() {
+            @Override
+            public void run() {
+                result("sound toast in and out", ru.codex.offhand1710.Sounds112.toastSounds >= 2, "played=" + ru.codex.offhand1710.Sounds112.toastSounds);
+            }
+        });
+        finish();
     }
 
     private void elytra() {

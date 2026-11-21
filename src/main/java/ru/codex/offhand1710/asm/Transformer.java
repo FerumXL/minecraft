@@ -5,6 +5,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
@@ -234,6 +235,7 @@ public final class Transformer implements IClassTransformer {
         if (bytes == null || System.getenv("MC112_NOPATCH") != null) {
             return bytes;
         }
+        bytes = SoundPatches.transform(transformedName, bytes);
         if ("net.minecraft.block.BlockCommandBlock".equals(transformedName)) {
             ClassNode node = read(bytes);
             for (MethodNode m : node.methods) {
@@ -520,6 +522,32 @@ public final class Transformer implements IClassTransformer {
         }
         if ("net.minecraft.world.gen.layer.IntCache".equals(transformedName)) {
             return intCache(bytes);
+        }
+        if (("net.minecraft.world.gen.structure.StructureNetherBridgePieces$Corridor".equals(transformedName)
+            || "net.minecraft.world.gen.structure.StructureNetherBridgePieces$Corridor2".equals(transformedName)) && System.getProperty("mc112.fortressLoot17") == null) {
+            // fortress chests from loot_tables/chests/nether_bridge.json (obsidian, 2..4 rolls) instead of the 1.7.10 list and 2..5
+            ClassNode node = read(bytes);
+            int n = 0;
+            for (MethodNode m : node.methods) {
+                for (AbstractInsnNode i = m.instructions.getFirst(); i != null; i = i.getNext()) {
+                    if (i.getOpcode() == Opcodes.GETSTATIC && ("field_111019_a".equals(((FieldInsnNode) i).name) || "primaryChestLoot".equals(((FieldInsnNode) i).name))
+                        && "[Lnet/minecraft/util/WeightedRandomChestContent;".equals(((FieldInsnNode) i).desc)) {
+                        AbstractInsnNode list = new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Loot112", "netherBridge", "()[Lnet/minecraft/util/WeightedRandomChestContent;", false);
+                        m.instructions.set(i, list);
+                        i = list;
+                        // 2 + rand.nextInt(4) follows: the bound becomes the 1.12 roll span
+                        for (AbstractInsnNode j = i.getNext(); j != null && j.getOpcode() != Opcodes.INVOKEVIRTUAL; j = j.getNext()) {
+                            if (j.getOpcode() == Opcodes.ICONST_4) {
+                                m.instructions.set(j, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Loot112", "netherBridgeSpan", "()I", false));
+                                break;
+                            }
+                        }
+                        n++;
+                    }
+                }
+            }
+            System.out.println("[mc112bridge] fortress chest loot 1.12 in " + transformedName + ": " + n);
+            return write(node);
         }
         if ("net.minecraft.world.chunk.Chunk".equals(transformedName) && System.getProperty("mc112.traceBlocks") != null) {
             // debugging only: who sets which block where (BlockTrace)

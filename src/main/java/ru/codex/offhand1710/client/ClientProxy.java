@@ -43,6 +43,9 @@ public final class ClientProxy extends CommonProxy {
         FMLCommonHandler.instance().bus().register(elytra);
         MinecraftForge.EVENT_BUS.register(elytra);
         MinecraftForge.EVENT_BUS.register(new ElytraRenderer());
+        if (!ru.codex.offhand1710.Sounds112.OFF) {
+            MinecraftForge.EVENT_BUS.register(new Sounds112Client());
+        }
         CombatClient combat = new CombatClient();
         FMLCommonHandler.instance().bus().register(combat);
         MinecraftForge.EVENT_BUS.register(combat);

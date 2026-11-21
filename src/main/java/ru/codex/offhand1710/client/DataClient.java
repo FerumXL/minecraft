@@ -1636,6 +1636,22 @@ public final class DataClient {
      * One place of GuiToast (bkc$a) with the advancement toast in it (bjy): it slides in from the right in 600 ms
      * (the square of the time, so it slows down), stays 5 seconds and slides out the same way.
      */
+    /** GuiToast.Visibility.playSound: a master sound at volume 1 and pitch 1, not tied to a place. */
+    static void toastSound(Minecraft mc, final String event) {
+        if (ru.codex.offhand1710.Sounds112.OFF) {
+            return;
+        }
+        ru.codex.offhand1710.Sounds112.last = event;
+        ru.codex.offhand1710.Sounds112.toastSounds++;
+        mc.getSoundHandler().playSound(new net.minecraft.client.audio.PositionedSound(new ResourceLocation(DOMAIN, event)) {
+            {
+                this.volume = 1.0F;
+                this.field_147663_c = 1.0F;
+                this.field_147666_i = net.minecraft.client.audio.ISound.AttenuationType.NONE;
+            }
+        });
+    }
+
     private static final class ToastSlot {
         private final Data112.Advancement a;
         private long start = -1L;
@@ -1658,6 +1674,7 @@ public final class DataClient {
             long now = Minecraft.getSystemTime();
             if (start == -1L) {
                 start = now;
+                toastSound(mc, "ui.toast.in");
             }
             if (!hiding && now - start <= 600L) {
                 shown = now;
@@ -1669,6 +1686,7 @@ public final class DataClient {
             if (hide && !hiding) {
                 start = now - (long) (int) ((1.0F - visibility(now)) * 600.0F);
                 hiding = true;
+                toastSound(mc, "ui.toast.out");
             }
             return hiding && now - start > 600L;
         }
