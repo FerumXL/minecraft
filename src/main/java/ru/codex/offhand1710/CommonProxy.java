@@ -31,4 +31,9 @@ public class CommonProxy implements IGuiHandler {
     public Object getClientGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
         return null;
     }
+
+    /** True for the player of this client (never on a server). */
+    public boolean isLocalPlayer(net.minecraft.entity.Entity e) {
+        return false;
+    }
 }

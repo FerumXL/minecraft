@@ -1003,3 +1003,17 @@ src/main/resources/assets/mc112bridge/data/recipes/
 /src/main/resources/assets/mc112bridge/sounds/entity/horse/eat3.ogg
 /src/main/resources/assets/mc112bridge/sounds/entity/horse/eat4.ogg
 /src/main/resources/assets/mc112bridge/sounds/entity/horse/eat5.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_land1.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_land2.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_land3.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_land4.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_land5.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_land6.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water1.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water2.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water3.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water4.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water5.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water6.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water7.ogg
+/src/main/resources/assets/mc112bridge/sounds/entity/boat/paddle_water8.ogg

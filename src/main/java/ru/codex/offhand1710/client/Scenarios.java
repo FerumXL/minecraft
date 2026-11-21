@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -199,6 +199,29 @@ public final class Scenarios {
         }
         if (!launched && mc.currentScreen instanceof GuiMainMenu) {
             launched = true;
+            // watchdog: a world that does not open in 90 s gets every thread's stack in the log
+            Thread dog = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(90000L);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    if (!started) {
+                        log("FAIL world did not open in 90 s; threads:");
+                        for (java.util.Map.Entry<Thread, StackTraceElement[]> en : Thread.getAllStackTraces().entrySet()) {
+                            StringBuilder sb = new StringBuilder("THREAD " + en.getKey().getName() + " " + en.getKey().getState());
+                            for (StackTraceElement el : en.getValue()) {
+                                sb.append(" | at ").append(el);
+                            }
+                            log(sb.toString());
+                        }
+                    }
+                }
+            }, "mc112-watchdog");
+            dog.setDaemon(true);
+            dog.start();
             mc.gameSettings.pauseOnLostFocus = false;
             String rd = System.getenv("MC112_BENCH_RD");
             mc.gameSettings.renderDistanceChunks = rd == null ? 8 : Integer.parseInt(rd);
@@ -336,6 +359,8 @@ public final class Scenarios {
             idle();
         } else if ("selectors".equals(STAGE)) {
             selectors();
+        } else if ("boats".equals(STAGE)) {
+            boatsStage();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -3141,6 +3166,146 @@ public final class Scenarios {
                     }
                 }
                 cmd("scoreboard objectives remove t112");
+            }
+        });
+        finish();
+    }
+
+    private final net.minecraft.entity.item.EntityBoat[] boats = new net.minecraft.entity.item.EntityBoat[4];
+    private final double[] boatMark = new double[8];
+    private net.minecraft.entity.passive.EntityPig boatPig;
+
+    private net.minecraft.entity.item.EntityBoat boatAt(double x, double y, double z, float yaw) {
+        net.minecraft.entity.item.EntityBoat b = new net.minecraft.entity.item.EntityBoat(w(), x, y, z);
+        b.rotationYaw = yaw;
+        b.prevRotationYaw = yaw;
+        w().spawnEntityInWorld(b);
+        return b;
+    }
+
+    private static void drive(net.minecraft.entity.item.EntityBoat b, boolean forward, boolean left) {
+        ru.codex.offhand1710.Boat112.state(b).input = new Boolean[] {forward, false, left, false};
+    }
+
+    /** The boat of 1.12.2 (Boat112): speeds by the numbers of EntityBoat, turning, shore, ice, mobs, paddles. */
+    private void boatsStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer w = w();
+                cmd("gamemode 1");
+                cmd("gamerule doMobSpawning false");
+                sx = (int) Math.floor(p().posX) + 60;
+                sy = 40;
+                sz = (int) Math.floor(p().posZ);
+                for (int dx = -20; dx <= 20; dx++) {
+                    for (int dz = -10; dz <= 70; dz++) {
+                        w.setBlock(sx + dx, sy - 3, sz + dz, Blocks.stone);
+                        boolean pool = dx >= -6 && dx <= 6 && dz <= 40;
+                        Block lane = dx >= 11 && dx <= 13 ? Blocks.packed_ice : dx >= 15 && dx <= 17 ? Blocks.stone : null;
+                        w.setBlock(sx + dx, sy - 2, sz + dz, pool ? Blocks.water : lane != null ? lane : Blocks.stone);
+                        boolean rim = !pool && dx >= -7 && dx <= 7 && dz <= 41;
+                        w.setBlock(sx + dx, sy - 1, sz + dz, pool ? Blocks.water : rim ? Blocks.stone : Blocks.air);
+                        for (int dy = 0; dy < 4; dy++) {
+                            w.setBlock(sx + dx, sy + dy, sz + dz, Blocks.air);
+                        }
+                    }
+                }
+                // the ice lane goes on: a boat on packed ice gets fast
+                for (int dx = 11; dx <= 13; dx++) {
+                    for (int dz = 71; dz <= 260; dz++) {
+                        w.setBlock(sx + dx, sy - 2, sz + dz, Blocks.packed_ice);
+                        for (int dy = -1; dy < 3; dy++) {
+                            w.setBlock(sx + dx, sy + dy, sz + dz, Blocks.air);
+                        }
+                    }
+                }
+                // a wall across the pool at its far end
+                for (int dx = -6; dx <= 6; dx++) {
+                    w.setBlock(sx + dx, sy - 1, sz + 41, Blocks.stone);
+                    w.setBlock(sx + dx, sy, sz + 41, Blocks.stone);
+                }
+                look(sx + 0.5D, sy + 4, sz - 6.5D);
+                // heading +z: the yaw of 1.7.10 is the heading + 90
+                boats[0] = boatAt(sx + 0.5D, sy, sz + 0.5D, 90.0F);
+                boats[1] = boatAt(sx - 3.5D, sy, sz + 20.5D, 90.0F);
+                boats[2] = boatAt(sx + 12.5D, sy - 1, sz + 0.5D, 90.0F);
+                boats[3] = boatAt(sx + 16.5D, sy - 1, sz + 0.5D, 90.0F);
+                drive(boats[0], true, false);
+                drive(boats[1], false, true);
+                drive(boats[2], true, false);
+                drive(boats[3], true, false);
+                ru.codex.offhand1710.Boat112.lastSound = "";
+            }
+        });
+        server(30, new Runnable() {
+            @Override
+            public void run() {
+                boatMark[0] = boats[0].posZ;
+                boatMark[5] = MinecraftServer.getServer().getTickCounter();
+                boatMark[6] = ru.codex.offhand1710.Boat112.state(boats[3]).ticks[3] + ru.codex.offhand1710.Boat112.state(boats[3]).ticks[4];
+                boatMark[1] = boats[1].rotationYaw;
+                boatMark[2] = boats[2].posZ;
+                boatMark[3] = boats[3].posZ;
+                boatMark[4] = boats[0].posX;
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 4; i++) {
+                    int[] t = ru.codex.offhand1710.Boat112.state(boats[i]).ticks;
+                    log("INFO boat " + i + " ticks in water/under/flowing/land/air " + t[0] + "/" + t[1] + "/" + t[2] + "/" + t[3] + "/" + t[4] + " y=" + boats[i].posY);
+                }
+                double ticks = MinecraftServer.getServer().getTickCounter() - boatMark[5];
+                int[] t3 = ru.codex.offhand1710.Boat112.state(boats[3]).ticks;
+                log("INFO boat window: server ticks " + ticks + ", boat updates " + (t3[3] + t3[4] - boatMark[6]));
+                double water = ru.codex.offhand1710.Boat112.state(boats[0]).maxSpeed;
+                result("boat in water: steady speed 0.04/(1-0.9) = 0.4 blocks/tick", water > 0.38D && water <= 0.401D,
+                    String.format("%.3f, sideways %.3f, status y=%.2f", water, boats[0].posX - boatMark[4], boats[0].posY));
+                double turn = -ru.codex.offhand1710.Boat112.state(boats[1]).maxTurn;
+                result("boat turning: -1 per tick kept at 0.9 = -10 degrees/tick", turn < -9.5D && turn >= -10.01D, String.format("%.2f", turn));
+                double stone = ru.codex.offhand1710.Boat112.state(boats[3]).maxSpeed;
+                result("boat on stone: 0.04/(1-0.6) = 0.1 blocks/tick", stone > 0.095D && stone <= 0.1001D, String.format("%.3f", stone));
+                double ice = ru.codex.offhand1710.Boat112.state(boats[2]).maxSpeed;
+                result("boat on packed ice: glide 0.98 makes it fast (2 blocks/tick at most)", ice > 1.2D && ice <= 2.0D, String.format("%.3f", ice));
+                result("paddle sound in water", "entity.boat.paddle_water".equals(ru.codex.offhand1710.Boat112.lastSound) || "entity.boat.paddle_land".equals(ru.codex.offhand1710.Boat112.lastSound),
+                    "last=" + ru.codex.offhand1710.Boat112.lastSound);
+                result("paddles reach the client watcher", ru.codex.offhand1710.Boat112.paddling(boats[0], 0) && ru.codex.offhand1710.Boat112.paddling(boats[0], 1), "");
+                ru.codex.offhand1710.Boat112.state(boats[1]).input = null;
+                ru.codex.offhand1710.Boat112.state(boats[2]).input = null;
+                ru.codex.offhand1710.Boat112.state(boats[3]).input = null;
+                // an empty boat picks up a mob that touches it
+                boatPig = new net.minecraft.entity.passive.EntityPig(w());
+                boatPig.setPosition(boats[1].posX + 0.6D, boats[1].posY, boats[1].posZ);
+                w().spawnEntityInWorld(boatPig);
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                result("boat at full speed into a wall does not break (1.7.10 broke it)", !boats[0].isDead && boats[0].posZ < sz + 41, String.format("z=%.1f", boats[0].posZ - sz));
+                result("empty boat picks up a mob", boatPig.ridingEntity == boats[1], "riding=" + boatPig.ridingEntity);
+                result("the rider sits in the middle", boatPig.ridingEntity == boats[1] && Math.abs(boatPig.posX - boats[1].posX) < 0.01D && Math.abs(boatPig.posZ - boats[1].posZ) < 0.01D, "");
+                // under water for 3 seconds: the rider is thrown off
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        for (int dy = 0; dy < 3; dy++) {
+                            w().setBlock(net.minecraft.util.MathHelper.floor_double(boats[1].posX) + dx, sy + dy, net.minecraft.util.MathHelper.floor_double(boats[1].posZ) + dz, Blocks.water);
+                        }
+                    }
+                }
+                w().setBlock(net.minecraft.util.MathHelper.floor_double(boats[1].posX), sy + 3, net.minecraft.util.MathHelper.floor_double(boats[1].posZ), Blocks.stone);
+            }
+        });
+        server(100, new Runnable() {
+            @Override
+            public void run() {
+                result("under water 60 ticks throws the rider off", boatPig.ridingEntity == null, "riding=" + boatPig.ridingEntity);
+                for (net.minecraft.entity.item.EntityBoat b : boats) {
+                    b.setDead();
+                }
+                boatPig.setDead();
             }
         });
         finish();

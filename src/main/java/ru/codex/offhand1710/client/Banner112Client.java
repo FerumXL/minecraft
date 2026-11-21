@@ -233,9 +233,15 @@ final class Banner112Client {
             }
             double dx = boat.posX - boat.prevPosX;
             double dz = boat.posZ - boat.prevPosZ;
-            float phase = dx * dx + dz * dz > 1.0E-4D ? ((float) boat.ticksExisted + partial) * 0.3926991F : 0.0F;
-            model.renderPaddle(0, phase, 0.0625F);
-            model.renderPaddle(1, phase, 0.0625F);
+            if (ru.codex.offhand1710.Boat112.OFF) {
+                float phase = dx * dx + dz * dz > 1.0E-4D ? ((float) boat.ticksExisted + partial) * 0.3926991F : 0.0F;
+                model.renderPaddle(0, phase, 0.0625F);
+                model.renderPaddle(1, phase, 0.0625F);
+            } else {
+                // each paddle rows when the server says so (left and right of the 1.12.2 boat)
+                model.renderPaddle(0, ru.codex.offhand1710.Boat112.paddlePhase(boat, 0, partial), 0.0625F);
+                model.renderPaddle(1, ru.codex.offhand1710.Boat112.paddlePhase(boat, 1, partial), 0.0625F);
+            }
             // Keeps the water out of the hull: writes depth only, as ModelBoat.renderMultipass does.
             GL11.glColorMask(false, false, false, false);
             model.mask.render(0.0625F);

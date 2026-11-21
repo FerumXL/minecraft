@@ -120,4 +120,9 @@ public final class ClientProxy extends CommonProxy {
             }
         });
     }
+
+    @Override
+    public boolean isLocalPlayer(net.minecraft.entity.Entity e) {
+        return e != null && e == net.minecraft.client.Minecraft.getMinecraft().thePlayer;
+    }
 }

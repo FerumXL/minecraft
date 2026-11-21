@@ -635,6 +635,40 @@ public final class Transformer implements IClassTransformer {
             System.out.println("[mc112bridge] 1.12 command targets in CommandHandler: " + n);
             return write(node);
         }
+        if ("net.minecraft.entity.item.EntityBoat".equals(transformedName) && System.getProperty("mc112.boats17") == null) {
+            // the boat of 1.12.2 (Boat112): update, rider, client glide, paddle states
+            ClassNode node = read(bytes);
+            int n = 0;
+            String boat = "Lnet/minecraft/entity/item/EntityBoat;";
+            for (MethodNode m : node.methods) {
+                InsnList load = new InsnList();
+                load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                if (named(m, "onUpdate", "func_70071_h_") && "()V".equals(m.desc)) {
+                    guard(m, load, "ru/codex/offhand1710/Boat112", "update", "(" + boat + ")Z", Opcodes.RETURN, 0);
+                    n++;
+                } else if (named(m, "updateRiderPosition", "func_70043_V") && "()V".equals(m.desc)) {
+                    guard(m, load, "ru/codex/offhand1710/Boat112", "rider", "(" + boat + ")Z", Opcodes.RETURN, 0);
+                    n++;
+                } else if (named(m, "setPositionAndRotation2", "func_70056_a") && "(DDDFFI)V".equals(m.desc)) {
+                    load.add(new VarInsnNode(Opcodes.DLOAD, 1));
+                    load.add(new VarInsnNode(Opcodes.DLOAD, 3));
+                    load.add(new VarInsnNode(Opcodes.DLOAD, 5));
+                    load.add(new VarInsnNode(Opcodes.FLOAD, 7));
+                    load.add(new VarInsnNode(Opcodes.FLOAD, 8));
+                    load.add(new VarInsnNode(Opcodes.ILOAD, 9));
+                    guard(m, load, "ru/codex/offhand1710/Boat112", "lerpTo", "(" + boat + "DDDFFI)Z", Opcodes.RETURN, 0);
+                    n++;
+                } else if (named(m, "entityInit", "func_70088_a") && "()V".equals(m.desc)) {
+                    InsnList call = new InsnList();
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Boat112", "init", "(" + boat + ")V", false));
+                    beforeReturns(m, call);
+                    n++;
+                }
+            }
+            System.out.println("[mc112bridge] 1.12 boats: " + n + " methods");
+            return write(node);
+        }
         if ("net.minecraft.world.chunk.Chunk".equals(transformedName) && System.getProperty("mc112.traceBlocks") != null) {
             // debugging only: who sets which block where (BlockTrace)
             ClassNode node = read(bytes);
