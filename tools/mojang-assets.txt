@@ -1640,3 +1640,10 @@ src/main/resources/assets/minecraft/textures/particle/particles.png	838f5610dd98
 src/main/resources/assets/mc112bridge/sounds/item/elytra/elytra_loop.ogg	90d599a1760137a7c4d7a52c77f5c65c02f137d4	asset:90d599a1760137a7c4d7a52c77f5c65c02f137d4
 src/main/resources/assets/mc112bridge/textures/gui/container/horse.png	32e36591f85e29eeb60dd529d6de5449d9663881	jar:assets/minecraft/textures/gui/container/horse.png
 src/main/resources/assets/mc112bridge/textures/items/knowledge_book.png	99889a6da7459a035a48d15b30eb5646f05bfdf3	jar:assets/minecraft/textures/items/knowledge_book.png
+src/main/resources/assets/mc112bridge/textures/blocks/structure_block_load.png	6d59e383226392e903b8eea54b81e9d44c94fab1	jar:assets/minecraft/textures/blocks/structure_block_load.png
+src/main/resources/assets/mc112bridge/textures/blocks/structure_void.png	518c6eb0d79c497d9a889a65225dab5118f7178e	jar:assets/minecraft/textures/items/structure_void.png
+src/main/resources/assets/mc112bridge/textures/blocks/structure_block_save.png	c86ab0406e5d756be264c9abcf11100ede572e9a	jar:assets/minecraft/textures/blocks/structure_block_save.png
+src/main/resources/assets/mc112bridge/textures/blocks/structure_block_data.png	eb8b4e676721896de32aa0452ae9d2f226ca50b5	jar:assets/minecraft/textures/blocks/structure_block_data.png
+src/main/resources/assets/mc112bridge/textures/items/structure_void.png	518c6eb0d79c497d9a889a65225dab5118f7178e	jar:assets/minecraft/textures/items/structure_void.png
+src/main/resources/assets/mc112bridge/textures/blocks/structure_block.png	9791ef0fd500ff23c0f2255abdac27d262282d53	jar:assets/minecraft/textures/blocks/structure_block.png
+src/main/resources/assets/mc112bridge/textures/blocks/structure_block_corner.png	7450a85b0abae28fc013720528eedd927dec0744	jar:assets/minecraft/textures/blocks/structure_block_corner.png

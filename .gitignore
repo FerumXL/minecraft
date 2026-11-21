@@ -748,3 +748,10 @@ src/main/resources/assets/mc112bridge/data/recipes/
 /src/main/resources/assets/mc112bridge/sounds/item/elytra/elytra_loop.ogg
 /src/main/resources/assets/mc112bridge/textures/gui/container/horse.png
 /src/main/resources/assets/mc112bridge/textures/items/knowledge_book.png
+/src/main/resources/assets/mc112bridge/textures/blocks/structure_block_load.png
+/src/main/resources/assets/mc112bridge/textures/blocks/structure_void.png
+/src/main/resources/assets/mc112bridge/textures/blocks/structure_block_save.png
+/src/main/resources/assets/mc112bridge/textures/blocks/structure_block_data.png
+/src/main/resources/assets/mc112bridge/textures/items/structure_void.png
+/src/main/resources/assets/mc112bridge/textures/blocks/structure_block.png
+/src/main/resources/assets/mc112bridge/textures/blocks/structure_block_corner.png

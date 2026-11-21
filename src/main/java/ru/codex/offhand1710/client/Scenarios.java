@@ -1701,6 +1701,106 @@ public final class Scenarios {
                     "known=" + known + " used=" + book.stackSize + " bad=" + bad.stackSize);
             }
         });
+        // structure block: save, detect size from corners, load rotated by 90 degrees, load on redstone, the window
+        final ru.codex.offhand1710.StructureBlock112.Tile[] sb = new ru.codex.offhand1710.StructureBlock112.Tile[2];
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.block.Block sbk = ru.codex.offhand1710.StructureBlock112.structureBlock;
+                int ax = bx - 9, az = bz - 9;
+                for (int x = ax - 1; x <= ax + 12; x++) {
+                    for (int z = az - 1; z <= az + 5; z++) {
+                        for (int y = dy; y < dy + 4; y++) {
+                            w().setBlockToAir(x, y, z);
+                        }
+                    }
+                }
+                w().setBlock(ax, dy, az, sbk, 0, 3);
+                sb[0] = (ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(ax, dy, az);
+                sb[0].mode = 0;
+                sb[0].name = "test:house";
+                sb[0].ignoreEntities = false;
+                // corners at both ends of the 3x2x3 box (one outside each corner), as in 1.12.2
+                w().setBlock(ax, dy - 1, az - 1, sbk, 2, 3);
+                ((ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(ax, dy - 1, az - 1)).mode = 2;
+                ((ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(ax, dy - 1, az - 1)).name = "test:house";
+                w().setBlock(ax + 4, dy + 2, az + 3, sbk, 2, 3);
+                ((ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(ax + 4, dy + 2, az + 3)).mode = 2;
+                ((ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(ax + 4, dy + 2, az + 3)).name = "test:house";
+                boolean detected = sb[0].detectSize();
+                result("DETECT finds the box between the corner blocks", detected && sb[0].posX == 1 && sb[0].posY == 0 && sb[0].posZ == 0 && sb[0].sizeX == 3 && sb[0].sizeY == 2 && sb[0].sizeZ == 3,
+                    "pos=" + sb[0].posX + "," + sb[0].posY + "," + sb[0].posZ + " size=" + sb[0].sizeX + "," + sb[0].sizeY + "," + sb[0].sizeZ);
+                w().setBlock(ax + 1, dy, az, Blocks.oak_stairs, 0, 3);
+                w().setBlock(ax + 3, dy, az + 2, Blocks.chest, 0, 3);
+                ((net.minecraft.tileentity.TileEntityChest) w().getTileEntity(ax + 3, dy, az + 2)).setInventorySlotContents(0, new ItemStack(Items.diamond, 7));
+                w().setBlock(ax + 2, dy + 1, az + 1, Blocks.glass, 0, 3);
+                w().setBlock(ax + 2, dy, az + 1, ru.codex.offhand1710.StructureBlock112.structureVoid, 0, 3);
+                net.minecraft.entity.passive.EntityPig pig = new net.minecraft.entity.passive.EntityPig(w());
+                pig.setLocationAndAngles(ax + 2.5D, dy, az + 1.5D, 0.0F, 0.0F);
+                pig.setCustomNameTag("StructPig");
+                w().spawnEntityInWorld(pig);
+                boolean saved = sb[0].save(true);
+                java.io.File f = new java.io.File(w().getChunkSaveLocation(), "structures/house.nbt");
+                NBTTagCompound t = null;
+                try {
+                    t = net.minecraft.nbt.CompressedStreamTools.readCompressed(new java.io.FileInputStream(f));
+                } catch (Exception ignored) {
+                }
+                result("SAVE writes structures/house.nbt (namespace dropped as in 1.12) with size, palette, blocks, entities and no void cell", saved && t != null
+                    && t.getTagList("size", 3).tagCount() == 3 && t.getTagList("blocks", 10).tagCount() == 17 && t.getTagList("entities", 10).tagCount() == 1,
+                    "saved=" + saved + " exists=" + f.exists() + (t == null ? "" : " blocks=" + t.getTagList("blocks", 10).tagCount() + " entities=" + t.getTagList("entities", 10).tagCount()));
+                pig.setDead();
+                // load at a second block 8 east, turned clockwise 90
+                w().setBlock(ax + 8, dy, az, sbk, 1, 3);
+                sb[1] = (ru.codex.offhand1710.StructureBlock112.Tile) w().getTileEntity(ax + 8, dy, az);
+                sb[1].mode = 1;
+                sb[1].name = "test:house";
+                sb[1].posX = 3;
+                sb[1].posY = 0;
+                sb[1].posZ = 0;
+                sb[1].rotation = 1;
+                sb[1].ignoreEntities = false;
+                boolean loaded = sb[1].load(true);
+                int lx = ax + 8 + 3, lz = az;
+                // rotation 90: (x, y, z) -> (-z, y, x)
+                boolean chest = w().getBlock(lx - 2, dy, lz + 2) == Blocks.chest && w().getTileEntity(lx - 2, dy, lz + 2) instanceof net.minecraft.tileentity.TileEntityChest
+                    && ((net.minecraft.tileentity.TileEntityChest) w().getTileEntity(lx - 2, dy, lz + 2)).getStackInSlot(0) != null
+                    && ((net.minecraft.tileentity.TileEntityChest) w().getTileEntity(lx - 2, dy, lz + 2)).getStackInSlot(0).stackSize == 7;
+                boolean glass = w().getBlock(lx - 1, dy + 1, lz + 1) == Blocks.glass;
+                boolean stairs = w().getBlock(lx, dy, lz) == Blocks.oak_stairs && w().getBlockMetadata(lx, dy, lz) != 0;
+                boolean pigBack = !w().getEntitiesWithinAABB(net.minecraft.entity.passive.EntityPig.class, net.minecraft.util.AxisAlignedBB.getBoundingBox(lx - 4, dy, lz - 1, lx + 1, dy + 3, lz + 4)).isEmpty();
+                result("LOAD rotated 90: chest with its 7 diamonds, glass and stairs moved, stairs turned, the pig comes back",
+                    loaded && chest && glass && stairs && pigBack, "loaded=" + loaded + " chest=" + chest + " glass=" + glass + " stairs=" + stairs
+                    + " stairsMeta=" + w().getBlockMetadata(lx, dy, lz) + " pig=" + pigBack);
+                // redstone: clear the copy, then a redstone block next to the load block loads it again
+                w().setBlockToAir(lx - 1, dy + 1, lz + 1);
+                w().setBlock(ax + 8, dy + 1, az, Blocks.redstone_block, 0, 3);
+                boolean again = w().getBlock(lx - 1, dy + 1, lz + 1) == Blocks.glass;
+                NBTTagCompound tag = new NBTTagCompound();
+                sb[1].writeToNBT(tag);
+                result("a redstone pulse loads again; tile NBT has the 1.12 keys", again && "LOAD".equals(tag.getString("mode")) && "CLOCKWISE_90".equals(tag.getString("rotation"))
+                    && tag.getBoolean("powered") && "test:house".equals(tag.getString("name")), "again=" + again + " mode=" + tag.getString("mode") + " rotation=" + tag.getString("rotation"));
+                tp(ax + 4.5D, dy + 1.0D, az + 7.5D, 180.0F, 30.0F);
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.tileentity.TileEntity te = mc.theWorld.getTileEntity(sb[0].xCoord, sb[0].yCoord, sb[0].zCoord);
+                shot("g2-structure-box");
+                if (te instanceof ru.codex.offhand1710.StructureBlock112.Tile) {
+                    mc.displayGuiScreen(new StructureGui((ru.codex.offhand1710.StructureBlock112.Tile) te));
+                }
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                result("the structure block window opens in save mode", mc.currentScreen instanceof StructureGui, String.valueOf(mc.currentScreen));
+                shot("g2-structure-gui");
+                mc.displayGuiScreen(null);
+            }
+        });
         finish();
     }
 

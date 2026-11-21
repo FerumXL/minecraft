@@ -14,6 +14,11 @@ import ru.codex.offhand1710.OffhandInventory;
 
 public final class ClientProxy extends CommonProxy {
     @Override
+    public void openStructure(ru.codex.offhand1710.StructureBlock112.Tile tile) {
+        net.minecraft.client.Minecraft.getMinecraft().displayGuiScreen(new StructureGui(tile));
+    }
+
+    @Override
     public Object getClientGuiElement(int id, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
         if (id == ru.codex.offhand1710.Items112.GUI_LLAMA) {
             net.minecraft.entity.Entity e = world.getEntityByID(x);
@@ -73,6 +78,7 @@ public final class ClientProxy extends CommonProxy {
         MinecraftForgeClient.registerItemRenderer(PortedBlocks.shield, new ShieldRenderer());
         EndRenderers.register();
         cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.End112.GatewayTile.class, new GatewayRender());
+        cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.StructureBlock112.Tile.class, new StructureGui.Render());
         DragonHeadRenderer dragonHead = new DragonHeadRenderer();
         cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.BlockDragonHead.Tile.class, dragonHead);
         MinecraftForgeClient.registerItemRenderer(net.minecraft.item.Item.getItemFromBlock(ru.codex.offhand1710.End112.dragonHead), dragonHead);

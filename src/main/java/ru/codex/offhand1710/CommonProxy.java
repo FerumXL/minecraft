@@ -13,6 +13,10 @@ public class CommonProxy implements IGuiHandler {
     public void initialize() {
     }
 
+    /** EntityPlayerSP.openEditStructure of 1.12.2; nothing on a server. */
+    public void openStructure(StructureBlock112.Tile tile) {
+    }
+
     @Override
     public Object getServerGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
         if (id == Items112.GUI_LLAMA) {

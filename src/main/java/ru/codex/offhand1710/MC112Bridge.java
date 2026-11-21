@@ -125,6 +125,7 @@ public final class MC112Bridge {
         Mobs112.register(this);
         WorldGen112.register();
         End112.register();
+        StructureBlock112.register();
         Items112.register(this, proxy);
         Content119.register(this);
         Banner112.register(this);
