@@ -182,6 +182,11 @@ public final class Data112 {
         return new JsonParser().parse(new InputStreamReader(in, Charset.forName("UTF-8"))).getAsJsonObject();
     }
 
+    /** The 1.7.10 EntityList name of a 1.12.2 entity id, or null. */
+    public static String entityClassName(String id) {
+        return ENTITIES.get(id);
+    }
+
     public static ItemStack item(String name, int data) {
         String[] alias = ALIASES.get(name + ":" + data);
         if (alias == null) {

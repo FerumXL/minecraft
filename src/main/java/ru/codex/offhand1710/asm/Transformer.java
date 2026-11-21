@@ -568,6 +568,73 @@ public final class Transformer implements IClassTransformer {
             System.out.println("[mc112bridge] chest loot by 1.12 pools: " + n + " methods");
             return write(node);
         }
+        if ("net.minecraft.command.PlayerSelector".equals(transformedName) && System.getProperty("mc112.selectors17") == null) {
+            // every "@..." token goes to the 1.12.2 selector (Selector112)
+            ClassNode node = read(bytes);
+            int n = 0;
+            for (MethodNode m : node.methods) {
+                String to = null;
+                String desc = m.desc;
+                if (named(m, "matchOnePlayer", "func_82386_a")) {
+                    to = "matchOnePlayer";
+                } else if (named(m, "matchPlayers", "func_82380_c")) {
+                    to = "matchPlayers";
+                } else if ("func_150869_b".equals(m.name)) {
+                    to = "matchNames";
+                } else if (named(m, "matchesMultiplePlayers", "func_82377_a")) {
+                    to = "matchesMultiple";
+                } else if (named(m, "hasArguments", "func_82378_b")) {
+                    to = "isSelector";
+                }
+                if (to == null || (m.access & Opcodes.ACC_STATIC) == 0) {
+                    continue;
+                }
+                boolean one = desc.startsWith("(Ljava/lang/String;)");
+                int tokenSlot = one ? 0 : 1;
+                LabelNode go = new LabelNode();
+                InsnList l = new InsnList();
+                l.add(new VarInsnNode(Opcodes.ALOAD, tokenSlot));
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Selector112", "isSelector", "(Ljava/lang/String;)Z", false));
+                l.add(new JumpInsnNode(Opcodes.IFEQ, go));
+                if (!one) {
+                    l.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                }
+                l.add(new VarInsnNode(Opcodes.ALOAD, tokenSlot));
+                l.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Selector112", to, desc, false));
+                l.add(new InsnNode(desc.endsWith(")Z") ? Opcodes.IRETURN : Opcodes.ARETURN));
+                l.add(go);
+                m.instructions.insert(l);
+                n++;
+            }
+            System.out.println("[mc112bridge] 1.12 selectors in PlayerSelector: " + n + " methods");
+            return write(node);
+        }
+        if ("net.minecraft.command.CommandHandler".equals(transformedName) && System.getProperty("mc112.selectors17") == null) {
+            // the command runs once per matched entity: a player by name, any other entity by UUID (1.12.2)
+            ClassNode node = read(bytes);
+            int n = 0;
+            for (MethodNode m : node.methods) {
+                if (!named(m, "executeCommand", "func_71556_a")) {
+                    continue;
+                }
+                for (AbstractInsnNode i : m.instructions.toArray()) {
+                    if (i instanceof MethodInsnNode) {
+                        MethodInsnNode c = (MethodInsnNode) i;
+                        if (c.owner.equals("net/minecraft/command/PlayerSelector") && c.desc.endsWith(")[Lnet/minecraft/entity/player/EntityPlayerMP;")) {
+                            m.instructions.set(i, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Selector112", "commandTargets",
+                                "(Lnet/minecraft/command/ICommandSender;Ljava/lang/String;)[Lnet/minecraft/entity/Entity;", false));
+                            n++;
+                        } else if (c.owner.equals("net/minecraft/entity/player/EntityPlayerMP") && c.desc.equals("()Ljava/lang/String;")) {
+                            m.instructions.set(i, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Selector112", "targetName",
+                                "(Lnet/minecraft/entity/Entity;)Ljava/lang/String;", false));
+                            n++;
+                        }
+                    }
+                }
+            }
+            System.out.println("[mc112bridge] 1.12 command targets in CommandHandler: " + n);
+            return write(node);
+        }
         if ("net.minecraft.world.chunk.Chunk".equals(transformedName) && System.getProperty("mc112.traceBlocks") != null) {
             // debugging only: who sets which block where (BlockTrace)
             ClassNode node = read(bytes);

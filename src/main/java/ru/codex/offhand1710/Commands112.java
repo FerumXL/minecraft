@@ -259,4 +259,213 @@ public final class Commands112 {
             }
         }
     }
+
+    private static net.minecraft.nbt.NBTTagCompound dataTag(String[] args, int from) {
+        if (args.length <= from) {
+            return null;
+        }
+        try {
+            net.minecraft.nbt.NBTBase t = net.minecraft.nbt.JsonToNBT.func_150315_a(buildString(args, from));
+            if (!(t instanceof net.minecraft.nbt.NBTTagCompound)) {
+                throw new CommandException("commands.testfor.tagError", "Not a valid tag");
+            }
+            return (net.minecraft.nbt.NBTTagCompound) t;
+        } catch (net.minecraft.nbt.NBTException e) {
+            throw new CommandException("commands.testfor.tagError", e.getMessage());
+        }
+    }
+
+    private static String buildString(String[] args, int from) {
+        StringBuilder b = new StringBuilder();
+        for (int i = from; i < args.length; i++) {
+            if (i > from) {
+                b.append(' ');
+            }
+            b.append(args[i]);
+        }
+        return b.toString();
+    }
+
+    /** The entities of a token, or the error 1.12.2 gives when there are none. */
+    static List<Entity> found(ICommandSender sender, String token) {
+        List<Entity> l = Selector112.entities(sender, token);
+        if (l.isEmpty()) {
+            throw new CommandException(Selector112.isSelector(token) ? "commands.generic.selector.notFound" : "commands.generic.entity.notFound", token);
+        }
+        return l;
+    }
+
+    /** /testfor of 1.12.2: any entity, optionally with a data tag it must contain. */
+    public static final class TestFor extends CommandBase {
+        @Override
+        public String getCommandName() {
+            return "testfor";
+        }
+
+        @Override
+        public int getRequiredPermissionLevel() {
+            return 2;
+        }
+
+        @Override
+        public String getCommandUsage(ICommandSender sender) {
+            return "commands.testfor.usage";
+        }
+
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (args.length < 1) {
+                throw new WrongUsageException("commands.testfor.usage");
+            }
+            net.minecraft.nbt.NBTTagCompound want = dataTag(args, 1);
+            int matched = 0;
+            for (Entity e : found(sender, args[0])) {
+                if (want != null && !Selector112.nbtContains(want, Selector112.entityNBT(e))) {
+                    throw new CommandException("commands.testfor.failure", e.getCommandSenderName());
+                }
+                func_152373_a(sender, this, "commands.testfor.success", e.getCommandSenderName());
+                matched++;
+            }
+            last = matched;
+        }
+
+        @Override
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            return args.length == 1 ? getListOfStringsMatchingLastWord(args, net.minecraft.server.MinecraftServer.getServer().getAllUsernames()) : null;
+        }
+    }
+
+    /** For the autotest: how many entities the last /testfor found. */
+    public static volatile int last;
+
+    private static final String[][] ENCHANTMENTS = {{"protection", "0"}, {"fire_protection", "1"}, {"feather_falling", "2"}, {"blast_protection", "3"},
+        {"projectile_protection", "4"}, {"respiration", "5"}, {"aqua_affinity", "6"}, {"thorns", "7"}, {"depth_strider", "8"}, {"frost_walker", "9"},
+        {"binding_curse", "10"}, {"sharpness", "16"}, {"smite", "17"}, {"bane_of_arthropods", "18"}, {"knockback", "19"}, {"fire_aspect", "20"},
+        {"looting", "21"}, {"sweeping", "22"}, {"efficiency", "32"}, {"silk_touch", "33"}, {"unbreaking", "34"}, {"fortune", "35"}, {"power", "48"},
+        {"punch", "49"}, {"flame", "50"}, {"infinity", "51"}, {"luck_of_the_sea", "61"}, {"lure", "62"}, {"mending", "70"}, {"vanishing_curse", "71"}};
+
+    static net.minecraft.enchantment.Enchantment enchantment(String s) {
+        String n = s.startsWith("minecraft:") ? s.substring(10) : s;
+        for (String[] e : ENCHANTMENTS) {
+            if (e[0].equals(n)) {
+                n = e[1];
+            }
+        }
+        try {
+            int id = Integer.parseInt(n);
+            if (id >= 0 && id < net.minecraft.enchantment.Enchantment.enchantmentsList.length && net.minecraft.enchantment.Enchantment.enchantmentsList[id] != null) {
+                return net.minecraft.enchantment.Enchantment.enchantmentsList[id];
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        throw new CommandException("commands.enchant.notFound", s);
+    }
+
+    /** /enchant of 1.12.2: the held item of any living entity, by id or by name. */
+    public static final class Enchant extends CommandBase {
+        @Override
+        public String getCommandName() {
+            return "enchant";
+        }
+
+        @Override
+        public int getRequiredPermissionLevel() {
+            return 2;
+        }
+
+        @Override
+        public String getCommandUsage(ICommandSender sender) {
+            return "commands.enchant.usage";
+        }
+
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (args.length < 2) {
+                throw new WrongUsageException("commands.enchant.usage");
+            }
+            net.minecraft.enchantment.Enchantment en = enchantment(args[1]);
+            int level = args.length >= 3 ? parseIntBounded(sender, args[2], en.getMinLevel(), en.getMaxLevel()) : 1;
+            for (Entity e : found(sender, args[0])) {
+                if (!(e instanceof EntityLivingBase)) {
+                    throw new CommandException("commands.generic.entity.notFound", args[0]);
+                }
+                net.minecraft.item.ItemStack held = ((EntityLivingBase) e).getHeldItem();
+                if (held == null) {
+                    throw new CommandException("commands.enchant.noItem");
+                }
+                if (!en.canApply(held)) {
+                    throw new CommandException("commands.enchant.cantEnchant");
+                }
+                if (held.hasTagCompound() && held.getEnchantmentTagList() != null) {
+                    net.minecraft.nbt.NBTTagList list = held.getEnchantmentTagList();
+                    for (int i = 0; i < list.tagCount(); i++) {
+                        int id = list.getCompoundTagAt(i).getShort("id");
+                        net.minecraft.enchantment.Enchantment other = net.minecraft.enchantment.Enchantment.enchantmentsList[id];
+                        if (other != null && !other.canApplyTogether(en)) {
+                            throw new CommandException("commands.enchant.cantCombine", en.getTranslatedName(level), other.getTranslatedName(list.getCompoundTagAt(i).getShort("lvl")));
+                        }
+                    }
+                }
+                held.addEnchantment(en, level);
+                func_152373_a(sender, this, "commands.enchant.success");
+            }
+        }
+
+        @Override
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            return args.length == 1 ? getListOfStringsMatchingLastWord(args, net.minecraft.server.MinecraftServer.getServer().getAllUsernames()) : null;
+        }
+    }
+
+    /** /scoreboard of 1.7.10 plus "players tag" of 1.12.2 (entity tags, the tag= selector argument). */
+    public static final class Scoreboard extends net.minecraft.command.server.CommandScoreboard {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (args.length >= 2 && "players".equalsIgnoreCase(args[0]) && "tag".equalsIgnoreCase(args[1])) {
+                tag(sender, args);
+                return;
+            }
+            super.processCommand(sender, args);
+        }
+
+        private void tag(ICommandSender sender, String[] args) {
+            if (args.length < 4) {
+                throw new WrongUsageException("commands.scoreboard.players.tag.usage");
+            }
+            List<Entity> targets = found(sender, args[2]);
+            Entity e = targets.get(0);
+            String op = args[3];
+            if ("list".equals(op)) {
+                List<String> tags = Selector112.tags(e);
+                sender.addChatMessage(new net.minecraft.util.ChatComponentTranslation("commands.scoreboard.players.tag.list", Selector112.holder(e)));
+                sender.addChatMessage(new ChatComponentText(joinNiceString(tags.toArray())));
+                return;
+            }
+            if (args.length < 5) {
+                throw new WrongUsageException("commands.scoreboard.players.tag.usage");
+            }
+            String name = args[4];
+            net.minecraft.nbt.NBTTagCompound want = dataTag(args, 5);
+            if (want != null && !Selector112.nbtContains(want, Selector112.entityNBT(e))) {
+                throw new CommandException("commands.scoreboard.players.tag.tagMismatch", Selector112.holder(e));
+            }
+            List<String> tags = Selector112.tags(e);
+            if ("add".equals(op)) {
+                if (tags.contains(name) || tags.size() >= Selector112.MAX_TAGS) {
+                    throw new CommandException("commands.scoreboard.players.tag.tooMany", Selector112.MAX_TAGS);
+                }
+                tags.add(name);
+                Selector112.setTags(e, tags);
+                func_152373_a(sender, this, "commands.scoreboard.players.tag.success.add", name);
+            } else if ("remove".equals(op)) {
+                if (!tags.remove(name)) {
+                    throw new CommandException("commands.scoreboard.players.tag.notFound", name);
+                }
+                Selector112.setTags(e, tags);
+                func_152373_a(sender, this, "commands.scoreboard.players.tag.success.remove", name);
+            } else {
+                throw new WrongUsageException("commands.scoreboard.players.tag.usage");
+            }
+        }
+    }
 }

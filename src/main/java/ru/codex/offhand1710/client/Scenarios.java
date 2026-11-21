@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -334,6 +334,8 @@ public final class Scenarios {
             sounds();
         } else if ("idle".equals(STAGE)) {
             idle();
+        } else if ("selectors".equals(STAGE)) {
+            selectors();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -3022,6 +3024,123 @@ public final class Scenarios {
                 log("INFO idle fps avg=" + (fsum / idleFps.size()) + " min=" + fmin + " tick ms avg=" + String.format("%.2f", tavg) + " max=" + String.format("%.2f", tmax)
                     + " tps=" + String.format("%.1f", Math.min(20.0D, 1000.0D / Math.max(50.0D, tmax))));
                 result("idle server keeps 20 TPS", tmax < 50.0D, "max mean tick " + String.format("%.2f", tmax) + " ms");
+            }
+        });
+        finish();
+    }
+
+    private int diamonds;
+
+    private int sel(String token) {
+        return ru.codex.offhand1710.Selector112.select(p(), token, net.minecraft.entity.Entity.class).size();
+    }
+
+    /** 1.12.2 selectors in vanilla commands (Selector112 through PlayerSelector and the CommandHandler loop). */
+    private void selectors() {
+        final net.minecraft.entity.Entity[] mobs = new net.minecraft.entity.Entity[8];
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                WorldServer w = w();
+                cmd("gamemode 1");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 6000");
+                sx = (int) Math.floor(p().posX) + 40;
+                sy = 30;
+                sz = (int) Math.floor(p().posZ);
+                for (int dx = -12; dx <= 12; dx++) {
+                    for (int dz = -12; dz <= 12; dz++) {
+                        w.setBlock(sx + dx, sy - 1, sz + dz, Blocks.stone);
+                        for (int dy = 0; dy < 4; dy++) {
+                            w.setBlock(sx + dx, sy + dy, sz + dz, Blocks.air);
+                        }
+                    }
+                }
+                for (Object o : w.getEntitiesWithinAABB(net.minecraft.entity.EntityLiving.class, net.minecraft.util.AxisAlignedBB.getBoundingBox(sx - 60, 0, sz - 60, sx + 60, 255, sz + 60))) {
+                    ((net.minecraft.entity.Entity) o).setDead();
+                }
+                look(sx + 0.5D, sy, sz + 0.5D);
+                double[][] at = {{3, 0}, {6, 0}, {9, 0}, {-3, 3}, {-3, 6}, {0, -8}};
+                for (int i = 0; i < 6; i++) {
+                    net.minecraft.entity.EntityLiving e = i < 3 ? new net.minecraft.entity.monster.EntityZombie(w) : i < 5 ? new net.minecraft.entity.passive.EntityPig(w)
+                        : new net.minecraft.entity.monster.EntitySkeleton(w);
+                    if (i == 5) {
+                        ((net.minecraft.entity.monster.EntitySkeleton) e).setSkeletonType(1);
+                    }
+                    e.setLocationAndAngles(sx + 0.5D + at[i][0], sy, sz + 0.5D + at[i][1], i * 40.0F, 0.0F);
+                    e.func_110163_bv();
+                    w.spawnEntityInWorld(e);
+                    mobs[i] = e;
+                }
+                ((net.minecraft.entity.EntityLiving) mobs[1]).setCustomNameTag("Bob");
+                ((net.minecraft.entity.EntityLiving) mobs[0]).setCurrentItemOrArmor(0, new ItemStack(Items.iron_sword));
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                result("@e[type=zombie] finds three", sel("@e[type=zombie]") == 3, "n=" + sel("@e[type=zombie]"));
+                result("@e[type=!zombie,r=20] skips zombies", sel("@e[type=!zombie,r=20]") == 4, "n=" + sel("@e[type=!zombie,r=20]") + " (2 pigs, wither skeleton, player)");
+                result("@e[type=wither_skeleton] is the variant", sel("@e[type=wither_skeleton]") == 1 && sel("@e[type=skeleton]") == 0, "");
+                result("@e[name=Bob] and name=!Bob", sel("@e[name=Bob]") == 1 && sel("@e[type=zombie,name=!Bob]") == 2, "");
+                result("@e[c=1] nearest, c=-1 farthest", ru.codex.offhand1710.Selector112.select(p(), "@e[type=zombie,c=1]", net.minecraft.entity.Entity.class).get(0) == mobs[0]
+                    && ru.codex.offhand1710.Selector112.select(p(), "@e[type=zombie,c=-1]", net.minecraft.entity.Entity.class).get(0) == mobs[2], "");
+                result("@e[dx,dy,dz] box", sel("@e[x=" + (sx + 5) + ",y=" + sy + ",z=" + sz + ",dx=2,dy=1,dz=0]") == 1, "n=" + sel("@e[x=" + (sx + 5) + ",y=" + sy + ",z=" + sz + ",dx=2,dy=1,dz=0]"));
+                result("@e[rym,ry] by yaw", sel("@e[type=zombie,rym=30,ry=50]") == 1, "n=" + sel("@e[type=zombie,rym=30,ry=50]"));
+                result("@a[m=1] creative player", sel("@a[m=1]") == 1 && sel("@a[m=0]") == 0, "");
+                result("@s is the sender", sel("@s") == 1 && sel("@s[type=player]") == 1 && sel("@s[type=zombie]") == 0, "");
+                result("@r[type=pig] picks one pig", sel("@r[type=pig]") == 1, "");
+                boolean threw = false;
+                try {
+                    sel("@e[foo=1]");
+                } catch (net.minecraft.command.CommandException e) {
+                    threw = "commands.generic.selector_argument".equals(e.getMessage());
+                }
+                result("unknown argument is an error", threw, "");
+                result("PlayerSelector knows @e", net.minecraft.command.PlayerSelector.matchesMultiplePlayers("@e[type=zombie]") && net.minecraft.command.PlayerSelector.hasArguments("@s"), "");
+                result("getPlayer(@s) is the player", net.minecraft.command.CommandBase.getPlayer(p(), "@s") == p(), "");
+                net.minecraft.util.IChatComponent names = net.minecraft.command.PlayerSelector.func_150869_b(p(), "@e[type=zombie,name=Bob]");
+                result("/say names entities", names != null && "Bob".equals(names.getUnformattedText()), "got=" + (names == null ? null : names.getUnformattedText()));
+                // real commands through CommandHandler
+                cmd("scoreboard objectives add t112 dummy");
+                cmd("scoreboard players set @e[type=zombie] t112 5");
+                result("/scoreboard players set @e sets every zombie (by UUID)", sel("@e[type=zombie,score_t112_min=5,score_t112=5]") == 3, "n=" + sel("@e[type=zombie,score_t112_min=5]"));
+                cmd("scoreboard players tag @e[type=zombie,c=1] add boss");
+                result("/scoreboard players tag adds a tag", sel("@e[tag=boss]") == 1 && sel("@e[type=zombie,tag=!boss]") == 2 && sel("@e[type=pig,tag=]") == 2, "");
+                cmd("enchant @e[tag=boss] sharpness 2");
+                ItemStack sword = ((net.minecraft.entity.EntityLiving) mobs[0]).getHeldItem();
+                result("/enchant @e enchants a zombie's sword", sword != null && net.minecraft.enchantment.EnchantmentHelper.getEnchantmentLevel(16, sword) == 2, "");
+                ru.codex.offhand1710.Commands112.last = 0;
+                cmd("testfor @e[type=pig]");
+                result("/testfor @e counts entities", ru.codex.offhand1710.Commands112.last == 2, "found=" + ru.codex.offhand1710.Commands112.last);
+                ru.codex.offhand1710.Commands112.last = 0;
+                cmd("testfor @e[type=zombie,c=1] {CustomName:\"Bob\"}");
+                result("/testfor with a data tag that does not match", ru.codex.offhand1710.Commands112.last == 0, "");
+                int before = 0;
+                for (ItemStack s : p().inventory.mainInventory) {
+                    before += s != null && s.getItem() == Items.diamond ? s.stackSize : 0;
+                }
+                diamonds = before;
+                cmd("give @e[type=player] diamond 3");
+                cmd("kill @e[type=pig]");
+                result("/kill @e[type=pig] through the command loop", ((net.minecraft.entity.EntityLivingBase) mobs[3]).getHealth() <= 0.0F
+                    && ((net.minecraft.entity.EntityLivingBase) mobs[4]).getHealth() <= 0.0F && ((net.minecraft.entity.EntityLivingBase) mobs[0]).getHealth() > 0.0F, "");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                int after = 0;
+                for (ItemStack s : p().inventory.mainInventory) {
+                    after += s != null && s.getItem() == Items.diamond ? s.stackSize : 0;
+                }
+                result("/give @e[type=player] (1.7.10 player command)", after - diamonds == 3, "diamonds +" + (after - diamonds));
+                for (net.minecraft.entity.Entity e : mobs) {
+                    if (e != null) {
+                        e.setDead();
+                    }
+                }
+                cmd("scoreboard objectives remove t112");
             }
         });
         finish();

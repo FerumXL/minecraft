@@ -76,6 +76,9 @@ public final class MC112Bridge {
         event.registerServerCommand(new Commands112.Tp("tp"));
         event.registerServerCommand(new Commands112.Kill());
         event.registerServerCommand(new Commands112.Effect());
+        event.registerServerCommand(new Commands112.TestFor());
+        event.registerServerCommand(new Commands112.Enchant());
+        event.registerServerCommand(new Commands112.Scoreboard());
         event.registerServerCommand(new Spectator112.CommandGameMode());
         event.registerServerCommand(new Content120.CommandReplaceItem());
         event.registerServerCommand(new Content120.CommandBlockData());

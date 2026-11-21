@@ -653,6 +653,9 @@ public final class Content120 {
     static net.minecraft.entity.Entity executor;
 
     public static java.util.List<net.minecraft.entity.Entity> selectEntities(ICommandSender sender, String token) {
+        if (!Selector112.OLD) {
+            return Selector112.entities(sender, token);
+        }
         java.util.List<net.minecraft.entity.Entity> out = new java.util.ArrayList<net.minecraft.entity.Entity>();
         World world = sender.getEntityWorld();
         if (!token.startsWith("@") || token.length() < 2) {
@@ -743,8 +746,24 @@ public final class Content120 {
         return count > 0 && out.size() > count ? new java.util.ArrayList<net.minecraft.entity.Entity>(out.subList(0, count)) : out;
     }
 
-    private static boolean typeMatches(net.minecraft.entity.Entity e, String type) {
+    static boolean typeMatches(net.minecraft.entity.Entity e, String type) {
         String t = type.startsWith("minecraft:") ? type.substring(10) : type;
+        String lt = t.toLowerCase();
+        // 1.12 types that are one class with a variant in 1.7.10
+        if (lt.equals("wither_skeleton") || lt.equals("skeleton")) {
+            return e instanceof net.minecraft.entity.monster.EntitySkeleton && !(e instanceof EntityStray)
+                && (((net.minecraft.entity.monster.EntitySkeleton) e).getSkeletonType() == 1) == lt.equals("wither_skeleton");
+        }
+        if (lt.equals("zombie_villager") || lt.equals("zombie")) {
+            return e instanceof net.minecraft.entity.monster.EntityZombie && !(e instanceof net.minecraft.entity.monster.EntityPigZombie) && !(e instanceof EntityHusk)
+                && ((net.minecraft.entity.monster.EntityZombie) e).isVillager() == lt.equals("zombie_villager");
+        }
+        String[] horses = {"horse", "donkey", "mule", "zombie_horse", "skeleton_horse"};
+        for (int i = 0; i < horses.length; i++) {
+            if (horses[i].equals(lt)) {
+                return e instanceof net.minecraft.entity.passive.EntityHorse && ((net.minecraft.entity.passive.EntityHorse) e).getHorseType() == i;
+            }
+        }
         if (t.equals("player")) {
             return e instanceof net.minecraft.entity.player.EntityPlayer;
         }
