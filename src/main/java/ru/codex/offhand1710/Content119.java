@@ -734,6 +734,9 @@ public final class Content119 {
             }
             int[] c = coords(sender, args, 0);
             int[] d = coords(sender, args, 3);
+            if (!Names112.OFF) {
+                args = Commands112.blockArgs(args, 6, false);
+            }
             Block block = getBlockByText(sender, args[6]);
             int meta = args.length > 7 ? parseIntBounded(sender, args[7], 0, 15) : 0;
             String mode = args.length > 8 ? args[8] : "replace";

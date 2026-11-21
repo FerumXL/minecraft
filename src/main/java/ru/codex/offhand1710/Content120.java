@@ -567,9 +567,15 @@ public final class Content120 {
             if (args.length <= base) {
                 throw new WrongUsageException(getCommandUsage(sender));
             }
+            int data = args.length > base + 2 ? parseInt(sender, args[base + 2]) : 0;
+            Object[] named = Names112.OFF ? null : Names112.item(args[base], data);
+            if (named != null) {
+                args = args.clone();
+                args[base] = (String) named[0];
+                data = ((Integer) named[1]).intValue();
+            }
             Item item = getItemByText(sender, args[base]);
             int count = args.length > base + 1 ? parseIntBounded(sender, args[base + 1], 1, 64) : 1;
-            int data = args.length > base + 2 ? parseInt(sender, args[base + 2]) : 0;
             ItemStack stack = new ItemStack(item, count, data);
             if (block) {
                 ChunkCoordinates c = sender.getPlayerCoordinates();

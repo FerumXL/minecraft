@@ -468,4 +468,290 @@ public final class Commands112 {
             }
         }
     }
+
+    /** CommandGameRule of 1.12.2: "name = value", no such rule, booleans checked, the value in the success line. */
+    public static final class GameRule extends net.minecraft.command.CommandGameRule {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (Rules112.OFF) {
+                super.processCommand(sender, args);
+                return;
+            }
+            net.minecraft.world.GameRules rules = net.minecraft.server.MinecraftServer.getServer().worldServers[0].getGameRules();
+            String name = args.length > 0 ? args[0] : "";
+            String value = args.length > 1 ? func_82360_a(sender, args, 1) : "";
+            if (args.length == 0) {
+                sender.addChatMessage(new ChatComponentText(joinNiceString(rules.getRules())));
+            } else if (args.length == 1) {
+                if (!rules.hasRule(name)) {
+                    throw new CommandException("commands.gamerule.norule", name);
+                }
+                sender.addChatMessage(new ChatComponentText(name).appendText(" = ").appendText(rules.getGameRuleStringValue(name)));
+            } else {
+                if (Rules112.isBoolean(rules, name) && !"true".equals(value) && !"false".equals(value)) {
+                    throw new CommandException("commands.generic.boolean.invalid", value);
+                }
+                rules.setOrCreateGameRule(name, value);
+                func_152373_a(sender, this, "commands.gamerule.success", name, value);
+            }
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            net.minecraft.world.GameRules rules = net.minecraft.server.MinecraftServer.getServer().worldServers[0].getGameRules();
+            if (args.length == 1) {
+                return getListOfStringsMatchingLastWord(args, rules.getRules());
+            }
+            if (args.length == 2) {
+                if (Rules112.isBoolean(rules, args[0])) {
+                    return getListOfStringsMatchingLastWord(args, "true", "false");
+                }
+                if ("gameLoopFunction".equals(args[0])) {
+                    return getListOfStringsFromIterableMatchingLastWord(args, Data112.functionNames());
+                }
+            }
+            return null;
+        }
+    }
+
+    // ---- the names of 1.12.2 in the vanilla commands (Names112) ----
+
+    private static String[] put(String[] args, int index, String value) {
+        String[] out = args;
+        if (index >= args.length) {
+            out = new String[index + 1];
+            System.arraycopy(args, 0, out, 0, args.length);
+        } else {
+            out = args.clone();
+        }
+        out[index] = value;
+        return out;
+    }
+
+    /** /give with item ids and data of 1.12.2 (concrete 5 is the lime concrete of this mod). */
+    public static final class Give extends net.minecraft.command.CommandGive {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (Names112.OFF || args.length < 2) {
+                super.processCommand(sender, args);
+                return;
+            }
+            int data = args.length >= 4 ? parseInt(sender, args[3]) : 0;
+            Object[] it = Names112.item(args[1], data);
+            if (it == null) {
+                throw new CommandException("commands.give.item.notFound", args[1]);
+            }
+            String[] out = put(args, 1, (String) it[0]);
+            if (args.length >= 4 || ((Integer) it[1]).intValue() != 0) {
+                if (out.length < 3) {
+                    out = put(out, 2, "1");
+                }
+                out = put(out, 3, String.valueOf(it[1]));
+            }
+            super.processCommand(sender, out);
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (args.length == 2 && !Names112.OFF) {
+                return getListOfStringsFromIterableMatchingLastWord(args, Names112.itemCompletions());
+            }
+            return super.addTabCompletionOptions(sender, args);
+        }
+    }
+
+    /** /setblock with block ids and states of 1.12.2 ("stone variant=granite"). */
+    public static final class SetBlock extends net.minecraft.command.server.CommandSetBlock {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            super.processCommand(sender, Names112.OFF || args.length < 4 ? args : blockArgs(args, 3, false));
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (args.length == 4 && !Names112.OFF) {
+                return getListOfStringsFromIterableMatchingLastWord(args, Names112.blockCompletions());
+            }
+            return super.addTabCompletionOptions(sender, args);
+        }
+    }
+
+    /** /testforblock with block ids and states of 1.12.2; -1 or no data is any metadata. */
+    public static final class TestForBlock extends net.minecraft.command.server.CommandTestForBlock {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (Names112.OFF || args.length < 4) {
+                super.processCommand(sender, args);
+                return;
+            }
+            String data = args.length > 4 ? args[4] : null;
+            if (data == null || "-1".equals(data) || "*".equals(data)) {
+                // a 1.12.2 block that this mod splits (concrete by colour, granite out of stone): any data matches any of them
+                net.minecraft.util.ChunkCoordinates c = sender.getPlayerCoordinates();
+                int x = net.minecraft.util.MathHelper.floor_double(func_110666_a(sender, c.posX, args[0]));
+                int y = net.minecraft.util.MathHelper.floor_double(func_110666_a(sender, c.posY, args[1]));
+                int z = net.minecraft.util.MathHelper.floor_double(func_110666_a(sender, c.posZ, args[2]));
+                String here = net.minecraft.block.Block.blockRegistry.getNameForObject(sender.getEntityWorld().getBlock(x, y, z));
+                for (int m = 0; m < 16; m++) {
+                    Object[] b = Names112.block(args[3], String.valueOf(m));
+                    if (b != null && b[0].equals(here)) {
+                        super.processCommand(sender, put(put(args, 3, here), 4, "-1"));
+                        return;
+                    }
+                }
+            }
+            super.processCommand(sender, blockArgs(args, 3, true));
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (args.length == 4 && !Names112.OFF) {
+                return getListOfStringsFromIterableMatchingLastWord(args, Names112.blockCompletions());
+            }
+            return super.addTabCompletionOptions(sender, args);
+        }
+    }
+
+    /** args[at] is a 1.12.2 block and args[at + 1] its data or state: both become the 1.7.10 ones. */
+    static String[] blockArgs(String[] args, int at, boolean anyMeta) {
+        String data = args.length > at + 1 ? args[at + 1] : null;
+        boolean any = anyMeta && (data == null || "-1".equals(data) || "*".equals(data));
+        Object[] b = Names112.block(args[at], any ? null : data);
+        if (b == null) {
+            throw new CommandException("commands.give.block.notFound", args[at]);
+        }
+        String[] out = put(args, at, (String) b[0]);
+        if (any) {
+            return data == null ? out : put(out, at + 1, "-1");
+        }
+        if (data != null || ((Integer) b[1]).intValue() != 0) {
+            out = put(out, at + 1, String.valueOf(b[1]));
+        }
+        return out;
+    }
+
+    /** /summon with entity ids of 1.12.2 ("zombie", "minecraft:lightning_bolt"). */
+    public static final class Summon extends net.minecraft.command.server.CommandSummon {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (Names112.OFF || args.length < 1) {
+                super.processCommand(sender, args);
+                return;
+            }
+            super.processCommand(sender, put(args, 0, Names112.entity(args[0])));
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (args.length == 1 && !Names112.OFF) {
+                return getListOfStringsFromIterableMatchingLastWord(args, Names112.entityCompletions());
+            }
+            return super.addTabCompletionOptions(sender, args);
+        }
+    }
+
+    /**
+     * CommandClearInventory of 1.12.2: /clear [player] [item] [data] [maxCount] [dataTag]. maxCount 0 only counts,
+     * a positive one stops there; the offhand and the item on the cursor are cleared too.
+     */
+    public static final class Clear extends net.minecraft.command.CommandClearInventory {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (Names112.OFF) {
+                super.processCommand(sender, args);
+                return;
+            }
+            EntityPlayerMP player = args.length == 0 ? getCommandSenderAsPlayer(sender) : getPlayer(sender, args[0]);
+            net.minecraft.item.Item item = null;
+            int data = args.length >= 3 ? parseIntWithMin(sender, args[2], -1) : -1;
+            if (args.length >= 2) {
+                Object[] it = Names112.item(args[1], Math.max(0, data));
+                if (it == null) {
+                    throw new CommandException("commands.give.item.notFound", args[1]);
+                }
+                item = (net.minecraft.item.Item) net.minecraft.item.Item.itemRegistry.getObject(it[0]);
+                if (data >= 0) {
+                    data = ((Integer) it[1]).intValue();
+                }
+            }
+            int max = args.length >= 4 ? parseIntWithMin(sender, args[3], -1) : -1;
+            net.minecraft.nbt.NBTTagCompound tag = null;
+            if (args.length >= 5) {
+                try {
+                    net.minecraft.nbt.NBTBase t = net.minecraft.nbt.JsonToNBT.func_150315_a(func_82360_a(sender, args, 4));
+                    if (!(t instanceof net.minecraft.nbt.NBTTagCompound)) {
+                        throw new CommandException("commands.clear.tagError", "Not a valid tag");
+                    }
+                    tag = (net.minecraft.nbt.NBTTagCompound) t;
+                } catch (net.minecraft.nbt.NBTException e) {
+                    throw new CommandException("commands.clear.tagError", e.getMessage());
+                }
+            }
+            int[] counted = new int[1];
+            net.minecraft.entity.player.InventoryPlayer inv = player.inventory;
+            boolean done = clearIn(inv.mainInventory, item, data, max, tag, counted) || clearIn(inv.armorInventory, item, data, max, tag, counted);
+            OffhandInventory off = OffhandInventory.get(player);
+            if (!done) {
+                net.minecraft.item.ItemStack[] one = {off.getStack()};
+                done = clearIn(one, item, data, max, tag, counted);
+                off.setStack(one[0]);
+            }
+            if (!done) {
+                net.minecraft.item.ItemStack[] cursor = {inv.getItemStack()};
+                clearIn(cursor, item, data, max, tag, counted);
+                inv.setItemStack(cursor[0]);
+            }
+            player.inventoryContainer.detectAndSendChanges();
+            if (!player.capabilities.isCreativeMode) {
+                player.updateHeldItem();
+            }
+            OffhandMessages.synchronize(player);
+            if (counted[0] == 0) {
+                throw new CommandException("commands.clear.failure", player.getCommandSenderName());
+            }
+            if (max == 0) {
+                sender.addChatMessage(new net.minecraft.util.ChatComponentTranslation("commands.clear.testing", player.getCommandSenderName(), counted[0]));
+            } else {
+                func_152373_a(sender, this, "commands.clear.success", player.getCommandSenderName(), counted[0]);
+            }
+        }
+
+        /** InventoryPlayer.clearMatchingItems of 1.12.2 over one array; true once maxCount is reached. */
+        private static boolean clearIn(net.minecraft.item.ItemStack[] stacks, net.minecraft.item.Item item, int data, int max,
+            net.minecraft.nbt.NBTTagCompound tag, int[] counted) {
+            for (int i = 0; i < stacks.length; i++) {
+                net.minecraft.item.ItemStack s = stacks[i];
+                if (s == null || item != null && s.getItem() != item || data > -1 && s.getItemDamage() != data
+                    || tag != null && !Selector112.nbtContains(tag, s.getTagCompound() == null ? new net.minecraft.nbt.NBTTagCompound() : s.getTagCompound())) {
+                    continue;
+                }
+                int take = max <= 0 ? s.stackSize : Math.min(max - counted[0], s.stackSize);
+                counted[0] += take;
+                if (max != 0) {
+                    s.stackSize -= take;
+                    if (s.stackSize <= 0) {
+                        stacks[i] = null;
+                    }
+                    if (max > 0 && counted[0] >= max) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (args.length == 2 && !Names112.OFF) {
+                return getListOfStringsFromIterableMatchingLastWord(args, Names112.itemCompletions());
+            }
+            return super.addTabCompletionOptions(sender, args);
+        }
+    }
 }

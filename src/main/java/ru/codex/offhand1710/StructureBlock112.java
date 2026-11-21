@@ -454,6 +454,12 @@ public final class StructureBlock112 {
                         meta = 0;
                         unknownStates++;
                     }
+                    // blocks this mod keeps apart (granite out of stone, concrete by colour)
+                    Object[] split = Names112.OFF || b == null ? null : Names112.block(name, String.valueOf(meta));
+                    if (split != null && !split[0].equals(Block.blockRegistry.getNameForObject(b))) {
+                        b = Block.getBlockFromName((String) split[0]);
+                        meta = ((Integer) split[1]).intValue();
+                    }
                 }
                 pb[i] = b == null ? Blocks.air : b;
                 if (b == null) {

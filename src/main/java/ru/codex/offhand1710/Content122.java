@@ -36,7 +36,6 @@ public final class Content122 {
     public static final int WATCH_LEFT = 30;
     public static ModeBlock chain;
     public static ModeBlock repeating;
-    private static final int MAX_CHAIN = 65536;
 
     private Content122() {
     }
@@ -90,7 +89,9 @@ public final class Content122 {
 
     /** Runs the chain blocks that follow (x, y, z) in the given direction. */
     private static void runChain(World world, int x, int y, int z, int direction) {
-        for (int n = 0; n < MAX_CHAIN; n++) {
+        // maxCommandChainLength of 1.12.2 (65536 by default)
+        int limit = Rules112.chainLength(world);
+        for (int n = 0; n < limit; n++) {
             x += Facing.offsetsXForSide[direction];
             y += Facing.offsetsYForSide[direction];
             z += Facing.offsetsZForSide[direction];

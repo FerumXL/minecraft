@@ -236,6 +236,7 @@ public final class Transformer implements IClassTransformer {
             return bytes;
         }
         bytes = SoundPatches.transform(transformedName, bytes);
+        bytes = RulePatches.transform(transformedName, bytes);
         if ("net.minecraft.block.BlockCommandBlock".equals(transformedName)) {
             ClassNode node = read(bytes);
             for (MethodNode m : node.methods) {

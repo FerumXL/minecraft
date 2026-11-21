@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -361,6 +361,10 @@ public final class Scenarios {
             selectors();
         } else if ("boats".equals(STAGE)) {
             boatsStage();
+        } else if ("gamerules".equals(STAGE)) {
+            gamerules();
+        } else if ("names".equals(STAGE)) {
+            names();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -3185,6 +3189,382 @@ public final class Scenarios {
 
     private static void drive(net.minecraft.entity.item.EntityBoat b, boolean forward, boolean left) {
         ru.codex.offhand1710.Boat112.state(b).input = new Boolean[] {forward, false, left, false};
+    }
+
+    /** Translation keys of the chat lines this client got (ClientChatReceivedEvent), for the game rule stage. */
+    public static final class ChatKeys {
+        final java.util.List<String> keys = java.util.Collections.synchronizedList(new java.util.ArrayList<String>());
+
+        @cpw.mods.fml.common.eventhandler.SubscribeEvent
+        public void onChat(net.minecraftforge.client.event.ClientChatReceivedEvent event) {
+            collect(event.message);
+        }
+
+        private void collect(net.minecraft.util.IChatComponent c) {
+            if (c instanceof net.minecraft.util.ChatComponentTranslation) {
+                net.minecraft.util.ChatComponentTranslation t = (net.minecraft.util.ChatComponentTranslation) c;
+                keys.add(t.getKey() + "#" + t.getFormatArgs().length);
+                for (Object a : t.getFormatArgs()) {
+                    if (a instanceof net.minecraft.util.IChatComponent) {
+                        collect((net.minecraft.util.IChatComponent) a);
+                    }
+                }
+            }
+            for (Object s : c.getSiblings()) {
+                collect((net.minecraft.util.IChatComponent) s);
+            }
+        }
+
+        boolean seen(String prefix) {
+            synchronized (keys) {
+                for (String k : keys) {
+                    if (k.startsWith(prefix)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+    }
+
+    private final ChatKeys chat = new ChatKeys();
+    private final java.util.List<net.minecraft.entity.passive.EntityPig> crammed = new java.util.ArrayList<net.minecraft.entity.passive.EntityPig>();
+    private final java.util.List<net.minecraft.entity.passive.EntityPig> loose = new java.util.ArrayList<net.minecraft.entity.passive.EntityPig>();
+    private net.minecraft.entity.passive.EntityWolf pet;
+
+    private int itemsNear(double x, double y, double z) {
+        return w().getEntitiesWithinAABB(net.minecraft.entity.item.EntityItem.class,
+            net.minecraft.util.AxisAlignedBB.getBoundingBox(x - 3, y - 3, z - 3, x + 3, y + 3, z + 3)).size();
+    }
+
+    private int cropsGrown(int x0) {
+        int grown = 0;
+        for (int dx = 0; dx < 5; dx++) {
+            for (int dz = 0; dz < 5; dz++) {
+                grown += w().getBlockMetadata(x0 + dx, sy, sz + dz) > 0 ? 1 : 0;
+            }
+        }
+        return grown;
+    }
+
+    private void crops(int x0) {
+        for (int dx = 0; dx < 5; dx++) {
+            for (int dz = 0; dz < 5; dz++) {
+                w().setBlock(x0 + dx, sy - 1, sz + dz, Blocks.farmland, 7, 2);
+                w().setBlock(x0 + dx, sy, sz + dz, Blocks.wheat, 0, 2);
+            }
+        }
+    }
+
+    /** The game rules of 1.12.2 (Rules112): defaults, /gamerule, and what each rule does. */
+    private void gamerules() {
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(chat);
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.world.GameRules r = w().getGameRules();
+                StringBuilder wrong = new StringBuilder();
+                for (java.util.Map.Entry<String, String> e : ru.codex.offhand1710.Rules112.ADDED.entrySet()) {
+                    if (!r.hasRule(e.getKey()) || !e.getValue().equals(r.getGameRuleStringValue(e.getKey()))) {
+                        wrong.append(e.getKey()).append(' ');
+                    }
+                }
+                result("the 15 rules of 1.12.2 with their defaults", wrong.length() == 0 && r.getRules().length >= 24, wrong + "of " + r.getRules().length);
+                cmd("gamerule noSuchRule");
+                cmd("gamerule doMobLoot yes");
+                cmd("gamerule keepInventory false");
+                cmd("gamerule randomTickSpeed");
+                cmd("time set 1000");
+                cmd("gamerule doMobSpawning false");
+                sx = (int) Math.floor(p().posX) + 30;
+                sy = 70;
+                sz = (int) Math.floor(p().posZ);
+                for (int dx = -2; dx <= 30; dx++) {
+                    for (int dz = -2; dz <= 8; dz++) {
+                        w().setBlock(sx + dx, sy - 2, sz + dz, Blocks.stone);
+                        w().setBlock(sx + dx, sy - 1, sz + dz, Blocks.stone);
+                        for (int dy = 0; dy < 12; dy++) {
+                            w().setBlock(sx + dx, sy + dy, sz + dz, Blocks.air);
+                        }
+                    }
+                }
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                result("/gamerule of a missing rule says so", chat.seen("commands.gamerule.norule#1"), "");
+                result("/gamerule refuses a boolean that is not true or false", chat.seen("commands.generic.boolean.invalid#1") && w().getGameRules().getGameRuleBooleanValue("doMobLoot"),
+                    "doMobLoot=" + w().getGameRules().getGameRuleStringValue("doMobLoot"));
+                result("/gamerule success names the rule and the value", chat.seen("commands.gamerule.success#2"), "");
+                result("the command result reaches the player (sendCommandFeedback true)", chat.seen("commands.time.set"), "");
+                chat.keys.clear();
+                cmd("gamerule sendCommandFeedback false");
+                cmd("time set 2000");
+                cmd("gamerule doEntityDrops false");
+                // randomTickSpeed: 0 freezes the crops, 2000 grows them at once
+                cmd("gamerule randomTickSpeed 0");
+                crops(sx);
+            }
+        });
+        server(100, new Runnable() {
+            @Override
+            public void run() {
+                result("sendCommandFeedback false hides the result", !chat.seen("commands.time.set") && w().getWorldTime() % 24000 >= 2000 && w().getWorldTime() % 24000 < 2300, "time=" + w().getWorldTime() % 24000);
+                result("randomTickSpeed 0: no crop grows in 100 ticks", cropsGrown(sx) == 0, "grown=" + cropsGrown(sx));
+                cmd("gamerule sendCommandFeedback true");
+                cmd("gamerule randomTickSpeed 2000");
+                // doEntityDrops false: a boat and a minecart broken by damage drop nothing
+                net.minecraft.entity.item.EntityBoat boat = new net.minecraft.entity.item.EntityBoat(w(), sx + 10.5D, sy, sz + 2.5D);
+                w().spawnEntityInWorld(boat);
+                boat.attackEntityFrom(net.minecraft.util.DamageSource.generic, 100.0F);
+                net.minecraft.entity.item.EntityMinecartEmpty cart = new net.minecraft.entity.item.EntityMinecartEmpty(w(), sx + 10.5D, sy, sz + 5.5D);
+                w().spawnEntityInWorld(cart);
+                cart.attackEntityFrom(net.minecraft.util.DamageSource.generic, 100.0F);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                // about 10 random ticks a crop in 20 ticks; each grows a stage with a chance near 1/3 (first run: 21, then 17)
+                result("randomTickSpeed 2000: the crops grow within 20 ticks", cropsGrown(sx) >= 10, "grown=" + cropsGrown(sx) + "/25");
+                cmd("gamerule randomTickSpeed 3");
+                result("doEntityDrops false: a broken boat and minecart drop nothing", itemsNear(sx + 10.5D, sy, sz + 4) == 0, "items=" + itemsNear(sx + 10.5D, sy, sz + 4));
+                cmd("gamerule doEntityDrops true");
+                net.minecraft.entity.item.EntityBoat boat = new net.minecraft.entity.item.EntityBoat(w(), sx + 16.5D, sy, sz + 2.5D);
+                w().spawnEntityInWorld(boat);
+                boat.attackEntityFrom(net.minecraft.util.DamageSource.generic, 100.0F);
+                // maxEntityCramming: 30 pigs in one block hurt each other, 30 more with the rule at 0 do not
+                for (int i = 0; i < 30; i++) {
+                    net.minecraft.entity.passive.EntityPig pig = new net.minecraft.entity.passive.EntityPig(w());
+                    pig.setPosition(sx + 22.5D, sy, sz + 2.5D);
+                    w().spawnEntityInWorld(pig);
+                    crammed.add(pig);
+                }
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx != 0 || dz != 0) {
+                            for (int dy = 0; dy < 3; dy++) {
+                                w().setBlock(sx + 22 + dx, sy + dy, sz + 2 + dz, Blocks.glass);
+                            }
+                        }
+                    }
+                }
+                // weather: rain in 5 ticks, but doWeatherCycle false holds the clock
+                cmd("gamerule doWeatherCycle false");
+                w().getWorldInfo().setRaining(false);
+                w().getWorldInfo().setRainTime(5);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                result("doEntityDrops true: a broken boat drops again", itemsNear(sx + 16.5D, sy, sz + 2.5D) > 0, "items=" + itemsNear(sx + 16.5D, sy, sz + 2.5D));
+                int hurt = 0;
+                for (net.minecraft.entity.passive.EntityPig pig : crammed) {
+                    hurt += pig.isDead || pig.getHealth() < pig.getMaxHealth() ? 1 : 0;
+                }
+                result("maxEntityCramming 24: 30 pigs in one block get hurt", hurt >= 10, "hurt=" + hurt + "/30");
+                for (net.minecraft.entity.passive.EntityPig pig : crammed) {
+                    pig.setDead();
+                }
+                result("doWeatherCycle false: the rain clock stands still", !w().getWorldInfo().isRaining() && w().getWorldInfo().getRainTime() == 5,
+                    "raining=" + w().getWorldInfo().isRaining() + " time=" + w().getWorldInfo().getRainTime());
+                cmd("gamerule doWeatherCycle true");
+                cmd("gamerule maxEntityCramming 0");
+                for (int i = 0; i < 30; i++) {
+                    net.minecraft.entity.passive.EntityPig pig = new net.minecraft.entity.passive.EntityPig(w());
+                    pig.setPosition(sx + 22.5D, sy, sz + 2.5D);
+                    w().spawnEntityInWorld(pig);
+                    loose.add(pig);
+                }
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                int hurt = 0;
+                for (net.minecraft.entity.passive.EntityPig pig : loose) {
+                    hurt += pig.isDead || pig.getHealth() < pig.getMaxHealth() ? 1 : 0;
+                    pig.setDead();
+                }
+                result("maxEntityCramming 0: the same pigs are left alone", hurt == 0, "hurt=" + hurt + "/30");
+                result("doWeatherCycle true: the clock runs out and it rains", w().getWorldInfo().isRaining(), "time=" + w().getWorldInfo().getRainTime());
+                cmd("weather clear");
+                cmd("gamerule maxEntityCramming 24");
+                // spawnRadius: the spread of WorldProvider.getRandomizedSpawnPoint
+                net.minecraft.util.ChunkCoordinates spawn = w().getSpawnPoint();
+                cmd("gamerule spawnRadius 0");
+                boolean exact = true;
+                for (int i = 0; i < 50; i++) {
+                    net.minecraft.util.ChunkCoordinates c = w().provider.getRandomizedSpawnPoint();
+                    exact &= c.posX == spawn.posX && c.posZ == spawn.posZ;
+                }
+                result("spawnRadius 0: everyone spawns on the spawn block", exact, "");
+                cmd("gamerule spawnRadius 3");
+                int min = 99;
+                int max = -99;
+                for (int i = 0; i < 400; i++) {
+                    net.minecraft.util.ChunkCoordinates c = w().provider.getRandomizedSpawnPoint();
+                    min = Math.min(min, Math.min(c.posX - spawn.posX, c.posZ - spawn.posZ));
+                    max = Math.max(max, Math.max(c.posX - spawn.posX, c.posZ - spawn.posZ));
+                }
+                result("spawnRadius 3: spread -3..3 with both ends (1.12.2 nextInt(2r+1)-r)", min == -3 && max == 3, min + ".." + max);
+                cmd("gamerule spawnRadius 10");
+                // the elytra limit of "moved too quickly"
+                ru.codex.offhand1710.OffhandInventory inv = ru.codex.offhand1710.OffhandInventory.get(p());
+                boolean was = inv.elytraFlying;
+                double walk = ru.codex.offhand1710.Rules112.speedLimit(p().playerNetServerHandler);
+                inv.elytraFlying = true;
+                double glide = ru.codex.offhand1710.Rules112.speedLimit(p().playerNetServerHandler);
+                cmd("gamerule disableElytraMovementCheck true");
+                double off = ru.codex.offhand1710.Rules112.speedLimit(p().playerNetServerHandler);
+                inv.elytraFlying = was;
+                cmd("gamerule disableElytraMovementCheck false");
+                result("moved too quickly: 100 walking, 300 gliding, none with disableElytraMovementCheck", walk == 100.0D && glide == 300.0D && off == Double.MAX_VALUE, walk + " " + glide + " " + off);
+                // showDeathMessages: the owner of a tamed wolf hears how it died
+                chat.keys.clear();
+                pet = new net.minecraft.entity.passive.EntityWolf(w());
+                pet.setPosition(sx + 5.5D, sy, sz + 5.5D);
+                pet.setTamed(true);
+                pet.func_152115_b(p().getUniqueID().toString());
+                w().spawnEntityInWorld(pet);
+                pet.attackEntityFrom(net.minecraft.util.DamageSource.outOfWorld, 1000.0F);
+                cmd("gamerule reducedDebugInfo true");
+            }
+        });
+        server(30, new Runnable() {
+            @Override
+            public void run() {
+                result("showDeathMessages: the owner is told the pet died", chat.seen("death.attack.outOfWorld"), String.valueOf(chat.keys));
+                cmd("gamerule showDeathMessages false");
+                chat.keys.clear();
+                pet = new net.minecraft.entity.passive.EntityWolf(w());
+                pet.setPosition(sx + 5.5D, sy, sz + 5.5D);
+                pet.setTamed(true);
+                pet.func_152115_b(p().getUniqueID().toString());
+                w().spawnEntityInWorld(pet);
+                pet.attackEntityFrom(net.minecraft.util.DamageSource.outOfWorld, 1000.0F);
+                result("reducedDebugInfo reaches the client", RulesClient.reduced, "");
+                java.util.ArrayList<String> left = new java.util.ArrayList<String>(java.util.Arrays.asList("Minecraft 1.7.10 (60 fps)", "C: 1/2", "E: 1/2", "P: 0", "Overworld", null, "x: 1.0", "y: 64.0", "z: 1.0", "f: 0", "lc: 1 b: Plains"));
+                net.minecraft.client.gui.ScaledResolution res = new net.minecraft.client.gui.ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+                net.minecraftforge.client.event.RenderGameOverlayEvent parent = new net.minecraftforge.client.event.RenderGameOverlayEvent(0.0F, res, 0, 0);
+                new RulesClient().onText(new net.minecraftforge.client.event.RenderGameOverlayEvent.Text(parent, left, new java.util.ArrayList<String>()));
+                result("reducedDebugInfo: F3 keeps the frame and chunk lines, not the position", left.size() == 6 && left.get(4).equals("Overworld"), String.valueOf(left));
+                cmd("gamerule reducedDebugInfo false");
+                cmd("gamerule announceAdvancements false");
+                cmd("advancement grant @p only minecraft:story/mine_stone");
+            }
+        });
+        server(30, new Runnable() {
+            @Override
+            public void run() {
+                result("showDeathMessages false: not a word", !chat.seen("death.attack"), String.valueOf(chat.keys));
+                result("reducedDebugInfo false reaches the client", !RulesClient.reduced, "");
+                result("announceAdvancements false: the advancement is not in chat", !chat.seen("chat.type.advancement"), String.valueOf(chat.keys));
+                cmd("gamerule announceAdvancements true");
+                cmd("gamerule showDeathMessages true");
+                cmd("advancement grant @p only minecraft:story/upgrade_tools");
+            }
+        });
+        server(30, new Runnable() {
+            @Override
+            public void run() {
+                result("announceAdvancements true: the next one is", chat.seen("chat.type.advancement"), String.valueOf(chat.keys));
+            }
+        });
+        finish();
+    }
+
+    private int countOf(String registry, int meta) {
+        int n = 0;
+        for (net.minecraft.item.ItemStack s : p().inventory.mainInventory) {
+            if (s != null && registry.equals(net.minecraft.item.Item.itemRegistry.getNameForObject(s.getItem())) && (meta < 0 || s.getItemDamage() == meta)) {
+                n += s.stackSize;
+            }
+        }
+        return n;
+    }
+
+    private String blockAt(int x, int y, int z) {
+        return net.minecraft.block.Block.blockRegistry.getNameForObject(w().getBlock(x, y, z)) + ":" + w().getBlockMetadata(x, y, z);
+    }
+
+    /** Item, block and entity ids of 1.12.2 in /give, /clear, /setblock, /testforblock, /fill, /summon (Names112). */
+    private void names() {
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(chat);
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("gamerule doMobSpawning false");
+                p().inventory.clearInventory(null, -1);
+                sx = (int) Math.floor(p().posX) + 6;
+                sy = (int) Math.floor(p().posY) + 3;
+                sz = (int) Math.floor(p().posZ);
+                String n = p().getCommandSenderName();
+                cmd("give " + n + " minecraft:concrete 3 5");
+                cmd("give " + n + " concrete");
+                cmd("give " + n + " stone 2 1");
+                cmd("give " + n + " minecraft:purpur_block");
+                cmd("give " + n + " minecraft:nope");
+                cmd("setblock " + sx + " " + sy + " " + sz + " minecraft:concrete color=lime");
+                cmd("setblock " + (sx + 1) + " " + sy + " " + sz + " stone variant=granite");
+                cmd("setblock " + (sx + 2) + " " + sy + " " + sz + " minecraft:purpur_block");
+                cmd("setblock " + (sx + 3) + " " + sy + " " + sz + " minecraft:concrete 14");
+                cmd("setblock " + (sx + 4) + " " + sy + " " + sz + " minecraft:log axis=x,variant=birch");
+                cmd("setblock " + (sx + 5) + " " + sy + " " + sz + " stone variant=nonsense");
+                cmd("fill " + sx + " " + (sy + 1) + " " + sz + " " + (sx + 2) + " " + (sy + 1) + " " + sz + " minecraft:concrete color=red");
+            }
+        });
+        server(30, new Runnable() {
+            @Override
+            public void run() {
+                result("/give minecraft:concrete 3 5 gives lime concrete", countOf("mc112bridge:concrete_lime", -1) == 3, "lime=" + countOf("mc112bridge:concrete_lime", -1));
+                result("/give concrete (no data) gives white concrete", countOf("mc112bridge:concrete_white", -1) == 1, "");
+                result("/give stone 2 1 gives granite (a block of its own here)", countOf("mc112bridge:granite", 0) == 2, java.util.Arrays.toString(p().inventory.mainInventory));
+                result("/give minecraft:purpur_block (a block of this mod)", countOf("mc112bridge:purpur_block", -1) == 1, "");
+                result("/give of an unknown item says so", chat.seen("commands.give.item.notFound#1"), "");
+                result("/setblock minecraft:concrete color=lime", blockAt(sx, sy, sz).equals("mc112bridge:concrete_lime:0"), blockAt(sx, sy, sz));
+                result("/setblock stone variant=granite", blockAt(sx + 1, sy, sz).equals("mc112bridge:granite:0"), blockAt(sx + 1, sy, sz));
+                result("/setblock minecraft:purpur_block", blockAt(sx + 2, sy, sz).equals("mc112bridge:purpur_block:0"), blockAt(sx + 2, sy, sz));
+                result("/setblock minecraft:concrete 14 is red concrete", blockAt(sx + 3, sy, sz).equals("mc112bridge:concrete_red:0"), blockAt(sx + 3, sy, sz));
+                result("/setblock minecraft:log axis=x,variant=birch is metadata 6", blockAt(sx + 4, sy, sz).equals("minecraft:log:6"), blockAt(sx + 4, sy, sz));
+                result("/setblock refuses a state the block does not have", chat.seen("commands.generic.blockstate.invalid#2") && w().isAirBlock(sx + 5, sy, sz), "");
+                result("/fill with a 1.12.2 state", blockAt(sx + 1, sy + 1, sz).equals("mc112bridge:concrete_red:0") && blockAt(sx + 2, sy + 1, sz).equals("mc112bridge:concrete_red:0"), blockAt(sx + 1, sy + 1, sz));
+                chat.keys.clear();
+                cmd("testforblock " + (sx + 1) + " " + sy + " " + sz + " stone variant=granite");
+                cmd("testforblock " + sx + " " + sy + " " + sz + " minecraft:concrete 5");
+                cmd("testforblock " + (sx + 3) + " " + sy + " " + sz + " minecraft:concrete");
+                String n = p().getCommandSenderName();
+                cmd("clear " + n + " minecraft:concrete 5 0");
+                cmd("clear " + n + " minecraft:concrete 5 2");
+                cmd("summon pig " + sx + " " + (sy + 3) + " " + (sz + 3));
+                cmd("summon minecraft:pig " + sx + " " + (sy + 3) + " " + (sz + 3));
+                cmd("summon Pig " + sx + " " + (sy + 3) + " " + (sz + 3));
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                int ok = 0;
+                synchronized (chat.keys) {
+                    for (String k : chat.keys) {
+                        ok += k.startsWith("commands.testforblock.success") ? 1 : 0;
+                    }
+                }
+                result("/testforblock with a state, with data, and red concrete for no data finds red (any data)", ok == 3, String.valueOf(chat.keys));
+                result("/clear maxCount 0 only counts (3 lime)", chat.seen("commands.clear.testing#2"), "");
+                result("/clear maxCount 2 removes two", countOf("mc112bridge:concrete_lime", -1) == 1, "lime=" + countOf("mc112bridge:concrete_lime", -1));
+                java.util.List<?> pigs = w().getEntitiesWithinAABB(net.minecraft.entity.passive.EntityPig.class,
+                    net.minecraft.util.AxisAlignedBB.getBoundingBox(sx - 4, sy - 12, sz - 1, sx + 4, sy + 6, sz + 7));
+                result("/summon pig, minecraft:pig and Pig", pigs.size() == 3, "pigs=" + pigs.size());
+                for (Object o : pigs) {
+                    ((net.minecraft.entity.Entity) o).setDead();
+                }
+            }
+        });
+        finish();
     }
 
     /** The boat of 1.12.2 (Boat112): speeds by the numbers of EntityBoat, turning, shore, ice, mobs, paddles. */

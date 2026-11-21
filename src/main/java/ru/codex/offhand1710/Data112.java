@@ -182,6 +182,24 @@ public final class Data112 {
         return new JsonParser().parse(new InputStreamReader(in, Charset.forName("UTF-8"))).getAsJsonObject();
     }
 
+    /** The 1.12.2 item names that have an alias (each name once, without the metadata). */
+    public static java.util.Set<String> itemNames() {
+        java.util.Set<String> out = new java.util.TreeSet<String>();
+        for (String k : ALIASES.keySet()) {
+            out.add(k.substring(0, k.lastIndexOf(':')));
+        }
+        return out;
+    }
+
+    /** The alias of a 1.12.2 item and metadata: {1.7.10 registry name, metadata}, or null. */
+    public static String[] alias(String name, int data) {
+        return ALIASES.get(name + ":" + data);
+    }
+
+    public static java.util.Set<String> entityIds() {
+        return new java.util.TreeSet<String>(ENTITIES.keySet());
+    }
+
     /** The 1.7.10 EntityList name of a 1.12.2 entity id, or null. */
     public static String entityClassName(String id) {
         return ENTITIES.get(id);
@@ -468,7 +486,7 @@ public final class Data112 {
         if (a.shown && a.toast) {
             MC112Bridge.NETWORK.channel.sendTo(new Toast(a.id), p);
         }
-        if (a.shown && a.announce && !a.hidden) {
+        if (a.shown && a.announce && !a.hidden && Rules112.flag(p.worldObj, "announceAdvancements")) {
             IChatComponent title = new ChatComponentTranslation(a.title);
             MinecraftServer.getServer().getConfigurationManager().sendChatMsg(new ChatComponentTranslation("chat.type.advancement." + a.frame, p.func_145748_c_(), title));
         }
@@ -868,6 +886,11 @@ public final class Data112 {
     // ---- functions ----
 
     private static final Map<String, List<String>> FUNCTIONS = new HashMap<String, List<String>>();
+
+    /** The loaded function ids (for /gamerule gameLoopFunction and /function completion). */
+    public static java.util.Collection<String> functionNames() {
+        return new java.util.ArrayList<String>(FUNCTIONS.keySet());
+    }
     private static final int MAX_LINES = 65536;
     private static int running;
 

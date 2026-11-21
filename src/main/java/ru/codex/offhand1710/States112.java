@@ -218,6 +218,52 @@ public final class States112 {
         return p;
     }
 
+    /**
+     * The metadata of a block state written in a command ("variant=granite,half=top"): the state of metadata 0 with the
+     * given properties put in, as CommandBase.convertArgToBlockState of 1.12.2. -1 for an unknown property or value,
+     * -2 when the table does not know the block.
+     */
+    public static int metaOf(String name112, String state) {
+        load();
+        Map<String, String> base = PROPS.get(name112 + "#0");
+        if (base == null) {
+            return -2;
+        }
+        Map<String, String> want = new TreeMap<String, String>(base);
+        if (!"default".equals(state) && state.length() > 0) {
+            for (String kv : state.split(",")) {
+                int eq = kv.indexOf('=');
+                if (eq <= 0 || !base.containsKey(kv.substring(0, eq).trim()) || !valueKnown(name112, kv.substring(0, eq).trim(), kv.substring(eq + 1).trim())) {
+                    return -1;
+                }
+                String prop = kv.substring(0, eq).trim();
+                if (stored(name112, prop)) {
+                    want.put(prop, kv.substring(eq + 1).trim());
+                }
+            }
+        }
+        Integer m = META.get(name112 + "|" + key(want));
+        return m == null ? -1 : m.intValue();
+    }
+
+    /** The property names a state string of this block may use. */
+    public static java.util.Set<String> propNames(String name112) {
+        load();
+        Map<String, String> base = PROPS.get(name112 + "#0");
+        return base == null ? java.util.Collections.<String>emptySet() : base.keySet();
+    }
+
+    private static boolean valueKnown(String name112, String prop, String value) {
+        for (int m = 0; m < 16; m++) {
+            Map<String, String> p = PROPS.get(name112 + "#" + m);
+            if (p != null && value.equals(p.get(prop))) {
+                return true;
+            }
+        }
+        // values that only come from the neighbours (stairs shape, fence sides) are not in the table: allowed
+        return !stored(name112, prop);
+    }
+
     public static List<String> names() {
         load();
         List<String> out = new ArrayList<String>();
