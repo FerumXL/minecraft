@@ -102,7 +102,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -365,6 +365,10 @@ public final class Scenarios {
             gamerules();
         } else if ("names".equals(STAGE)) {
             names();
+        } else if ("commands2".equals(STAGE)) {
+            commands2();
+        } else if ("border".equals(STAGE)) {
+            border();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -3562,6 +3566,263 @@ public final class Scenarios {
                 for (Object o : pigs) {
                     ((net.minecraft.entity.Entity) o).setDead();
                 }
+            }
+        });
+        finish();
+    }
+
+    private int score(String objective) {
+        net.minecraft.scoreboard.Scoreboard b = w().getScoreboard();
+        net.minecraft.scoreboard.ScoreObjective o = b.getObjective(objective);
+        return o == null ? Integer.MIN_VALUE : b.func_96529_a(p().getCommandSenderName(), o).getScorePoints();
+    }
+
+    private int seenCount(String prefix) {
+        int n = 0;
+        synchronized (chat.keys) {
+            for (String k : chat.keys) {
+                n += k.startsWith(prefix) ? 1 : 0;
+            }
+        }
+        return n;
+    }
+
+    /** /fill replace, /clone filtered and move, /testforblock(s), /stats, /trigger, /time query (BlockCommands112, Stats112). */
+    private void commands2() {
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(chat);
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("gamerule doMobSpawning false");
+                sx = (int) Math.floor(p().posX) + 8;
+                sy = (int) Math.floor(p().posY) + 2;
+                sz = (int) Math.floor(p().posZ);
+                String a = sx + " " + sy + " " + sz;
+                String b = (sx + 4) + " " + sy + " " + (sz + 4);
+                cmd("fill " + sx + " " + (sy - 1) + " " + sz + " " + (sx + 30) + " " + (sy + 8) + " " + (sz + 10) + " air");
+                // a 5x5 floor of stone with a granite cross, then only the granite is replaced by red concrete
+                cmd("fill " + a + " " + b + " stone");
+                cmd("fill " + (sx + 2) + " " + sy + " " + sz + " " + (sx + 2) + " " + sy + " " + (sz + 4) + " stone variant=granite");
+                cmd("fill " + a + " " + b + " minecraft:concrete 14 replace stone variant=granite");
+                cmd("fill " + a + " " + b + " glass 0 replace minecraft:stone 0");
+                cmd("setblock " + sx + " " + (sy + 1) + " " + sz + " minecraft:log axis=x,variant=birch");
+                cmd("testforblock " + sx + " " + (sy + 1) + " " + sz + " minecraft:log axis=x");
+                cmd("testforblock " + sx + " " + (sy + 1) + " " + sz + " minecraft:log axis=z");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                result("/fill replace stone variant=granite only hits the granite", blockAt(sx + 2, sy, sz + 1).equals("mc112bridge:concrete_red:0")
+                    && blockAt(sx, sy, sz).equals("minecraft:glass:0"), blockAt(sx + 2, sy, sz + 1) + " " + blockAt(sx, sy, sz));
+                result("/fill success says how many", chat.seen("commands.fill.success#1"), "");
+                result("/testforblock with only axis=x finds the log, axis=z does not", seenCount("commands.testforblock.success") == 1
+                    && chat.seen("commands.testforblock.failed.data"), String.valueOf(chat.keys));
+                chat.keys.clear();
+                String a = sx + " " + sy + " " + sz;
+                String b = (sx + 4) + " " + (sy + 1) + " " + (sz + 4);
+                cmd("clone " + a + " " + b + " " + (sx + 10) + " " + sy + " " + sz);
+                cmd("testforblocks " + a + " " + b + " " + (sx + 10) + " " + sy + " " + sz);
+                cmd("clone " + a + " " + b + " " + (sx + 20) + " " + sy + " " + sz + " filtered normal minecraft:concrete 14");
+                cmd("clone " + a + " " + b + " " + (sx + 2) + " " + sy + " " + sz);
+                cmd("testforblocks " + a + " " + b + " " + (sx + 20) + " " + sy + " " + sz);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                result("/clone copies, /testforblocks finds the copy equal", blockAt(sx + 12, sy, sz + 1).equals("mc112bridge:concrete_red:0")
+                    && blockAt(sx + 10, sy + 1, sz).equals("minecraft:log:6") && chat.seen("commands.compare.success#1"), String.valueOf(chat.keys));
+                result("/clone filtered takes only red concrete", blockAt(sx + 22, sy, sz + 1).equals("mc112bridge:concrete_red:0")
+                    && w().isAirBlock(sx + 20, sy, sz), blockAt(sx + 20, sy, sz));
+                result("/clone onto itself is refused", chat.seen("commands.clone.noOverlap"), "");
+                result("/testforblocks of a different area fails", chat.seen("commands.compare.failed"), "");
+                chat.keys.clear();
+                String n = p().getCommandSenderName();
+                cmd("clone " + (sx + 10) + " " + sy + " " + sz + " " + (sx + 14) + " " + (sy + 1) + " " + (sz + 4) + " " + (sx + 12) + " " + sy + " " + sz + " replace move");
+                // /stats: success count, affected blocks, query result
+                cmd("scoreboard objectives add s_ok dummy");
+                cmd("scoreboard objectives add s_blocks dummy");
+                cmd("scoreboard objectives add s_query dummy");
+                cmd("scoreboard objectives add s_none dummy");
+                cmd("scoreboard players set " + n + " s_ok 99");
+                cmd("scoreboard players set " + n + " s_blocks 99");
+                cmd("scoreboard players set " + n + " s_query 99");
+                cmd("stats entity " + n + " set SuccessCount " + n + " s_ok");
+                cmd("stats entity " + n + " set AffectedBlocks @p s_blocks");
+                cmd("stats entity " + n + " set QueryResult " + n + " s_query");
+                cmd("stats entity " + n + " set AffectedItems " + n + " s_none");
+                cmd("fill " + sx + " " + (sy + 5) + " " + sz + " " + (sx + 2) + " " + (sy + 5) + " " + (sz + 1) + " stone");
+                cmd("time set 6000");
+                cmd("time query daytime");
+                cmd("give " + n + " stone 5");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                result("/clone move leaves the source empty", w().isAirBlock(sx + 10, sy, sz) && blockAt(sx + 14, sy, sz + 1).equals("mc112bridge:concrete_red:0"),
+                    blockAt(sx + 10, sy, sz) + " " + blockAt(sx + 14, sy, sz + 1));
+                result("/stats AffectedBlocks through a selector: 6 blocks filled", score("s_blocks") == 6, "s_blocks=" + score("s_blocks"));
+                result("/stats QueryResult of time query daytime", score("s_query") == 6000, "s_query=" + score("s_query"));
+                result("/time query daytime answers", chat.seen("commands.time.query#1"), "");
+                result("/stats SuccessCount after the last command (give)", score("s_ok") == 1, "s_ok=" + score("s_ok"));
+                net.minecraft.scoreboard.ScoreObjective none = w().getScoreboard().getObjective("s_none");
+                result("/stats only writes a score that exists (as 1.12.2)", none != null && !w().getScoreboard().func_96510_d(p().getCommandSenderName()).containsKey(none), "");
+                chat.keys.clear();
+                String n = p().getCommandSenderName();
+                cmd("scoreboard objectives add trig trigger");
+                cmd("scoreboard players set " + n + " trig 0");
+                cmd("trigger trig add 5");
+                cmd("blah_no_such_command");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                result("/stats SuccessCount 0 after an unknown command", score("s_ok") == 0, "s_ok=" + score("s_ok"));
+                result("the trigger criterion exists", w().getScoreboard().getObjective("trig") != null
+                    && w().getScoreboard().getObjective("trig").getCriteria() == ru.codex.offhand1710.Stats112.TRIGGER, "");
+                result("/trigger before enable is refused", chat.seen("commands.trigger.disabled") && score("trig") == 0, "trig=" + score("trig"));
+                String n = p().getCommandSenderName();
+                cmd("scoreboard players enable " + n + " trig");
+                cmd("trigger trig add 5");
+                cmd("trigger trig set 50");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                result("/trigger after enable adds once, then locks again", score("trig") == 5 && chat.seen("commands.scoreboard.players.enable.success"),
+                    "trig=" + score("trig") + " " + chat.keys);
+                cmd("stats entity " + p().getCommandSenderName() + " clear SuccessCount");
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                result("/stats clear says so", chat.seen("commands.stats.cleared#1"), "");
+            }
+        });
+        finish();
+    }
+
+    private double borderStart;
+    private float borderHealth;
+    private net.minecraft.entity.passive.EntityPig borderPig;
+
+    /** The world border of 1.12.2 (Border112): command, timed change, damage, wall, no building outside, level.dat, Nether. */
+    private void border() {
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(chat);
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("gamerule doMobSpawning false");
+                cmd("worldborder get");
+                sx = (int) Math.floor(p().posX);
+                sy = (int) Math.floor(p().posY);
+                sz = (int) Math.floor(p().posZ);
+                cmd("worldborder center " + sx + " " + sz);
+                cmd("worldborder set 40");
+                look(sx + 0.5D, sy + 1, sz + 15.5D);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Border112 b = ru.codex.offhand1710.Border112.of(w());
+                result("/worldborder get of a new world: 60000000", chat.seen("commands.worldborder.get.success#1"), String.valueOf(chat.keys));
+                result("/worldborder center and set 40", Math.abs(b.centerX - (sx + 0.5D)) < 1.0E-6 && b.diameter() == 40.0D
+                    && chat.seen("commands.worldborder.center.success#2") && chat.seen("commands.worldborder.set.success#2"), b.centerX + " " + b.diameter());
+                result("the client got the border", ru.codex.offhand1710.Border112.client.diameter() == 40.0D
+                    && Math.abs(ru.codex.offhand1710.Border112.client.centerX - b.centerX) < 1.0E-6, "client=" + ru.codex.offhand1710.Border112.client.diameter());
+                result("the wall is blue when still", b.color() == 0x20A0FF, Integer.toHexString(b.color()));
+                double[] box = b.box(w());
+                net.minecraft.world.World nether = MinecraftServer.getServer().worldServerForDimension(-1);
+                double[] nb = b.box(nether);
+                result("the Nether border has the centre / 8 and the same size", Math.abs((nb[0] + nb[2]) / 2 - b.centerX / 8.0D) < 1.0E-6
+                    && Math.abs(nb[2] - nb[0] - 40.0D) < 1.0E-6, nb[0] + ".." + nb[2]);
+                // the wall: a pig 1 block inside pushed 5 blocks out stops at the line
+                borderPig = new net.minecraft.entity.passive.EntityPig(w());
+                borderPig.setPosition(box[2] - 1.5D, sy, sz + 0.5D);
+                w().spawnEntityInWorld(borderPig);
+                borderPig.moveEntity(5.0D, 0.0D, 0.0D);
+                // the block the line crosses still counts as inside (WorldBorder.contains of 1.12.2), so the wall is at its far side
+                result("an entity inside cannot cross the border", borderPig.boundingBox.maxX <= Math.ceil(box[2]) + 1.0E-6 && borderPig.boundingBox.maxX > box[2] - 1.0D, String.format("maxX=%.3f border=%.3f", borderPig.boundingBox.maxX, box[2]));
+                // no using or digging a block outside
+                net.minecraftforge.event.entity.player.PlayerInteractEvent use = net.minecraftforge.event.ForgeEventFactory.onPlayerInteract(p(),
+                    net.minecraftforge.event.entity.player.PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK, (int) box[2] + 2, sy - 1, sz, 1, w());
+                net.minecraftforge.event.entity.player.PlayerInteractEvent dig = net.minecraftforge.event.ForgeEventFactory.onPlayerInteract(p(),
+                    net.minecraftforge.event.entity.player.PlayerInteractEvent.Action.LEFT_CLICK_BLOCK, (int) box[2] + 2, sy - 1, sz, 1, w());
+                net.minecraftforge.event.entity.player.PlayerInteractEvent inside = net.minecraftforge.event.ForgeEventFactory.onPlayerInteract(p(),
+                    net.minecraftforge.event.entity.player.PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK, sx, sy - 1, sz, 1, w());
+                result("no using or digging blocks outside, inside is fine", use.isCanceled() && dig.isCanceled() && !inside.isCanceled(), "");
+                // level.dat keeps it under the keys of 1.12.2
+                net.minecraft.nbt.NBTTagCompound n = new net.minecraft.nbt.NBTTagCompound();
+                ru.codex.offhand1710.Border112.write(w().getWorldInfo(), n);
+                result("level.dat: BorderCenterX, BorderSize and the rest", n.getDouble("BorderSize") == 40.0D && n.getDouble("BorderCenterX") == b.centerX
+                    && n.getDouble("BorderSafeZone") == 5.0D && n.getDouble("BorderDamagePerBlock") == 0.2D && n.getDouble("BorderWarningTime") == 15.0D, String.valueOf(n));
+                // damage: a survival player 10 blocks out, past the buffer of 5, loses 1 per hurt
+                cmd("gamemode 0");
+                p().setHealth(20.0F);
+                p().setPositionAndUpdate(box[2] + 10.5D, sy, sz + 0.5D);
+                chat.keys.clear();
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                borderHealth = p().getHealth();
+                result("outside past the buffer the player is hurt", borderHealth < 20.0F, "health=" + borderHealth);
+                double[] box = ru.codex.offhand1710.Border112.of(w()).box(w());
+                p().setPositionAndUpdate(box[2] - 2.5D, sy, sz + 0.5D);
+                p().setHealth(20.0F);
+                cmd("gamemode 1");
+                cmd("worldborder damage buffer 2");
+                cmd("worldborder damage amount 0.5");
+                cmd("worldborder warning distance 8");
+                cmd("worldborder warning time 20");
+                borderStart = ru.codex.offhand1710.Border112.of(w()).diameter();
+                cmd("worldborder set 20 4");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Border112 b = ru.codex.offhand1710.Border112.of(w());
+                result("damage, buffer and warning set", b.damageBuffer == 2.0D && b.damageAmount == 0.5D && b.warningDistance == 8 && b.warningTime == 20
+                    && chat.seen("commands.worldborder.damage.amount.success#2") && chat.seen("commands.worldborder.warning.time.success#2"), String.valueOf(chat.keys));
+                double now = b.diameter();
+                result("set 20 over 4 s shrinks in real time and turns red", now < borderStart && now > 20.0D && b.color() == 0xFF3030
+                    && chat.seen("commands.worldborder.setSlowly.shrink.success#3"), String.format("%.2f", now));
+                result("the client shrinks it too", ru.codex.offhand1710.Border112.client.status() == 2, "");
+                result("2.5 blocks from a shrinking border the screen goes red", Border112Client.tint() > 0.0F, String.format("tint=%.2f", Border112Client.tint()));
+                double[] box = b.box(w());
+                look(box[2] + 6.0D, sy + 1.5D, sz + 0.5D);
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("border");
+            }
+        });
+        server(100, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Border112 b = ru.codex.offhand1710.Border112.of(w());
+                result("after 4 s the border stands at 20", b.diameter() == 20.0D && b.status() == 0, String.format("%.2f", b.diameter()));
+                cmd("worldborder add 10");
+                result("/worldborder add 10 makes 30", b.diameter() == 30.0D, String.format("%.2f", b.diameter()));
+                cmd("worldborder set 60000000");
+                cmd("worldborder center 0 0");
+                cmd("worldborder damage buffer 5");
+                cmd("worldborder damage amount 0.2");
+                cmd("worldborder warning distance 5");
+                cmd("worldborder warning time 15");
+                borderPig.setDead();
             }
         });
         finish();

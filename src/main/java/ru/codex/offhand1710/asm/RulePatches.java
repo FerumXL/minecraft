@@ -24,6 +24,14 @@ final class RulePatches {
     }
 
     static byte[] transform(String name, byte[] bytes) {
+        if (System.getProperty("mc112.border17") == null && (name.equals("net.minecraft.world.storage.WorldInfo")
+            || name.equals("net.minecraft.world.World") || name.equals("net.minecraft.client.gui.GuiIngame"))) {
+            bytes = border(name, bytes);
+        }
+        if (System.getProperty("mc112.stats17") == null
+            && (name.equals("net.minecraft.command.CommandHandler") || name.equals("net.minecraft.command.server.CommandBlockLogic"))) {
+            return stats(name, bytes);
+        }
         if (System.getProperty("mc112.gamerules17") != null) {
             return bytes;
         }
@@ -40,6 +48,95 @@ final class RulePatches {
             count += patch(n, m);
         }
         System.out.println("[mc112bridge] 1.12 game rules in " + name + ": " + count);
+        return Transformer.write(node);
+    }
+
+    private static final String BORDER = "ru/codex/offhand1710/Border112";
+
+    /** The world border of 1.12.2: level.dat keys, the wall in the collision boxes, the red vignette. */
+    private static byte[] border(String name, byte[] bytes) {
+        ClassNode node = Transformer.read(bytes);
+        int count = 0;
+        for (MethodNode m : node.methods) {
+            if (name.endsWith("WorldInfo") && (m.name.equals("<init>") && m.desc.equals("(Lnet/minecraft/nbt/NBTTagCompound;)V")
+                || Transformer.named(m, "updateTagCompound", "func_76064_a"))) {
+                InsnList call = new InsnList();
+                call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, BORDER, m.name.equals("<init>") ? "read" : "write",
+                    "(Lnet/minecraft/world/storage/WorldInfo;Lnet/minecraft/nbt/NBTTagCompound;)V", false));
+                Transformer.beforeReturns(m, call);
+                count++;
+            } else if (name.equals("net.minecraft.world.World") && Transformer.named(m, "getCollidingBoundingBoxes", "func_72945_a")
+                && m.desc.equals("(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)Ljava/util/List;")) {
+                for (AbstractInsnNode a : m.instructions.toArray()) {
+                    if (a.getOpcode() == Opcodes.ARETURN) {
+                        InsnList call = new InsnList();
+                        call.add(new InsnNode(Opcodes.DUP));
+                        call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                        call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                        call.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                        call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, BORDER, "collide",
+                            "(Ljava/util/List;Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)V", false));
+                        m.instructions.insertBefore(a, call);
+                        count++;
+                    }
+                }
+            } else if (name.endsWith("GuiIngame") && Transformer.named(m, "renderVignette", "func_73829_a")) {
+                for (AbstractInsnNode a : m.instructions.toArray()) {
+                    if (a instanceof MethodInsnNode && ((MethodInsnNode) a).name.equals("glColor4f")) {
+                        ((MethodInsnNode) a).owner = "ru/codex/offhand1710/client/Border112Client";
+                        ((MethodInsnNode) a).name = "vignetteColor";
+                        count++;
+                        break;
+                    }
+                }
+            }
+        }
+        System.out.println("[mc112bridge] 1.12 world border in " + name + ": " + count);
+        return Transformer.write(node);
+    }
+
+    private static final String STATS = "ru/codex/offhand1710/Stats112";
+
+    /** CommandResultStats of 1.12.2: SuccessCount and AffectedEntities from executeCommand, CommandStats in the command block NBT. */
+    private static byte[] stats(String name, byte[] bytes) {
+        ClassNode node = Transformer.read(bytes);
+        int count = 0;
+        for (MethodNode m : node.methods) {
+            if (name.endsWith("CommandHandler") && Transformer.named(m, "executeCommand", "func_71556_a")
+                && m.desc.equals("(Lnet/minecraft/command/ICommandSender;Ljava/lang/String;)I")) {
+                for (AbstractInsnNode a : m.instructions.toArray()) {
+                    if (a.getOpcode() == Opcodes.IRETURN) {
+                        InsnList call = new InsnList();
+                        call.add(new InsnNode(Opcodes.DUP));
+                        call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                        call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, STATS, "done", "(ILnet/minecraft/command/ICommandSender;)V", false));
+                        m.instructions.insertBefore(a, call);
+                        count++;
+                    } else if (a instanceof MethodInsnNode && ((MethodInsnNode) a).owner.equals("net/minecraft/command/ICommand")
+                        && (((MethodInsnNode) a).name.equals("processCommand") || ((MethodInsnNode) a).name.equals("func_71515_b"))) {
+                        InsnList call = new InsnList();
+                        call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                        call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, STATS, "running", "(Lnet/minecraft/command/ICommandSender;)V", false));
+                        m.instructions.insertBefore(a, call);
+                        count++;
+                    }
+                }
+                m.instructions.insert(new MethodInsnNode(Opcodes.INVOKESTATIC, STATS, "enter", "()V", false));
+                count++;
+            } else if (name.endsWith("CommandBlockLogic") && (m.name.equals("func_145758_a") || m.name.equals("func_145759_b"))
+                && m.desc.equals("(Lnet/minecraft/nbt/NBTTagCompound;)V")) {
+                InsnList call = new InsnList();
+                call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, STATS, m.name.equals("func_145758_a") ? "writeLogic" : "readLogic",
+                    "(Lnet/minecraft/command/server/CommandBlockLogic;Lnet/minecraft/nbt/NBTTagCompound;)V", false));
+                Transformer.beforeReturns(m, call);
+                count++;
+            }
+        }
+        System.out.println("[mc112bridge] 1.12 command stats in " + name + ": " + count);
         return Transformer.write(node);
     }
 

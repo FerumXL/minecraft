@@ -448,6 +448,7 @@ public final class Selector112 {
     /** The targets the command loop runs a command for. */
     public static Entity[] commandTargets(ICommandSender sender, String token) {
         List<Entity> l = select(sender, token, Entity.class);
+        Stats112.selected(sender, l.size());
         return l.toArray(new Entity[l.size()]);
     }
 

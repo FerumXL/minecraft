@@ -59,6 +59,10 @@ public final class MC112Bridge {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new SkeletonTrap112());
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new Speeds112());
         Sounds112.register();
+        Stats112.TRIGGER.func_96636_a();
+        Border112.Events border = new Border112.Events();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(border);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(border);
         Rules112.Events rules = new Rules112.Events();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(rules);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(rules);
@@ -73,8 +77,13 @@ public final class MC112Bridge {
 
     @EventHandler
     public void serverStarting(cpw.mods.fml.common.event.FMLServerStartingEvent event) {
-        event.registerServerCommand(new Content119.CommandFill());
-        event.registerServerCommand(new Content119.CommandClone());
+        event.registerServerCommand(new BlockCommands112.Fill());
+        event.registerServerCommand(new BlockCommands112.Clone());
+        event.registerServerCommand(new BlockCommands112.TestForBlocks());
+        event.registerServerCommand(new Stats112.CommandStats());
+        event.registerServerCommand(new Border112.Command());
+        event.registerServerCommand(new Stats112.CommandTrigger());
+        event.registerServerCommand(new Commands112.Time());
         event.registerServerCommand(new Commands112.Tp("teleport"));
         event.registerServerCommand(new Commands112.Tp("tp"));
         event.registerServerCommand(new Commands112.Kill());
@@ -86,7 +95,7 @@ public final class MC112Bridge {
         event.registerServerCommand(new Commands112.Give());
         event.registerServerCommand(new Commands112.Clear());
         event.registerServerCommand(new Commands112.SetBlock());
-        event.registerServerCommand(new Commands112.TestForBlock());
+        event.registerServerCommand(new BlockCommands112.TestForBlock());
         event.registerServerCommand(new Commands112.Summon());
         event.registerServerCommand(new Spectator112.CommandGameMode());
         event.registerServerCommand(new Content120.CommandReplaceItem());

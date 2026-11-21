@@ -294,7 +294,7 @@ public final class Rules112 {
         }
         ChunkCoordinates c = new ChunkCoordinates(w.getSpawnPoint());
         if (!provider.hasNoSky && w.getWorldInfo().getGameType() != WorldSettings.GameType.ADVENTURE) {
-            int r = Math.max(0, number(w, "spawnRadius"));
+            int r = Border112.spawnSpread(w, c, Math.max(0, number(w, "spawnRadius")));
             c.posX += w.rand.nextInt(r * 2 + 1) - r;
             c.posZ += w.rand.nextInt(r * 2 + 1) - r;
             c.posY = w.getTopSolidOrLiquidBlock(c.posX, c.posZ);

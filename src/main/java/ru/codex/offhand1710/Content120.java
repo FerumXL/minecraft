@@ -658,6 +658,11 @@ public final class Content120 {
     /** The entity /execute runs a command as (@s). */
     static net.minecraft.entity.Entity executor;
 
+    /** The entity /execute runs the current command as, or null. */
+    public static net.minecraft.entity.Entity executor() {
+        return executor;
+    }
+
     public static java.util.List<net.minecraft.entity.Entity> selectEntities(ICommandSender sender, String token) {
         if (!Selector112.OLD) {
             return Selector112.entities(sender, token);

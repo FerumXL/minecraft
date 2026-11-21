@@ -52,6 +52,9 @@ public final class ClientProxy extends CommonProxy {
 
         // Forge bus: rendering and screens.
         MinecraftForge.EVENT_BUS.register(new OffhandHud());
+        Border112Client border = new Border112Client();
+        MinecraftForge.EVENT_BUS.register(border);
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(border);
         RulesClient rules = new RulesClient();
         MinecraftForge.EVENT_BUS.register(rules);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(rules);

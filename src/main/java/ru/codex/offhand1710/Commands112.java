@@ -425,7 +425,33 @@ public final class Commands112 {
                 tag(sender, args);
                 return;
             }
+            if (args.length >= 2 && "players".equalsIgnoreCase(args[0]) && "enable".equalsIgnoreCase(args[1])) {
+                enable(sender, args);
+                return;
+            }
             super.processCommand(sender, args);
+        }
+
+        /** "scoreboard players enable <player> <trigger>" of 1.12.2: the player may use /trigger once. */
+        private void enable(ICommandSender sender, String[] args) {
+            if (args.length < 4) {
+                throw new WrongUsageException("commands.scoreboard.players.enable.usage");
+            }
+            String name = func_96332_d(sender, args[2]);
+            if (name.length() > 40) {
+                throw new net.minecraft.command.SyntaxErrorException("commands.scoreboard.players.name.tooLong", name, 40);
+            }
+            net.minecraft.scoreboard.Scoreboard board = net.minecraft.server.MinecraftServer.getServer().worldServers[0].getScoreboard();
+            net.minecraft.scoreboard.ScoreObjective obj = board.getObjective(args[3]);
+            if (obj == null) {
+                throw new CommandException("commands.scoreboard.objectiveNotFound", args[3]);
+            }
+            if (obj.getCriteria() != Stats112.TRIGGER) {
+                throw new CommandException("commands.scoreboard.players.enable.noTrigger", obj.getName());
+            }
+            board.func_96529_a(name, obj);
+            Stats112.setLocked(name, obj, false);
+            func_152373_a(sender, this, "commands.scoreboard.players.enable.success", obj.getName(), name);
         }
 
         private void tag(ICommandSender sender, String[] args) {
@@ -487,6 +513,9 @@ public final class Commands112 {
                     throw new CommandException("commands.gamerule.norule", name);
                 }
                 sender.addChatMessage(new ChatComponentText(name).appendText(" = ").appendText(rules.getGameRuleStringValue(name)));
+                String v = rules.getGameRuleStringValue(name);
+                // GameRules.Value of 1.12.2: true is 1, a number is itself, anything else 0
+                Stats112.set(sender, Stats112.QUERY_RESULT, "true".equals(v) ? 1 : Names112.isNumber(v) ? Integer.parseInt(v) : 0);
             } else {
                 if (Rules112.isBoolean(rules, name) && !"true".equals(value) && !"false".equals(value)) {
                     throw new CommandException("commands.generic.boolean.invalid", value);
@@ -549,7 +578,9 @@ public final class Commands112 {
                 }
                 out = put(out, 3, String.valueOf(it[1]));
             }
+            Stats112.set(sender, Stats112.AFFECTED_ITEMS, 0);
             super.processCommand(sender, out);
+            Stats112.set(sender, Stats112.AFFECTED_ITEMS, out.length >= 3 ? parseIntBounded(sender, out[2], 1, 64) : 1);
         }
 
         @Override
@@ -566,44 +597,9 @@ public final class Commands112 {
     public static final class SetBlock extends net.minecraft.command.server.CommandSetBlock {
         @Override
         public void processCommand(ICommandSender sender, String[] args) {
+            Stats112.set(sender, Stats112.AFFECTED_BLOCKS, 0);
             super.processCommand(sender, Names112.OFF || args.length < 4 ? args : blockArgs(args, 3, false));
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
-            if (args.length == 4 && !Names112.OFF) {
-                return getListOfStringsFromIterableMatchingLastWord(args, Names112.blockCompletions());
-            }
-            return super.addTabCompletionOptions(sender, args);
-        }
-    }
-
-    /** /testforblock with block ids and states of 1.12.2; -1 or no data is any metadata. */
-    public static final class TestForBlock extends net.minecraft.command.server.CommandTestForBlock {
-        @Override
-        public void processCommand(ICommandSender sender, String[] args) {
-            if (Names112.OFF || args.length < 4) {
-                super.processCommand(sender, args);
-                return;
-            }
-            String data = args.length > 4 ? args[4] : null;
-            if (data == null || "-1".equals(data) || "*".equals(data)) {
-                // a 1.12.2 block that this mod splits (concrete by colour, granite out of stone): any data matches any of them
-                net.minecraft.util.ChunkCoordinates c = sender.getPlayerCoordinates();
-                int x = net.minecraft.util.MathHelper.floor_double(func_110666_a(sender, c.posX, args[0]));
-                int y = net.minecraft.util.MathHelper.floor_double(func_110666_a(sender, c.posY, args[1]));
-                int z = net.minecraft.util.MathHelper.floor_double(func_110666_a(sender, c.posZ, args[2]));
-                String here = net.minecraft.block.Block.blockRegistry.getNameForObject(sender.getEntityWorld().getBlock(x, y, z));
-                for (int m = 0; m < 16; m++) {
-                    Object[] b = Names112.block(args[3], String.valueOf(m));
-                    if (b != null && b[0].equals(here)) {
-                        super.processCommand(sender, put(put(args, 3, here), 4, "-1"));
-                        return;
-                    }
-                }
-            }
-            super.processCommand(sender, blockArgs(args, 3, true));
+            Stats112.set(sender, Stats112.AFFECTED_BLOCKS, 1);
         }
 
         @Override
@@ -711,6 +707,7 @@ public final class Commands112 {
                 player.updateHeldItem();
             }
             OffhandMessages.synchronize(player);
+            Stats112.set(sender, Stats112.AFFECTED_ITEMS, counted[0]);
             if (counted[0] == 0) {
                 throw new CommandException("commands.clear.failure", player.getCommandSenderName());
             }
@@ -750,6 +747,42 @@ public final class Commands112 {
         public List addTabCompletionOptions(ICommandSender sender, String[] args) {
             if (args.length == 2 && !Names112.OFF) {
                 return getListOfStringsFromIterableMatchingLastWord(args, Names112.itemCompletions());
+            }
+            return super.addTabCompletionOptions(sender, args);
+        }
+    }
+
+    /** /time of 1.7.10 plus "time query daytime|gametime|day" of 1.12.2 (QueryResult). */
+    public static final class Time extends net.minecraft.command.CommandTime {
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            if (args.length >= 2 && "query".equals(args[0])) {
+                net.minecraft.world.World w = net.minecraft.server.MinecraftServer.getServer().worldServers[0];
+                int value;
+                if ("daytime".equals(args[1])) {
+                    value = (int) (w.getWorldTime() % 24000L);
+                } else if ("gametime".equals(args[1])) {
+                    value = (int) (w.getTotalWorldTime() % 2147483647L);
+                } else if ("day".equals(args[1])) {
+                    value = (int) (w.getWorldTime() / 24000L % 2147483647L);
+                } else {
+                    throw new WrongUsageException("commands.time.usage");
+                }
+                Stats112.set(sender, Stats112.QUERY_RESULT, value);
+                func_152373_a(sender, this, "commands.time.query", value);
+                return;
+            }
+            super.processCommand(sender, args);
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (args.length == 1) {
+                return getListOfStringsMatchingLastWord(args, "set", "add", "query");
+            }
+            if (args.length == 2 && "query".equals(args[0])) {
+                return getListOfStringsMatchingLastWord(args, "daytime", "gametime", "day");
             }
             return super.addTabCompletionOptions(sender, args);
         }
