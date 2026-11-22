@@ -57,6 +57,10 @@ final class RulePatches {
             System.out.println("[mc112bridge] spectatorsGenerateChunks in ChunkProviderServer: " + count);
             bytes = Transformer.write(node);
         }
+        if (System.getProperty("mc112.brewFuel17") == null && (name.equals("net.minecraft.tileentity.TileEntityBrewingStand")
+            || name.equals("net.minecraft.inventory.ContainerBrewingStand") || name.equals("net.minecraft.client.gui.inventory.GuiBrewingStand"))) {
+            bytes = brewing(name, bytes);
+        }
         if (System.getProperty("mc112.armor17") == null && (name.equals("net.minecraft.enchantment.EnchantmentProtection")
             || name.equals("net.minecraft.enchantment.EnchantmentHelper"))) {
             ClassNode node = Transformer.read(bytes);
@@ -291,6 +295,124 @@ final class RulePatches {
             }
         }
         return n;
+    }
+
+    private static final String FUEL = "ru/codex/offhand1710/BrewFuel112";
+
+    /** The brewing stand of 1.9: five slots, blaze powder fuel, the fuel bar (BrewFuel112). */
+    private static byte[] brewing(String name, byte[] bytes) {
+        ClassNode node = Transformer.read(bytes);
+        int count = 0;
+        String stand = "Lnet/minecraft/tileentity/TileEntityBrewingStand;";
+        String container = "Lnet/minecraft/inventory/ContainerBrewingStand;";
+        for (MethodNode m : node.methods) {
+            if (name.endsWith("TileEntityBrewingStand")) {
+                if (m.name.equals("<init>")) {
+                    for (AbstractInsnNode a : m.instructions.toArray()) {
+                        if (a.getOpcode() == Opcodes.ICONST_4 && a.getNext() != null && a.getNext().getOpcode() == Opcodes.ANEWARRAY) {
+                            m.instructions.set(a, new InsnNode(Opcodes.ICONST_5));
+                            count++;
+                        }
+                    }
+                } else if (Transformer.named(m, "updateEntity", "func_145845_h") && m.desc.equals("()V")) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    Transformer.guard(m, load, FUEL, "update", "(" + stand + ")Z", Opcodes.RETURN, 0);
+                    count++;
+                } else if ((Transformer.named(m, "writeToNBT", "func_145841_b") || Transformer.named(m, "readFromNBT", "func_145839_a"))
+                    && m.desc.equals("(Lnet/minecraft/nbt/NBTTagCompound;)V")) {
+                    InsnList call = new InsnList();
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                    call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, Transformer.named(m, "writeToNBT", "func_145841_b") ? "write" : "read",
+                        "(" + stand + "Lnet/minecraft/nbt/NBTTagCompound;)V", false));
+                    Transformer.beforeReturns(m, call);
+                    count++;
+                } else if (Transformer.named(m, "isItemValidForSlot", "func_94041_b")) {
+                    LabelNode go = new LabelNode();
+                    InsnList list = new InsnList();
+                    list.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                    list.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                    list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, "valid", "(ILnet/minecraft/item/ItemStack;)I", false));
+                    list.add(new InsnNode(Opcodes.DUP));
+                    list.add(new JumpInsnNode(Opcodes.IFLT, go));
+                    list.add(new InsnNode(Opcodes.IRETURN));
+                    list.add(go);
+                    list.add(new InsnNode(Opcodes.POP));
+                    m.instructions.insert(list);
+                    count++;
+                } else if (Transformer.named(m, "getAccessibleSlotsFromSide", "func_94128_d")) {
+                    InsnList list = new InsnList();
+                    list.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                    list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, "slots", "(I)[I", false));
+                    list.add(new InsnNode(Opcodes.ARETURN));
+                    m.instructions.insert(list);
+                    count++;
+                } else if (Transformer.named(m, "canExtractItem", "func_102008_b")) {
+                    InsnList list = new InsnList();
+                    list.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                    list.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                    list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, "extract", "(ILnet/minecraft/item/ItemStack;)Z", false));
+                    list.add(new InsnNode(Opcodes.IRETURN));
+                    m.instructions.insert(list);
+                    count++;
+                }
+            } else if (name.endsWith("ContainerBrewingStand")) {
+                if (m.name.equals("<init>")) {
+                    int seen = 0;
+                    for (AbstractInsnNode a : m.instructions.toArray()) {
+                        if (a instanceof MethodInsnNode && (((MethodInsnNode) a).name.equals("addSlotToContainer") || ((MethodInsnNode) a).name.equals("func_75146_a"))) {
+                            seen++;
+                            if (seen == 4) {
+                                AbstractInsnNode after = a.getNext();
+                                InsnList call = new InsnList();
+                                call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                                call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                                call.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                                call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, "addFuelSlot",
+                                    "(" + container + "Lnet/minecraft/entity/player/InventoryPlayer;" + stand + ")V", false));
+                                m.instructions.insert(after, call);
+                                count++;
+                            }
+                        }
+                    }
+                } else if (Transformer.named(m, "detectAndSendChanges", "func_75142_b") && m.desc.equals("()V")) {
+                    InsnList call = new InsnList();
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    call.add(new org.objectweb.asm.tree.FieldInsnNode(Opcodes.GETFIELD, "net/minecraft/inventory/Container",
+                        m.name.equals("func_75142_b") ? "field_75149_d" : "crafters", "Ljava/util/List;"));
+                    call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, "sendFuel", "(" + container + "Ljava/util/List;)V", false));
+                    Transformer.beforeReturns(m, call);
+                    count++;
+                } else if (Transformer.named(m, "updateProgressBar", "func_75137_b") && m.desc.equals("(II)V")) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    load.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                    load.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                    Transformer.guard(m, load, FUEL, "progress", "(" + container + "II)Z", Opcodes.RETURN, 0);
+                    count++;
+                } else if (Transformer.named(m, "transferStackInSlot", "func_82846_b")) {
+                    InsnList list = new InsnList();
+                    list.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    list.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                    list.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                    list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FUEL, "transfer",
+                        "(" + container + "Lnet/minecraft/entity/player/EntityPlayer;I)Lnet/minecraft/item/ItemStack;", false));
+                    list.add(new InsnNode(Opcodes.ARETURN));
+                    m.instructions.insert(list);
+                    count++;
+                }
+            } else if (name.endsWith("GuiBrewingStand") && Transformer.named(m, "drawGuiContainerBackgroundLayer", "func_146976_a")) {
+                InsnList load = new InsnList();
+                load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                Transformer.guard(m, load, "ru/codex/offhand1710/client/BrewFuel112Client", "background",
+                    "(Lnet/minecraft/client/gui/inventory/GuiBrewingStand;)Z", Opcodes.RETURN, 0);
+                count++;
+            }
+        }
+        System.out.println("[mc112bridge] 1.12 brewing stand in " + name + ": " + count);
+        return Transformer.write(node);
     }
 
     private static final String BORDER = "ru/codex/offhand1710/Border112";

@@ -139,7 +139,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -422,6 +422,8 @@ public final class Scenarios {
             foodStage();
         } else if ("armor".equals(STAGE)) {
             armorStage();
+        } else if ("brewing".equals(STAGE)) {
+            brewingStage();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -4371,6 +4373,82 @@ public final class Scenarios {
                 java.util.List<String> tip = new net.minecraft.item.ItemStack(net.minecraft.init.Items.diamond_helmet).getTooltip(mc.thePlayer, false);
                 String all = String.valueOf(tip);
                 result("the diamond helmet tooltip shows armor 3 and toughness 2", all.contains("3") && all.contains(net.minecraft.util.StatCollector.translateToLocal("attribute.name.generic.armorToughness")), all);
+            }
+        });
+        finish();
+    }
+
+    private int[] brewAt;
+
+    private net.minecraft.tileentity.TileEntityBrewingStand stand() {
+        return (net.minecraft.tileentity.TileEntityBrewingStand) w().getTileEntity(brewAt[0], brewAt[1], brewAt[2]);
+    }
+
+    /** The brewing stand of 1.9 (BrewFuel112): blaze powder fuel for 20 brews, the fifth slot, the window. */
+    private void brewingStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                brewAt = new int[] {(int) Math.floor(p().posX) + 2, (int) Math.floor(p().posY), (int) Math.floor(p().posZ)};
+                w().setBlock(brewAt[0], brewAt[1], brewAt[2], net.minecraft.init.Blocks.brewing_stand);
+                net.minecraft.tileentity.TileEntityBrewingStand s = stand();
+                result("the stand has five slots", s.getSizeInventory() == 5, "size=" + s.getSizeInventory());
+                for (int i = 0; i < 3; i++) {
+                    s.setInventorySlotContents(i, new ItemStack(Items.potionitem, 1, 0));
+                }
+                s.setInventorySlotContents(3, new ItemStack(Items.nether_wart));
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.tileentity.TileEntityBrewingStand s = stand();
+                result("without fuel it does not brew", s.getBrewTime() == 0, "brewTime=" + s.getBrewTime());
+                result("blaze powder only in the fuel slot, hoppers reach it from the side",
+                    s.isItemValidForSlot(4, new ItemStack(Items.blaze_powder)) && !s.isItemValidForSlot(4, new ItemStack(Items.potionitem))
+                    && java.util.Arrays.toString(s.getAccessibleSlotsFromSide(2)).equals("[0, 1, 2, 4]"), java.util.Arrays.toString(s.getAccessibleSlotsFromSide(2)));
+                // the window: 5 + 36 slots, the fifth at (17, 17) taking blaze powder only (shift-click tries the
+                // ingredient slot first, as in 1.12.2: blaze powder is an ingredient too)
+                net.minecraft.inventory.ContainerBrewingStand c = new net.minecraft.inventory.ContainerBrewingStand(p().inventory, s);
+                net.minecraft.inventory.Slot fuelSlot = (net.minecraft.inventory.Slot) c.inventorySlots.get(4);
+                result("the window has 5 + 36 slots, the fuel slot at 17,17 takes blaze powder only", c.inventorySlots.size() == 41
+                    && fuelSlot.xDisplayPosition == 17 && fuelSlot.yDisplayPosition == 17 && fuelSlot.isItemValid(new ItemStack(Items.blaze_powder))
+                    && !fuelSlot.isItemValid(new ItemStack(Items.nether_wart)), "slots=" + c.inventorySlots.size());
+                s.setInventorySlotContents(4, new ItemStack(Items.blaze_powder, 2));
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.tileentity.TileEntityBrewingStand s = stand();
+                int fuel = ru.codex.offhand1710.BrewFuel112.fuel(s);
+                result("one powder gives 20 brews: the brew started with 19 left and one powder taken", s.getBrewTime() > 0 && fuel == 19
+                    && s.getStackInSlot(4) != null && s.getStackInSlot(4).stackSize == 1, "brewTime=" + s.getBrewTime() + " fuel=" + fuel + " left=" + s.getStackInSlot(4));
+                net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+                s.writeToNBT(tag);
+                net.minecraft.tileentity.TileEntityBrewingStand copy = new net.minecraft.tileentity.TileEntityBrewingStand();
+                copy.readFromNBT(tag);
+                result("Fuel is saved as in 1.12.2", tag.getByte("Fuel") == 19 && ru.codex.offhand1710.BrewFuel112.fuel(copy) == 19
+                    && copy.getStackInSlot(4) != null, "tag=" + tag.getByte("Fuel"));
+                look(brewAt[0] + 0.5D, brewAt[1] + 0.5D, brewAt[2] + 0.5D);
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.tileentity.TileEntity t = mc.theWorld.getTileEntity(brewAt[0], brewAt[1], brewAt[2]);
+                if (t instanceof net.minecraft.tileentity.TileEntityBrewingStand) {
+                    ru.codex.offhand1710.BrewFuel112.setFuel((net.minecraft.tileentity.TileEntityBrewingStand) t, 19);
+                    mc.displayGuiScreen(new net.minecraft.client.gui.inventory.GuiBrewingStand(mc.thePlayer.inventory, (net.minecraft.tileentity.TileEntityBrewingStand) t));
+                }
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("brewing");
+                mc.displayGuiScreen(null);
             }
         });
         finish();
