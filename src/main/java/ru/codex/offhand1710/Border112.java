@@ -261,6 +261,27 @@ public final class Border112 {
         }
     }
 
+    // ---- portals (ServerConfigurationManager.transferEntityToWorld hook) ----
+
+    public static int clampX(int v, int min, int max, net.minecraft.world.WorldServer to) {
+        return clamp(v, min, max, to, 0);
+    }
+
+    public static int clampZ(int v, int min, int max, net.minecraft.world.WorldServer to) {
+        return clamp(v, min, max, to, 1);
+    }
+
+    private static int clamp(int v, int min, int max, net.minecraft.world.WorldServer to, int axis) {
+        v = v < min ? min : v > max ? max : v;
+        if (OFF) {
+            return v;
+        }
+        double[] b = of(to).box(to);
+        double lo = b[axis] + 16.0D;
+        double hi = b[axis + 2] - 16.0D;
+        return (int) (v < lo ? lo : v > hi ? hi : v);
+    }
+
     // ---- spawning inside (EntityPlayerMP of 1.12.2 caps the spread by the distance to the border) ----
 
     public static int spawnSpread(World w, ChunkCoordinates c, int radius) {
@@ -287,12 +308,10 @@ public final class Border112 {
                 return;
             }
             EntityPlayer p = (EntityPlayer) event.entityLiving;
-            if (p.isEntityInsideOpaqueBlock()) {
-                return;
-            }
             Border112 border = of(p.worldObj);
             double[] b = border.box(p.worldObj);
-            if (containsBox(b, p.boundingBox)) {
+            // the cheap test first: reading the block inside a player loads (in 1.7.10 even generates) its chunk
+            if (containsBox(b, p.boundingBox) || p.isEntityInsideOpaqueBlock()) {
                 return;
             }
             double d = distance(b, p.posX, p.posZ) + border.damageBuffer;

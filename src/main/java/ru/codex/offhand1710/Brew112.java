@@ -674,7 +674,7 @@ public final class Brew112 {
         /** Simplified from the strafing phase of 1.9: the 1.7.10 dragon has no phases, so it fires now and then. */
         @SubscribeEvent
         public void onDragon(LivingUpdateEvent event) {
-            if (!(event.entityLiving instanceof EntityDragon) || event.entityLiving.worldObj.isRemote || event.entityLiving.worldObj.rand.nextInt(160) != 0) {
+            if (!Dragon112.OFF || !(event.entityLiving instanceof EntityDragon) || event.entityLiving.worldObj.isRemote || event.entityLiving.worldObj.rand.nextInt(160) != 0) {
                 return;
             }
             EntityPlayer target = event.entityLiving.worldObj.getClosestVulnerablePlayerToEntity(event.entityLiving, 80.0D);

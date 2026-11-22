@@ -111,6 +111,15 @@ public final class ChunkStream {
             immediateThisTick++;
         }
         REASONS[why]++;
+        if (why >= 3 && !broken && spectatorsOnly(provider, x, z)) {
+            // spectatorsGenerateChunks false (1.12.2 PlayerChunkMap.CAN_GENERATE_CHUNKS): spectators only load chunks
+            // that exist; this one waits until a player who may generate comes close
+            synchronized (SPECTATED) {
+                SPECTATED.add(new Pending(provider, x, z, done));
+            }
+            spectatorSkipped++;
+            return null;
+        }
         if (why != 4) {
             return provider.loadChunk(x, z, done);
         }
@@ -144,7 +153,9 @@ public final class ChunkStream {
     public static void filterActive(WorldServer world) {
         // only while the server is behind: a server with time left generates them as 1.7.10 does (skipping them costs
         // the client chunks ahead, measured: holes in front of a fast flight at view distance 16 went from 15 to 50)
-        if (broken || !wide() || light()) {
+        boolean heavy = wide() && !light();
+        boolean spectators = !Rules112.OFF && !Rules112.flag(world, "spectatorsGenerateChunks") && anySpectator(world);
+        if (broken || !heavy && !spectators) {
             return;
         }
         try {
@@ -155,7 +166,8 @@ public final class ChunkStream {
             Iterator<ChunkCoordIntPair> it = set.iterator();
             while (it.hasNext()) {
                 ChunkCoordIntPair c = it.next();
-                if (!world.theChunkProviderServer.chunkExists(c.chunkXPos, c.chunkZPos)) {
+                if (!world.theChunkProviderServer.chunkExists(c.chunkXPos, c.chunkZPos)
+                    && (heavy || spectatorsOnly(world.theChunkProviderServer, c.chunkXPos, c.chunkZPos))) {
                     it.remove();
                     SKIPPED.add(c);
                     skippedActive++;
@@ -195,6 +207,104 @@ public final class ChunkStream {
             LogManager.getLogger("mc112bridge").warn("Chunk streaming off: " + e);
             return true;
         }
+    }
+
+    private static final List<Pending> SPECTATED = new ArrayList<Pending>();
+    public static int spectatorSkipped;
+
+    /** No player who may generate chunks is in view of (x, z), and the rule keeps spectators from generating. */
+    private static boolean spectatorsOnly(ChunkProviderServer provider, int x, int z) {
+        if (Rules112.OFF || Rules112.flag(provider.worldObj, "spectatorsGenerateChunks")) {
+            return false;
+        }
+        return !generatorNear(provider, x, z) && anyPlayerNear(provider, x, z);
+    }
+
+    /**
+     * Start of ChunkProviderServer.provideChunk: a chunk that is neither loaded nor on disk, with only spectators around
+     * and spectatorsGenerateChunks off, reads as the empty chunk instead of being generated (any block read under a
+     * spectator, water checks and the like, would generate it in 1.7.10). Null: go on as usual.
+     */
+    public static Chunk spectatorEmpty(ChunkProviderServer provider, int x, int z) {
+        if (broken || provider.chunkExists(x, z) || Rules112.OFF || provider.worldObj.playerEntities.isEmpty()
+            || Rules112.flag(provider.worldObj, "spectatorsGenerateChunks") || !anySpectator(provider.worldObj)) {
+            return null;
+        }
+        if (!spectatorsOnly(provider, x, z) || onDisk(provider, x, z)) {
+            return null;
+        }
+        return new net.minecraft.world.chunk.EmptyChunk(provider.worldObj, x, z);
+    }
+
+    private static boolean anySpectator(WorldServer world) {
+        for (Object o : world.playerEntities) {
+            if (Spectator112.is((EntityPlayerMP) o)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int view() {
+        MinecraftServer server = MinecraftServer.getServer();
+        return server == null || server.getConfigurationManager() == null ? 10 : server.getConfigurationManager().getViewDistance();
+    }
+
+    private static boolean generatorNear(ChunkProviderServer provider, int x, int z) {
+        int r = view() + 1;
+        for (Object o : provider.worldObj.playerEntities) {
+            EntityPlayerMP p = (EntityPlayerMP) o;
+            if (!Spectator112.is(p) && Math.abs(((int) Math.floor(p.posX) >> 4) - x) <= r && Math.abs(((int) Math.floor(p.posZ) >> 4) - z) <= r) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean anyPlayerNear(ChunkProviderServer provider, int x, int z) {
+        int r = view() + 1;
+        for (Object o : provider.worldObj.playerEntities) {
+            EntityPlayerMP p = (EntityPlayerMP) o;
+            if (Math.abs(((int) Math.floor(p.posX) >> 4) - x) <= r && Math.abs(((int) Math.floor(p.posZ) >> 4) - z) <= r) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Chunks held back for spectators: generated once a player who may generate is near (or the rule is on), dropped when nobody is. */
+    private static void retrySpectated() {
+        List<Pending> work;
+        synchronized (SPECTATED) {
+            if (SPECTATED.isEmpty()) {
+                return;
+            }
+            work = new ArrayList<Pending>(SPECTATED);
+            SPECTATED.clear();
+        }
+        List<Pending> keep = new ArrayList<Pending>();
+        for (Pending p : work) {
+            if (p.provider.chunkExists(p.x, p.z) || !spectatorsOnly(p.provider, p.x, p.z) && anyPlayerNear(p.provider, p.x, p.z)) {
+                p.provider.loadChunk(p.x, p.z, p.done);
+            } else if (anyPlayerNear(p.provider, p.x, p.z)) {
+                keep.add(p);
+            }
+        }
+        synchronized (SPECTATED) {
+            SPECTATED.addAll(keep);
+        }
+    }
+
+    /** Whether a chunk waits for a player who may generate it (tests). */
+    public static boolean heldForSpectators(int x, int z) {
+        synchronized (SPECTATED) {
+            for (Pending p : SPECTATED) {
+                if (p.x == x && p.z == z) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean nearPlayer(ChunkProviderServer provider, int x, int z) {
@@ -246,6 +356,7 @@ public final class ChunkStream {
             return;
         }
         immediateThisTick = 0;
+        retrySpectated();
         List<Pending> work;
         synchronized (QUEUE) {
             if (QUEUE.isEmpty()) {

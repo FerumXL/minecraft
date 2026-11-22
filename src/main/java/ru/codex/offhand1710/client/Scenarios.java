@@ -75,6 +75,43 @@ public final class Scenarios {
     private final ArrayDeque<Step> steps = new ArrayDeque<Step>();
     private FileWriter out;
     private boolean launched;
+    private long launchedAt;
+    private int reconnects;
+
+    /**
+     * The local login sometimes never finishes (the server runs, the client sits on the main menu; seen 2026-11-22).
+     * After 40 s the client opens a new local connection to the same server, at most twice, and says so in the log.
+     */
+    private boolean retryConnect() {
+        if (reconnects >= 2 || System.currentTimeMillis() - launchedAt < 40000L * (reconnects + 1)) {
+            return false;
+        }
+        net.minecraft.server.integrated.IntegratedServer server = mc.getIntegratedServer();
+        if (server == null || !server.isServerRunning()) {
+            return false;
+        }
+        reconnects++;
+        try {
+            java.lang.reflect.Field f = ReflectionHelper.findField(net.minecraft.client.Minecraft.class, "field_71453_ak", "myNetworkManager");
+            net.minecraft.network.NetworkManager old = (net.minecraft.network.NetworkManager) f.get(mc);
+            log("INFO local login stuck after " + (System.currentTimeMillis() - launchedAt) / 1000L + " s: screen="
+                + (mc.currentScreen == null ? "none" : mc.currentScreen.getClass().getSimpleName()) + " handler="
+                + (old == null || old.getNetHandler() == null ? "none" : old.getNetHandler().getClass().getSimpleName())
+                + " open=" + (old != null && old.isChannelOpen()) + "; reconnecting (" + reconnects + ")");
+            if (old != null) {
+                old.closeChannel(new net.minecraft.util.ChatComponentText("retry"));
+            }
+            java.net.SocketAddress address = server.func_147137_ag().addLocalEndpoint();
+            net.minecraft.network.NetworkManager nm = net.minecraft.network.NetworkManager.provideLocalClient(address);
+            nm.setNetHandler(new net.minecraft.client.network.NetHandlerLoginClient(nm, mc, null));
+            nm.scheduleOutboundPacket(new net.minecraft.network.handshake.client.C00Handshake(5, address.toString(), 0, net.minecraft.network.EnumConnectionState.LOGIN));
+            nm.scheduleOutboundPacket(new net.minecraft.network.login.client.C00PacketLoginStart(mc.getSession().func_148256_e()));
+            f.set(mc, nm);
+        } catch (Exception e) {
+            log("INFO reconnect failed: " + e);
+        }
+        return true;
+    }
     private boolean started;
     private int wait;
     private int bx;
@@ -102,7 +139,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -197,8 +234,12 @@ public final class Scenarios {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
+        if (launched && !started && mc.theWorld == null && retryConnect()) {
+            return;
+        }
         if (!launched && mc.currentScreen instanceof GuiMainMenu) {
             launched = true;
+            launchedAt = System.currentTimeMillis();
             // watchdog: a world that does not open in 90 s gets every thread's stack in the log
             Thread dog = new Thread(new Runnable() {
                 @Override
@@ -209,7 +250,9 @@ public final class Scenarios {
                         return;
                     }
                     if (!started) {
-                        log("FAIL world did not open in 90 s; threads:");
+                        log("FAIL world did not open in 90 s; screen=" + (mc.currentScreen == null ? "none" : mc.currentScreen.getClass().getName())
+                            + " world=" + (mc.theWorld != null) + " player=" + (mc.thePlayer != null)
+                            + " server=" + (MinecraftServer.getServer() != null && MinecraftServer.getServer().isServerRunning()) + "; threads:");
                         for (java.util.Map.Entry<Thread, StackTraceElement[]> en : Thread.getAllStackTraces().entrySet()) {
                             StringBuilder sb = new StringBuilder("THREAD " + en.getKey().getName() + " " + en.getKey().getState());
                             for (StackTraceElement el : en.getValue()) {
@@ -369,6 +412,16 @@ public final class Scenarios {
             commands2();
         } else if ("border".equals(STAGE)) {
             border();
+        } else if ("crafting".equals(STAGE)) {
+            crafting();
+        } else if ("specchunks".equals(STAGE)) {
+            spectatorChunks();
+        } else if ("dragon".equals(STAGE)) {
+            dragonStage();
+        } else if ("food".equals(STAGE)) {
+            foodStage();
+        } else if ("armor".equals(STAGE)) {
+            armorStage();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -3160,14 +3213,21 @@ public final class Scenarios {
                     && ((net.minecraft.entity.EntityLivingBase) mobs[4]).getHealth() <= 0.0F && ((net.minecraft.entity.EntityLivingBase) mobs[0]).getHealth() > 0.0F, "");
             }
         });
-        server(20, new Runnable() {
+        server(40, new Runnable() {
             @Override
             public void run() {
                 int after = 0;
                 for (ItemStack s : p().inventory.mainInventory) {
                     after += s != null && s.getItem() == Items.diamond ? s.stackSize : 0;
                 }
-                result("/give @e[type=player] (1.7.10 player command)", after - diamonds == 3, "diamonds +" + (after - diamonds));
+                StringBuilder near = new StringBuilder();
+                for (Object o : w().getEntitiesWithinAABB(net.minecraft.entity.item.EntityItem.class, p().boundingBox.expand(8, 8, 8))) {
+                    net.minecraft.entity.item.EntityItem ei = (net.minecraft.entity.item.EntityItem) o;
+                    near.append(ei.getEntityItem()).append(" delay=").append(ei.delayBeforeCanPickup).append(" d=").append(String.format("%.1f", ei.getDistanceToEntity(p()))).append("; ");
+                }
+                result("/give @e[type=player] (1.7.10 player command)", after - diamonds == 3, "diamonds +" + (after - diamonds) + " near: " + near
+                    + " offhand=" + ru.codex.offhand1710.OffhandInventory.get(p()).getStack() + " pos=" + (int) p().posX + "," + (int) p().posY + "," + (int) p().posZ
+                    + " dead=" + p().isDead + " inList=" + w().playerEntities.contains(p()));
                 for (net.minecraft.entity.Entity e : mobs) {
                     if (e != null) {
                         e.setDead();
@@ -3739,6 +3799,8 @@ public final class Scenarios {
                 result("the client got the border", ru.codex.offhand1710.Border112.client.diameter() == 40.0D
                     && Math.abs(ru.codex.offhand1710.Border112.client.centerX - b.centerX) < 1.0E-6, "client=" + ru.codex.offhand1710.Border112.client.diameter());
                 result("the wall is blue when still", b.color() == 0x20A0FF, Integer.toHexString(b.color()));
+                int far = ru.codex.offhand1710.Border112.clampX(sx + 1000, -29999872, 29999872, w());
+                result("a portal trip lands 16 blocks inside the border (transferEntityToWorld)", far == (int) (b.centerX + 20.0D - 16.0D), "x=" + (far - sx));
                 double[] box = b.box(w());
                 net.minecraft.world.World nether = MinecraftServer.getServer().worldServerForDimension(-1);
                 double[] nb = b.box(nether);
@@ -3823,6 +3885,492 @@ public final class Scenarios {
                 cmd("worldborder warning distance 5");
                 cmd("worldborder warning time 15");
                 borderPig.setDead();
+            }
+        });
+        finish();
+    }
+
+    private net.minecraft.item.ItemStack craftIn2x2(net.minecraft.item.ItemStack... stacks) {
+        net.minecraft.inventory.ContainerPlayer c = (net.minecraft.inventory.ContainerPlayer) p().inventoryContainer;
+        for (int i = 0; i < 4; i++) {
+            c.craftMatrix.setInventorySlotContents(i, i < stacks.length && stacks[i] != null ? stacks[i].copy() : null);
+        }
+        net.minecraft.item.ItemStack out = c.craftResult.getStackInSlot(0);
+        for (int i = 0; i < 4; i++) {
+            c.craftMatrix.setInventorySlotContents(i, null);
+        }
+        return out;
+    }
+
+    private static String name(net.minecraft.item.ItemStack s) {
+        return s == null ? "nothing" : net.minecraft.item.Item.itemRegistry.getNameForObject(s.getItem());
+    }
+
+    /** doLimitedCrafting of 1.12.2 (Crafting112): the grid gives only unlocked recipes, special recipes always. */
+    private void crafting() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                String n = p().getCommandSenderName();
+                cmd("gamemode 1");
+                cmd("recipe take " + n + " *");
+                net.minecraft.item.ItemStack planks = new net.minecraft.item.ItemStack(Blocks.planks);
+                result("rule off: an unknown recipe crafts as before", "minecraft:crafting_table".equals(name(craftIn2x2(planks, planks, planks, planks))), "");
+                cmd("gamerule doLimitedCrafting true");
+                String got = name(craftIn2x2(planks, planks, planks, planks));
+                result("rule on: the crafting table is not unlocked, no result", "nothing".equals(got), got);
+                got = name(craftIn2x2(new net.minecraft.item.ItemStack(net.minecraft.init.Items.paper), new net.minecraft.item.ItemStack(net.minecraft.init.Items.gunpowder)));
+                result("rule on: a special recipe (firework rocket) still crafts", "minecraft:fireworks".equals(got), got);
+                cmd("recipe give " + n + " minecraft:crafting_table");
+                got = name(craftIn2x2(planks, planks, planks, planks));
+                result("rule on: after unlocking it crafts", "minecraft:crafting_table".equals(got), got);
+                cmd("recipe take " + n + " minecraft:crafting_table");
+            }
+        });
+        client(30, new Runnable() {
+            @Override
+            public void run() {
+                result("the client knows the rule", RulesClient.limitedCrafting, "");
+                net.minecraft.inventory.InventoryCrafting grid = new net.minecraft.inventory.InventoryCrafting(new net.minecraft.inventory.Container() {
+                    @Override
+                    public boolean canInteractWith(net.minecraft.entity.player.EntityPlayer pl) {
+                        return false;
+                    }
+                }, 2, 2);
+                for (int i = 0; i < 4; i++) {
+                    grid.setInventorySlotContents(i, new net.minecraft.item.ItemStack(Blocks.planks));
+                }
+                net.minecraft.item.ItemStack out = net.minecraft.item.crafting.CraftingManager.getInstance().findMatchingRecipe(grid, mc.theWorld);
+                result("the client grid hides a locked recipe too", out == null, name(out));
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamerule doLimitedCrafting false");
+            }
+        });
+        finish();
+    }
+
+    private int specCx;
+    private int specCz;
+
+    /** spectatorsGenerateChunks of 1.12.2 (ChunkStream): a spectator far out generates nothing, a player there does. */
+    private String specTrace = "";
+
+    @cpw.mods.fml.common.eventhandler.SubscribeEvent
+    public void onChunkLoad(net.minecraftforge.event.world.ChunkEvent.Load event) {
+        if (specTrace.isEmpty() && "specchunks".equals(STAGE) && !event.world.isRemote && event.getChunk().xPosition == specCx && event.getChunk().zPosition == specCz) {
+            StringBuilder sb = new StringBuilder();
+            for (StackTraceElement el : Thread.currentThread().getStackTrace()) {
+                sb.append(" | ").append(el);
+            }
+            specTrace = sb.toString();
+        }
+    }
+
+    private void spectatorChunks() {
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(this);
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamerule spectatorsGenerateChunks false");
+                cmd("gamemode 3");
+                double x = p().posX + 5000.0D;
+                double z = p().posZ + 5000.0D;
+                specCx = (int) Math.floor(x) >> 4;
+                specCz = (int) Math.floor(z) >> 4;
+                result("the target chunk does not exist yet", !w().theChunkProviderServer.chunkExists(specCx, specCz), "");
+                p().setPositionAndUpdate(x, 120.0D, z);
+            }
+        });
+        server(80, new Runnable() {
+            @Override
+            public void run() {
+                result("a spectator does not generate the chunk under it", !w().theChunkProviderServer.chunkExists(specCx, specCz)
+                    && ru.codex.offhand1710.ChunkStream.heldForSpectators(specCx, specCz), "skipped=" + ru.codex.offhand1710.ChunkStream.spectatorSkipped
+                    + " spectator=" + ru.codex.offhand1710.Spectator112.is(p()) + " rule=" + w().getGameRules().getGameRuleStringValue("spectatorsGenerateChunks")
+                    + " reasons=" + java.util.Arrays.toString(ru.codex.offhand1710.ChunkStream.REASONS));
+                log("TRACE" + specTrace);
+                cmd("gamemode 1");
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                result("as a player it gets generated", w().theChunkProviderServer.chunkExists(specCx, specCz), "");
+                cmd("gamerule spectatorsGenerateChunks true");
+                cmd("gamemode 3");
+                double x = p().posX + 3000.0D;
+                specCx = (int) Math.floor(x) >> 4;
+                specCz = (int) Math.floor(p().posZ) >> 4;
+                p().setPositionAndUpdate(x, 120.0D, p().posZ);
+            }
+        });
+        server(80, new Runnable() {
+            @Override
+            public void run() {
+                result("with the rule on (default) a spectator generates as before", w().theChunkProviderServer.chunkExists(specCx, specCz), "");
+                cmd("gamemode 1");
+            }
+        });
+        finish();
+    }
+
+    private net.minecraft.entity.boss.EntityDragon fightDragon;
+    private double[] dragonStart;
+    private int fireballsBefore;
+    private int breathsBefore;
+
+    private net.minecraft.world.WorldServer end() {
+        return MinecraftServer.getServer().worldServerForDimension(1);
+    }
+
+    private net.minecraft.entity.boss.EntityDragon findDragon() {
+        for (Object o : end().loadedEntityList) {
+            if (o instanceof net.minecraft.entity.boss.EntityDragon && !((net.minecraft.entity.Entity) o).isDead) {
+                return (net.minecraft.entity.boss.EntityDragon) o;
+            }
+        }
+        return null;
+    }
+
+    private String phases() {
+        StringBuilder b = new StringBuilder(ru.codex.offhand1710.Dragon112.debug(fightDragon) + " | ");
+        for (int i : ru.codex.offhand1710.Dragon112.state(fightDragon).history) {
+            b.append(ru.codex.offhand1710.Dragon112.NAMES[i]).append(' ');
+        }
+        return b.toString();
+    }
+
+    private boolean saw(int phase) {
+        return ru.codex.offhand1710.Dragon112.state(fightDragon).history.contains(phase);
+    }
+
+    /** The ender fightDragon of 1.12.2 (Dragon112): phases, landing, breath, strafing, damage, death. */
+    private void dragonStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                p().travelToDimension(1);
+            }
+        });
+        server(200, new Runnable() {
+            @Override
+            public void run() {
+                fightDragon = findDragon();
+                result("the End has a fightDragon", fightDragon != null, "dimension=" + p().dimension);
+                if (fightDragon == null) {
+                    return;
+                }
+                result("a new fight starts circling (HoldingPattern)", ru.codex.offhand1710.Dragon112.phase(fightDragon) == ru.codex.offhand1710.Dragon112.HOLDING
+                    || saw(ru.codex.offhand1710.Dragon112.HOLDING), phases());
+                dragonStart = new double[] {fightDragon.posX, fightDragon.posY, fightDragon.posZ};
+                p().setPositionAndUpdate(0.5D, 140.0D, 0.5D);
+                p().capabilities.isFlying = true;
+            }
+        });
+        server(200, new Runnable() {
+            @Override
+            public void run() {
+                if (fightDragon == null) {
+                    return;
+                }
+                double moved = Math.sqrt(sq(fightDragon.posX - dragonStart[0]) + sq(fightDragon.posZ - dragonStart[2]));
+                double r = Math.sqrt(fightDragon.posX * fightDragon.posX + fightDragon.posZ * fightDragon.posZ);
+                result("it flies around the pillars (moved, within 100 of the centre, 60-200 high)", moved > 20.0D && r < 100.0D && fightDragon.posY > 60.0D && fightDragon.posY < 200.0D,
+                    String.format("moved=%.0f r=%.0f y=%.0f %s", moved, r, fightDragon.posY, phases()));
+                // a survival player waits by the portal: landing, scanning, the roar and the breath follow
+                cmd("gamemode 0");
+                p().capabilities.isFlying = false;
+                p().setHealth(20.0F);
+                int top = end().getHeightValue(0, 0);
+                p().setPositionAndUpdate(15.5D, end().getHeightValue(15, 0) + 1, 0.5D);
+                // the wings of a landing dragon kill a player on the portal (as in 1.12.2): resistance V keeps it alive
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.resistance.id, 6000, 4));
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.regeneration.id, 6000, 4));
+                breathsBefore = ru.codex.offhand1710.Dragon112.breaths;
+                ru.codex.offhand1710.Dragon112.setPhase(fightDragon, ru.codex.offhand1710.Dragon112.state(fightDragon), ru.codex.offhand1710.Dragon112.LANDING_APPROACH);
+            }
+        });
+        server(900, new Runnable() {
+            @Override
+            public void run() {
+                if (fightDragon == null) {
+                    return;
+                }
+                p().setHealth(20.0F);
+                result("it lands on the portal: LandingApproach, Landing, SittingScanning", saw(ru.codex.offhand1710.Dragon112.LANDING)
+                    && saw(ru.codex.offhand1710.Dragon112.SITTING_SCANNING), String.format("%s pos=%.0f,%.0f,%.0f", phases(), fightDragon.posX, fightDragon.posY, fightDragon.posZ));
+                result("a player near the sitting dragon: SittingAttacking, then SittingFlaming with a breath cloud",
+                    saw(ru.codex.offhand1710.Dragon112.SITTING_ATTACKING) && saw(ru.codex.offhand1710.Dragon112.SITTING_FLAMING)
+                    && ru.codex.offhand1710.Dragon112.breaths > breathsBefore, "breaths=" + (ru.codex.offhand1710.Dragon112.breaths - breathsBefore));
+                // damage: a sitting dragon shrugs arrows off
+                ru.codex.offhand1710.Dragon112.setPhase(fightDragon, ru.codex.offhand1710.Dragon112.state(fightDragon), ru.codex.offhand1710.Dragon112.SITTING_SCANNING);
+                float before = fightDragon.getHealth();
+                net.minecraft.entity.projectile.EntityArrow arrow = new net.minecraft.entity.projectile.EntityArrow(end(), p(), 1.0F);
+                fightDragon.attackEntityFromPart(fightDragon.dragonPartBody, net.minecraft.util.DamageSource.causeArrowDamage(arrow, p()), 8.0F);
+                result("arrows do not hurt a sitting dragon, they catch fire", fightDragon.getHealth() == before && arrow.isBurning(), "health " + before + " -> " + fightDragon.getHealth());
+                cmd("gamemode 1");
+                p().setPositionAndUpdate(0.5D, 140.0D, 0.5D);
+                ru.codex.offhand1710.Dragon112.setPhase(fightDragon, ru.codex.offhand1710.Dragon112.state(fightDragon), ru.codex.offhand1710.Dragon112.TAKEOFF);
+            }
+        });
+        server(200, new Runnable() {
+            @Override
+            public void run() {
+                if (fightDragon == null) {
+                    return;
+                }
+                result("it takes off again", saw(ru.codex.offhand1710.Dragon112.TAKEOFF) && ru.codex.offhand1710.Dragon112.phase(fightDragon) != ru.codex.offhand1710.Dragon112.SITTING_SCANNING, phases());
+                float before = fightDragon.getHealth();
+                fightDragon.attackEntityFromPart(fightDragon.dragonPartBody, net.minecraft.util.DamageSource.causePlayerDamage(p()), 8.0F);
+                float body = before - fightDragon.getHealth();
+                fightDragon.hurtResistantTime = 0;
+                before = fightDragon.getHealth();
+                fightDragon.attackEntityFromPart(fightDragon.dragonPartHead, net.minecraft.util.DamageSource.causePlayerDamage(p()), 8.0F);
+                float head = before - fightDragon.getHealth();
+                result("a body hit of 8 takes 8/4 + 1 = 3, the head takes 8", Math.abs(body - 3.0F) < 0.01F && Math.abs(head - 8.0F) < 0.01F, "body=" + body + " head=" + head);
+                // strafing: a survival player in the open gets a fireball
+                cmd("gamemode 0");
+                p().capabilities.isFlying = false;
+                p().setPositionAndUpdate(fightDragon.posX + 30.0D, end().getHeightValue((int) fightDragon.posX + 30, (int) fightDragon.posZ) + 1, fightDragon.posZ);
+                fireballsBefore = ru.codex.offhand1710.Dragon112.fireballs;
+                ru.codex.offhand1710.Dragon112.strafeAt(fightDragon, p());
+            }
+        });
+        server(500, new Runnable() {
+            @Override
+            public void run() {
+                if (fightDragon == null) {
+                    return;
+                }
+                result("StrafePlayer shoots a fightDragon fireball, then back to HoldingPattern", ru.codex.offhand1710.Dragon112.fireballs > fireballsBefore
+                    && saw(ru.codex.offhand1710.Dragon112.STRAFE), "fireballs=" + (ru.codex.offhand1710.Dragon112.fireballs - fireballsBefore) + " " + phases());
+                cmd("gamemode 1");
+                p().setPositionAndUpdate(20.5D, 140.0D, 20.5D);
+                // death: down to 1 health, the last hit sends it to the portal, 12000 experience the first time
+                int top = end().getHeightValue(0, 0);
+                fightDragon.setPosition(0.0D, top + 6, 0.0D);
+                fightDragon.setHealth(1.0F);
+                fightDragon.hurtResistantTime = 0;
+                fightDragon.attackEntityFromPart(fightDragon.dragonPartHead, net.minecraft.util.DamageSource.causePlayerDamage(p()), 20.0F);
+                result("the killing blow turns it to Dying instead", ru.codex.offhand1710.Dragon112.phase(fightDragon) == ru.codex.offhand1710.Dragon112.DYING, phases());
+            }
+        });
+        server(320, new Runnable() {
+            @Override
+            public void run() {
+                int xp = ru.codex.offhand1710.Dragon112.xpDropped;
+                for (Object o : end().loadedEntityList) {
+                    if (o instanceof net.minecraft.entity.item.EntityXPOrb) {
+                        ((net.minecraft.entity.Entity) o).setDead();
+                    }
+                }
+                int top = end().getHeightValue(0, 0);
+                boolean egg = false;
+                boolean portal = false;
+                for (int y = 0; y < 128; y++) {
+                    egg |= end().getBlock(0, y, 0) == net.minecraft.init.Blocks.dragon_egg;
+                    portal |= end().getBlock(2, y, 0) == net.minecraft.init.Blocks.end_portal;
+                }
+                result("the first fightDragon dies with 12000 experience, the egg and the exit portal", fightDragon != null && fightDragon.isDead && xp == 12000 && egg && portal,
+                    "xp=" + xp + " egg=" + egg + " portal=" + portal + " dead=" + (fightDragon != null && fightDragon.isDead) + " " + phases());
+                cmd("gamemode 1");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                // the respawn: four crystals on the sides of the portal (the orbs removed a tick ago: a crystal needs room)
+                int surface = ru.codex.offhand1710.End112.portalSurface(end());
+                int[][] rim = {{3, 0}, {-3, 0}, {0, 3}, {0, -3}};
+                for (int[] r : rim) {
+                    new net.minecraft.item.ItemStack(ru.codex.offhand1710.Content119.endCrystal).tryPlaceItemIntoWorld(p(), end(), r[0], surface, r[1], 1, 0.5F, 1.0F, 0.5F);
+                }
+                result("four crystals around the portal start the respawn and put the portal out", ru.codex.offhand1710.Fight112.stage != ru.codex.offhand1710.Fight112.NONE
+                    && end().getBlock(2, surface, 0) != net.minecraft.init.Blocks.end_portal, "stage=" + ru.codex.offhand1710.Fight112.stage);
+                p().setPositionAndUpdate(0.5D, surface + 20, 30.5D);
+                look(0.5D, surface + 10, 0.5D);
+            }
+        });
+        server(250, new Runnable() {
+            @Override
+            public void run() {
+                boolean beams = true;
+                int seen = 0;
+                for (Object o : end().loadedEntityList) {
+                    if (o instanceof ru.codex.offhand1710.End112.Crystal) {
+                        ru.codex.offhand1710.End112.Crystal c = (ru.codex.offhand1710.End112.Crystal) o;
+                        if (Math.abs(c.posX) < 5 && Math.abs(c.posZ) < 5) {
+                            beams &= c.beam() != null;
+                            seen++;
+                        }
+                    }
+                }
+                result("the ritual crystals beam while the pillars come back", ru.codex.offhand1710.Fight112.stage == ru.codex.offhand1710.Fight112.PILLARS && beams && seen == 4,
+                    "stage=" + ru.codex.offhand1710.Fight112.stage + " t=" + ru.codex.offhand1710.Fight112.ticks + " crystals=" + seen);
+            }
+        });
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                shot("respawn");
+            }
+        });
+        server(700, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.boss.EntityDragon d = ru.codex.offhand1710.Fight112.summoned;
+                int ritual = 0;
+                int pillars = 0;
+                boolean locked = false;
+                for (Object o : end().loadedEntityList) {
+                    if (o instanceof ru.codex.offhand1710.End112.Crystal && !((net.minecraft.entity.Entity) o).isDead) {
+                        ru.codex.offhand1710.End112.Crystal c = (ru.codex.offhand1710.End112.Crystal) o;
+                        if (Math.abs(c.posX) < 5 && Math.abs(c.posZ) < 5) {
+                            ritual++;
+                        } else {
+                            pillars++;
+                            locked |= c.invulnerable;
+                        }
+                    }
+                }
+                result("a new dragon circles, the ritual crystals are gone, ten pillar crystals breakable again",
+                    d != null && !d.isDead && ru.codex.offhand1710.Fight112.stage == ru.codex.offhand1710.Fight112.NONE && ritual == 0 && pillars >= 10 && !locked,
+                    "dragon=" + (d != null && !d.isDead) + " stage=" + ru.codex.offhand1710.Fight112.stage + " ritual=" + ritual + " pillars=" + pillars + " locked=" + locked);
+            }
+        });
+        finish();
+    }
+
+    private static double sq(double v) {
+        return v * v;
+    }
+
+    private float foodHealth;
+
+    private float exhaustion() {
+        net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+        p().getFoodStats().writeNBT(tag);
+        return tag.getFloat("foodExhaustionLevel");
+    }
+
+    /** FoodStats of 1.12.2 (Food112): fast healing from saturation, slow healing from 18 food. */
+    private void foodStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                cmd("difficulty 2");
+                p().getFoodStats().addStats(20, 1.0F);
+                p().getFoodStats().setFoodSaturationLevel(20.0F);
+                p().setHealth(10.0F);
+                foodHealth = p().getHealth();
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                float healed = p().getHealth() - foodHealth;
+                // every 10 ticks min(saturation, 6) / 6 = 1 health: about 4 in 40 ticks (1.7.10: none before 80 ticks)
+                result("full food and saturation heals 1 every 10 ticks", healed >= 3.0F && healed <= 5.0F, "healed=" + healed + " sat=" + p().getFoodStats().getSaturationLevel());
+                // 18 food, no saturation and no exhaustion left over from the fast healing
+                net.minecraft.nbt.NBTTagCompound food = new net.minecraft.nbt.NBTTagCompound();
+                food.setInteger("foodLevel", 18);
+                food.setInteger("foodTickTimer", 0);
+                food.setFloat("foodSaturationLevel", 0.0F);
+                food.setFloat("foodExhaustionLevel", 0.0F);
+                p().getFoodStats().readNBT(food);
+                p().setHealth(10.0F);
+                foodHealth = p().getHealth();
+            }
+        });
+        server(170, new Runnable() {
+            @Override
+            public void run() {
+                float healed = p().getHealth() - foodHealth;
+                result("18 food without saturation heals 1 every 80 ticks", healed >= 1.0F && healed <= 3.0F, "healed=" + healed);
+                // exhaustion of 1.9: a jump 0.05 (0.2 before), walking a metre nothing (0.01 before)
+                float e0 = exhaustion();
+                p().onGround = true;
+                p().jump();
+                float jump = exhaustion() - e0;
+                e0 = exhaustion();
+                p().onGround = true;
+                p().addMovementStat(1.0D, 0.0D, 0.0D);
+                float walk = exhaustion() - e0;
+                result("a jump costs 0.05, walking costs nothing", Math.abs(jump - 0.05F) < 0.001F && Math.abs(walk) < 0.0001F, "jump=" + jump + " walk=" + walk);
+                cmd("gamemode 1");
+                p().setHealth(20.0F);
+            }
+        });
+        finish();
+    }
+
+    /** CombatRules of 1.12.2 (Armor112): armor toughness, big hits go through armor. */
+    private void armorStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                cmd("difficulty 2");
+                // a zombie in full diamond: armor 20, toughness 8; a hit of 20 leaves 20 * (1 - 15/25) = 8 (1.7.10: 4)
+                net.minecraft.entity.monster.EntityZombie z = new net.minecraft.entity.monster.EntityZombie(w());
+                z.setPosition(p().posX + 4, p().posY, p().posZ);
+                net.minecraft.item.Item[] diamond = {net.minecraft.init.Items.diamond_boots, net.minecraft.init.Items.diamond_leggings,
+                    net.minecraft.init.Items.diamond_chestplate, net.minecraft.init.Items.diamond_helmet};
+                for (int i = 0; i < 4; i++) {
+                    z.setCurrentItemOrArmor(i + 1, new net.minecraft.item.ItemStack(diamond[i]));
+                }
+                w().spawnEntityInWorld(z);
+                z.setHealth(20.0F);
+                z.attackEntityFrom(net.minecraft.util.DamageSource.cactus, 20.0F);
+                result("a zombie in diamond takes 8 of a hit of 20", Math.abs(20.0F - z.getHealth() - 8.0F) < 0.01F, "took=" + (20.0F - z.getHealth()));
+                z.setDead();
+                // the player in full diamond: the same 8
+                for (int i = 0; i < 4; i++) {
+                    p().inventory.armorInventory[i] = new net.minecraft.item.ItemStack(diamond[i]);
+                }
+                p().setHealth(20.0F);
+                p().hurtResistantTime = 0;
+                p().attackEntityFrom(net.minecraft.util.DamageSource.cactus, 20.0F);
+                result("a player in diamond takes 8 of 20 and the armor wears by 5", Math.abs(20.0F - p().getHealth() - 8.0F) < 0.01F
+                    && p().inventory.armorInventory[2].getItemDamage() == 5, "took=" + (20.0F - p().getHealth()) + " wear=" + p().inventory.armorInventory[2].getItemDamage());
+                // leather: armor 7, no toughness; 10 * (1 - 2/25) = 9.2
+                net.minecraft.item.Item[] leather = {net.minecraft.init.Items.leather_boots, net.minecraft.init.Items.leather_leggings,
+                    net.minecraft.init.Items.leather_chestplate, net.minecraft.init.Items.leather_helmet};
+                for (int i = 0; i < 4; i++) {
+                    p().inventory.armorInventory[i] = new net.minecraft.item.ItemStack(leather[i]);
+                }
+                p().setHealth(20.0F);
+                p().hurtResistantTime = 0;
+                p().attackEntityFrom(net.minecraft.util.DamageSource.cactus, 10.0F);
+                result("a player in leather takes 9.2 of 10", Math.abs(20.0F - p().getHealth() - 9.2F) < 0.01F, "took=" + (20.0F - p().getHealth()));
+                // protection of 1.12.2: protection IV = 4, feather falling IV against a fall = 12, no random part
+                net.minecraft.item.ItemStack chest = new net.minecraft.item.ItemStack(net.minecraft.init.Items.diamond_chestplate);
+                chest.addEnchantment(net.minecraft.enchantment.Enchantment.protection, 4);
+                net.minecraft.item.ItemStack boots = new net.minecraft.item.ItemStack(net.minecraft.init.Items.diamond_boots);
+                boots.addEnchantment(net.minecraft.enchantment.Enchantment.featherFalling, 4);
+                net.minecraft.item.ItemStack[] set = {boots, null, chest, null};
+                int general = net.minecraft.enchantment.EnchantmentHelper.getEnchantmentModifierDamage(set, net.minecraft.util.DamageSource.generic);
+                int fall = net.minecraft.enchantment.EnchantmentHelper.getEnchantmentModifierDamage(set, net.minecraft.util.DamageSource.fall);
+                result("protection IV counts 4, with feather falling IV a fall counts 16", general == 4 && fall == 16, "generic=" + general + " fall=" + fall);
+                for (int i = 0; i < 4; i++) {
+                    p().inventory.armorInventory[i] = null;
+                }
+                p().setHealth(20.0F);
+                cmd("gamemode 1");
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                java.util.List<String> tip = new net.minecraft.item.ItemStack(net.minecraft.init.Items.diamond_helmet).getTooltip(mc.thePlayer, false);
+                String all = String.valueOf(tip);
+                result("the diamond helmet tooltip shows armor 3 and toughness 2", all.contains("3") && all.contains(net.minecraft.util.StatCollector.translateToLocal("attribute.name.generic.armorToughness")), all);
             }
         });
         finish();
@@ -4068,6 +4616,9 @@ public final class Scenarios {
                 EntityPlayerMP p = p();
                 p.setHealth(20.0F);
                 p.fallDistance = 0.0F;
+                // no healing while measuring: the fast regeneration of 1.9 would give 2 back within the 20 ticks
+                p.getFoodStats().setFoodLevel(10);
+                p.getFoodStats().setFoodSaturationLevel(0.0F);
                 if (!ru.codex.offhand1710.OffhandInventory.get(p).elytraFlying) {
                     tp(p.posX, 220.0D, p.posZ, 0.0F, 0.0F);
                 }

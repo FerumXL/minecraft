@@ -32,6 +32,21 @@ public class CommonProxy implements IGuiHandler {
         return null;
     }
 
+    /** doLimitedCrafting as this side knows it: the client gets it from the server (Rules112.Debug). */
+    public boolean limitedCrafting(net.minecraft.world.World w) {
+        return Rules112.flag(w, "doLimitedCrafting");
+    }
+
+    /** Whether the player has unlocked a 1.12.2 recipe; on a client, the book the server sent. */
+    public boolean knowsRecipe(net.minecraft.entity.player.EntityPlayer p, String id) {
+        return Data112.knowsRecipe(p, id);
+    }
+
+    /** The player using a client-side crafting grid (null on a server). */
+    public net.minecraft.entity.player.EntityPlayer clientPlayer() {
+        return null;
+    }
+
     /** True for the player of this client (never on a server). */
     public boolean isLocalPlayer(net.minecraft.entity.Entity e) {
         return false;

@@ -80,6 +80,11 @@ public final class DataClient {
     private static final Set<String> DONE = Collections.synchronizedSet(new HashSet<String>());
     private static final Set<String> CRIT = Collections.synchronizedSet(new HashSet<String>());
     private static final Set<String> KNOWN = Collections.synchronizedSet(new HashSet<String>());
+
+    /** The recipes the server says this player has unlocked. */
+    public static boolean knows(String id) {
+        return KNOWN.contains(id);
+    }
     /** Filled from the network thread. */
     private static final List<String> TOAST_QUEUE = new ArrayList<String>();
     /** The five places of GuiToast (bkc), one under the other. */

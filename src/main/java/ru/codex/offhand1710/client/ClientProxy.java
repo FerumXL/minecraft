@@ -55,6 +55,7 @@ public final class ClientProxy extends CommonProxy {
         Border112Client border = new Border112Client();
         MinecraftForge.EVENT_BUS.register(border);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(border);
+        MinecraftForge.EVENT_BUS.register(new ArmorTooltip());
         RulesClient rules = new RulesClient();
         MinecraftForge.EVENT_BUS.register(rules);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(rules);
@@ -91,7 +92,7 @@ public final class ClientProxy extends CommonProxy {
         DragonHeadRenderer dragonHead = new DragonHeadRenderer();
         cpw.mods.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(ru.codex.offhand1710.BlockDragonHead.Tile.class, dragonHead);
         MinecraftForgeClient.registerItemRenderer(net.minecraft.item.Item.getItemFromBlock(ru.codex.offhand1710.End112.dragonHead), dragonHead);
-        cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.End112.Crystal.class, new net.minecraft.client.renderer.tileentity.RenderEnderCrystal());
+        cpw.mods.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.End112.Crystal.class, new CrystalRender());
         MobRenderers2.register();
         MoreMobsClient.register();
         FMLCommonHandler.instance().bus().register(new MoreMobsClient.Ticker());
@@ -125,6 +126,21 @@ public final class ClientProxy extends CommonProxy {
                 }
             }
         });
+    }
+
+    @Override
+    public boolean limitedCrafting(net.minecraft.world.World w) {
+        return w != null && w.isRemote ? RulesClient.limitedCrafting : super.limitedCrafting(w);
+    }
+
+    @Override
+    public boolean knowsRecipe(net.minecraft.entity.player.EntityPlayer p, String id) {
+        return p.worldObj.isRemote ? DataClient.knows(id) : super.knowsRecipe(p, id);
+    }
+
+    @Override
+    public net.minecraft.entity.player.EntityPlayer clientPlayer() {
+        return net.minecraft.client.Minecraft.getMinecraft().thePlayer;
     }
 
     @Override

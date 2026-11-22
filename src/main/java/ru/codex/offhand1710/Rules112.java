@@ -133,6 +133,7 @@ public final class Rules112 {
 
     public static final class Events {
         private boolean lastReduced;
+        private boolean lastLimited;
         private int tick;
 
         @SubscribeEvent
@@ -173,16 +174,19 @@ public final class Rules112 {
                 return;
             }
             boolean now = flag(null, "reducedDebugInfo");
-            if (now != lastReduced) {
+            boolean limited = flag(null, "doLimitedCrafting");
+            if (now != lastReduced || limited != lastLimited) {
                 lastReduced = now;
-                MC112Bridge.NETWORK.channel.sendToAll(new Debug(now));
+                lastLimited = limited;
+                MC112Bridge.NETWORK.channel.sendToAll(new Debug(now, limited));
             }
         }
 
         @SubscribeEvent
         public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
             if (event.player instanceof EntityPlayerMP) {
-                MC112Bridge.NETWORK.channel.sendTo(new Debug(flag(null, "reducedDebugInfo")), (EntityPlayerMP) event.player);
+                MC112Bridge.NETWORK.channel.sendTo(new Debug(flag(null, "reducedDebugInfo"), flag(null, "doLimitedCrafting")),
+                    (EntityPlayerMP) event.player);
             }
         }
 
@@ -199,25 +203,29 @@ public final class Rules112 {
         }
     }
 
-    /** Server to client: the value of reducedDebugInfo. */
+    /** Server to client: the rules the client acts on (reducedDebugInfo, doLimitedCrafting). */
     public static final class Debug implements IMessage {
         public boolean reduced;
+        public boolean limited;
 
         public Debug() {
         }
 
-        public Debug(boolean reduced) {
+        public Debug(boolean reduced, boolean limited) {
             this.reduced = reduced;
+            this.limited = limited;
         }
 
         @Override
         public void fromBytes(ByteBuf b) {
             reduced = b.readBoolean();
+            limited = b.readBoolean();
         }
 
         @Override
         public void toBytes(ByteBuf b) {
             b.writeBoolean(reduced);
+            b.writeBoolean(limited);
         }
     }
 

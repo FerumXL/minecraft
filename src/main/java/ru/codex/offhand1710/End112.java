@@ -222,8 +222,75 @@ public final class End112 implements IWorldGenerator {
      * stay, so every crystal changed a block each tick, and each change recalculated light across the open End: 1 FPS.
      */
     public static final class Crystal extends net.minecraft.entity.item.EntityEnderCrystal {
+        private static final int WATCH_BEAM = 9;
+        /** EntityEnderCrystal of 1.12.2: pillar crystals of a respawn cannot be broken. */
+        public boolean invulnerable;
+
         public Crystal(World world) {
             super(world);
+        }
+
+        @Override
+        protected void entityInit() {
+            super.entityInit();
+            dataWatcher.addObject(WATCH_BEAM, Byte.valueOf((byte) 0));
+            dataWatcher.addObject(WATCH_BEAM + 1, Integer.valueOf(0));
+            dataWatcher.addObject(WATCH_BEAM + 2, Integer.valueOf(0));
+            dataWatcher.addObject(WATCH_BEAM + 3, Integer.valueOf(0));
+        }
+
+        /** EntityEnderCrystal.setBeamTarget of 1.12.2; null clears it. */
+        public void setBeam(int[] target) {
+            dataWatcher.updateObject(WATCH_BEAM, Byte.valueOf((byte) (target == null ? 0 : 1)));
+            if (target != null) {
+                dataWatcher.updateObject(WATCH_BEAM + 1, Integer.valueOf(target[0]));
+                dataWatcher.updateObject(WATCH_BEAM + 2, Integer.valueOf(target[1]));
+                dataWatcher.updateObject(WATCH_BEAM + 3, Integer.valueOf(target[2]));
+            }
+        }
+
+        public int[] beam() {
+            if (dataWatcher.getWatchableObjectByte(WATCH_BEAM) == 0) {
+                return null;
+            }
+            return new int[] {dataWatcher.getWatchableObjectInt(WATCH_BEAM + 1), dataWatcher.getWatchableObjectInt(WATCH_BEAM + 2),
+                    dataWatcher.getWatchableObjectInt(WATCH_BEAM + 3)};
+        }
+
+        @Override
+        public boolean attackEntityFrom(net.minecraft.util.DamageSource source, float amount) {
+            if (invulnerable) {
+                return false;
+            }
+            boolean hit = super.attackEntityFrom(source, amount);
+            if (isDead && !worldObj.isRemote) {
+                Fight112.crystalDestroyed(this);
+            }
+            return hit;
+        }
+
+        @Override
+        protected void writeEntityToNBT(net.minecraft.nbt.NBTTagCompound tag) {
+            super.writeEntityToNBT(tag);
+            int[] b = beam();
+            if (b != null) {
+                net.minecraft.nbt.NBTTagCompound t = new net.minecraft.nbt.NBTTagCompound();
+                t.setInteger("X", b[0]);
+                t.setInteger("Y", b[1]);
+                t.setInteger("Z", b[2]);
+                tag.setTag("BeamTarget", t);
+            }
+            tag.setBoolean("Invulnerable", invulnerable);
+        }
+
+        @Override
+        protected void readEntityFromNBT(net.minecraft.nbt.NBTTagCompound tag) {
+            super.readEntityFromNBT(tag);
+            if (tag.hasKey("BeamTarget")) {
+                net.minecraft.nbt.NBTTagCompound t = tag.getCompoundTag("BeamTarget");
+                setBeam(new int[] {t.getInteger("X"), t.getInteger("Y"), t.getInteger("Z")});
+            }
+            invulnerable = tag.getBoolean("Invulnerable");
         }
 
         @Override
@@ -894,7 +961,7 @@ public final class End112 implements IWorldGenerator {
      */
     @SubscribeEvent
     public void onLivingUpdate(net.minecraftforge.event.entity.living.LivingEvent.LivingUpdateEvent event) {
-        if (!(event.entityLiving instanceof EntityDragon) || event.entityLiving.worldObj.isRemote
+        if (!Dragon112.OFF || !(event.entityLiving instanceof EntityDragon) || event.entityLiving.worldObj.isRemote
                 || ((EntityDragon) event.entityLiving).deathTicks < 199) {
             return;
         }
@@ -913,6 +980,80 @@ public final class End112 implements IWorldGenerator {
         world.setBlock(0, surface + 4, 0, Blocks.dragon_egg, 0, 2);
         dragon.setDead();
         event.setCanceled(true);
+    }
+
+    private static Decorator spikeSource;
+
+    /** The ten pillars of the End for a seed: {x, z, radius, height, caged}. */
+    public static synchronized int[][] spikes(long seed) {
+        if (spikeSource == null) {
+            spikeSource = new Decorator();
+        }
+        return spikeSource.ring(seed);
+    }
+
+    /** WorldGenSpikes again for one pillar (the respawn of 1.12.2): every chunk it touches, with its crystal. */
+    public static void rebuildSpike(World world, int[] spike) {
+        int reach = spike[2] + 2;
+        for (int minX = (spike[0] - reach) >> 4 << 4; minX <= spike[0] + reach; minX += 16) {
+            for (int minZ = (spike[1] - reach) >> 4 << 4; minZ <= spike[1] + reach; minZ += 16) {
+                Decorator.placeSpike(world, spike, minX, minZ);
+            }
+        }
+    }
+
+    public static Block gatewayBlock() {
+        return gateway;
+    }
+
+    /** DragonFightManager.hasPreviouslyKilledDragon: before this death (whose gateway is already open). */
+    public static boolean dragonKilledBefore(World world) {
+        Gateways g = Gateways.get(world);
+        return g.killed || g.left.size() < 19;
+    }
+
+    /** The exit portal's level (the podium surface at the centre). */
+    public static int portalSurface(World world) {
+        // the bedrock column in the middle is four high from the surface (an egg may sit on it)
+        for (int y = world.getHeightValue(0, 0); y >= 4; y--) {
+            if (world.getBlock(0, y, 0) == Blocks.bedrock && world.getBlock(0, y - 3, 0) == Blocks.bedrock
+                && world.getBlock(0, y - 1, 0) == Blocks.bedrock && world.getBlock(0, y - 2, 0) == Blocks.bedrock) {
+                return y - 3;
+            }
+        }
+        return world.getHeightValue(0, 0);
+    }
+
+    /** Lights (or puts out) the exit portal in the podium, leaving the rest of it as it is. */
+    public static void setPortal(World world, boolean lit) {
+        int surface = portalSurface(world);
+        BlockEndPortal.field_149948_a = true;
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                if (x * x + z * z <= 6 && !(x == 0 && z == 0)) {
+                    world.setBlock(x, surface, z, lit ? Blocks.end_portal : Blocks.air, 0, 2);
+                }
+            }
+        }
+        BlockEndPortal.field_149948_a = false;
+    }
+
+    /**
+     * DragonFightManager.processDragonDeath of 1.12.2 at the end of the death: the exit portal lights up in the
+     * podium, and only the first dragon leaves an egg on top.
+     */
+    public static void finishFight(EntityDragon dragon, boolean first) {
+        World world = dragon.worldObj;
+        int surface = portalSurface(world);
+        BlockEndPortal.field_149948_a = true;
+        Decorator.placePodium(world, surface, true, -8, -8);
+        BlockEndPortal.field_149948_a = false;
+        if (first) {
+            world.setBlock(0, surface + 4, 0, Blocks.dragon_egg, 0, 2);
+        }
+        Gateways g = Gateways.get(world);
+        g.killed = true;
+        g.markDirty();
     }
 
     // ---------------------------------------------------------------- gateways
@@ -965,12 +1106,16 @@ public final class End112 implements IWorldGenerator {
             return g;
         }
 
+        /** DragonFightManager.previouslyKilled: a dragon of this mod's fight has died here. */
+        public boolean killed;
+
         @Override
         public void readFromNBT(net.minecraft.nbt.NBTTagCompound tag) {
             left.clear();
             for (int i : tag.getIntArray("Gateways")) {
                 left.add(i);
             }
+            killed = tag.getBoolean("PreviouslyKilled");
             filled = true;
         }
 
@@ -981,6 +1126,7 @@ public final class End112 implements IWorldGenerator {
                 a[i] = left.get(i);
             }
             tag.setIntArray("Gateways", a);
+            tag.setBoolean("PreviouslyKilled", killed);
         }
     }
 

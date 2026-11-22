@@ -618,6 +618,8 @@ public final class Content119 {
                 End112.Crystal crystal = new End112.Crystal(world);
                 crystal.setPosition((double) x + 0.5D, (double) y + 1.0D, (double) z + 0.5D);
                 world.spawnEntityInWorld(crystal);
+                // ItemEndCrystal of 1.12.2: four crystals around the exit portal start the respawn
+                Fight112.tryRespawn(world);
             }
             if (!player.capabilities.isCreativeMode) {
                 stack.stackSize--;

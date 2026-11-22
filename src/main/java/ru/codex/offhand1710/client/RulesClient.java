@@ -14,6 +14,7 @@ import ru.codex.offhand1710.Rules112;
  */
 public final class RulesClient {
     public static volatile boolean reduced;
+    public static volatile boolean limitedCrafting;
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public void onText(RenderGameOverlayEvent.Text event) {
@@ -33,12 +34,14 @@ public final class RulesClient {
     @SubscribeEvent
     public void onConnect(cpw.mods.fml.common.network.FMLNetworkEvent.ClientConnectedToServerEvent event) {
         reduced = false;
+        limitedCrafting = false;
     }
 
     public static final class Handler implements IMessageHandler<Rules112.Debug, IMessage> {
         @Override
         public IMessage onMessage(Rules112.Debug message, MessageContext ctx) {
             reduced = message.reduced;
+            limitedCrafting = message.limited;
             return null;
         }
     }

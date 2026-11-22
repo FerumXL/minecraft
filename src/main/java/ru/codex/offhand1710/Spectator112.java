@@ -49,6 +49,50 @@ public final class Spectator112 {
     /** Server: what each spectator is looking through. */
     static final Map<EntityPlayerMP, Entity> SPECTATING = new HashMap<EntityPlayerMP, Entity>();
 
+    private static final ThreadLocal<java.util.List<Object>> HIDDEN = new ThreadLocal<java.util.List<Object>>();
+
+    /**
+     * Start of SpawnerAnimals.findChunksForSpawning: WorldEntitySpawner of 1.12.2 skips spectators (no chunks around
+     * them count for spawning, and nothing is generated for it), so they are out of the world's player list meanwhile.
+     */
+    public static void hideForSpawning(net.minecraft.world.WorldServer w) {
+        showAfterSpawning(w);
+        if (System.getProperty("mc112.spectatorSpawn17") != null) {
+            return;
+        }
+        java.util.List<Object> out = null;
+        for (java.util.Iterator<?> it = w.playerEntities.iterator(); it.hasNext();) {
+            Object o = it.next();
+            if (o instanceof EntityPlayer && is((EntityPlayer) o)) {
+                if (out == null) {
+                    out = new java.util.ArrayList<Object>();
+                }
+                out.add(o);
+                it.remove();
+            }
+        }
+        if (out != null) {
+            HIDDEN.set(out);
+        }
+    }
+
+    /** Every return of findChunksForSpawning (and the end of the world tick, in case it threw). */
+    @SuppressWarnings("unchecked")
+    public static void showAfterSpawning(net.minecraft.world.WorldServer w) {
+        java.util.List<Object> out = HIDDEN.get();
+        if (out != null) {
+            HIDDEN.remove();
+            ((java.util.List<Object>) w.playerEntities).addAll(out);
+        }
+    }
+
+    @SubscribeEvent
+    public void onWorldTickEnd(cpw.mods.fml.common.gameevent.TickEvent.WorldTickEvent event) {
+        if (event.phase == cpw.mods.fml.common.gameevent.TickEvent.Phase.END && event.world instanceof net.minecraft.world.WorldServer) {
+            showAfterSpawning((net.minecraft.world.WorldServer) event.world);
+        }
+    }
+
     public static boolean is(EntityPlayer p) {
         if (p == null) {
             return false;

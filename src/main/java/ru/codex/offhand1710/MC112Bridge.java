@@ -60,6 +60,7 @@ public final class MC112Bridge {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new Speeds112());
         Sounds112.register();
         Stats112.TRIGGER.func_96636_a();
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(new Fight112());
         Border112.Events border = new Border112.Events();
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(border);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(border);
