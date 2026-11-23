@@ -57,6 +57,44 @@ final class RulePatches {
             System.out.println("[mc112bridge] spectatorsGenerateChunks in ChunkProviderServer: " + count);
             bytes = Transformer.write(node);
         }
+        if (name.equals("net.minecraft.entity.EntityLiving") && System.getProperty("mc112.gamerules17") == null) {
+            ClassNode node = Transformer.read(bytes);
+            int count = 0;
+            String living = "Lnet/minecraft/entity/EntityLiving;";
+            for (MethodNode m : node.methods) {
+                boolean read = Transformer.named(m, "readEntityFromNBT", "func_70037_a");
+                boolean write = Transformer.named(m, "writeEntityToNBT", "func_70014_b");
+                if ((read || write) && m.desc.equals("(Lnet/minecraft/nbt/NBTTagCompound;)V")) {
+                    InsnList call = new InsnList();
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                    call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Rules112", read ? "readNoAI" : "writeNoAI",
+                        "(" + living + "Lnet/minecraft/nbt/NBTTagCompound;)V", false));
+                    Transformer.beforeReturns(m, call);
+                    count++;
+                } else if ((Transformer.named(m, "updateAITasks", "func_70619_bc") || Transformer.named(m, "updateEntityActionState", "func_70626_be"))
+                    && m.desc.equals("()V")) {
+                    InsnList load = new InsnList();
+                    load.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    Transformer.guard(m, load, "ru/codex/offhand1710/Rules112", "noAI", "(" + living + ")Z", Opcodes.RETURN, 0);
+                    count++;
+                }
+            }
+            System.out.println("[mc112bridge] NoAI in EntityLiving: " + count);
+            bytes = Transformer.write(node);
+        }
+        if (name.equals("net.minecraft.network.play.server.S2BPacketChangeGameState") && System.getProperty("mc112.gamerules17") == null) {
+            // 1.12.2 prints no "Your game mode has been updated" when the mode changes (SPacketChangeGameState.MESSAGE_NAMES)
+            ClassNode node = Transformer.read(bytes);
+            for (MethodNode m : node.methods) {
+                for (AbstractInsnNode a : m.instructions.toArray()) {
+                    if (a instanceof LdcInsnNode && "gameMode.changed".equals(((LdcInsnNode) a).cst)) {
+                        m.instructions.set(a, new InsnNode(Opcodes.ACONST_NULL));
+                    }
+                }
+            }
+            bytes = Transformer.write(node);
+        }
         if (System.getProperty("mc112.brewFuel17") == null && (name.equals("net.minecraft.tileentity.TileEntityBrewingStand")
             || name.equals("net.minecraft.inventory.ContainerBrewingStand") || name.equals("net.minecraft.client.gui.inventory.GuiBrewingStand"))) {
             bytes = brewing(name, bytes);

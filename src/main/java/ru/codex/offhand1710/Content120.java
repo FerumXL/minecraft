@@ -586,14 +586,43 @@ public final class Content120 {
                 if (!(tile instanceof IInventory)) {
                     throw new WrongUsageException("Block has no inventory");
                 }
-                ((IInventory) tile).setInventorySlotContents(parseIntBounded(sender, args[4], 0, ((IInventory) tile).getSizeInventory() - 1), stack);
+                String slotName = args[4].startsWith("slot.container.") ? args[4].substring(15) : args[4];
+                ((IInventory) tile).setInventorySlotContents(CommandBase.parseIntBounded(sender, slotName, 0, ((IInventory) tile).getSizeInventory() - 1), stack);
                 tile.markDirty();
             } else {
                 EntityPlayerMP player = getPlayer(sender, args[1]);
-                player.inventory.setInventorySlotContents(parseIntBounded(sender, args[2], 0, 35), stack);
+                putInSlot(sender, player, args[2], stack);
                 player.inventoryContainer.detectAndSendChanges();
             }
-            sender.addChatMessage(new ChatComponentText("Replaced with " + stack.getDisplayName()));
+            func_152373_a(sender, this, "commands.replaceitem.success", args[block ? 4 : 2], count, stack.func_151000_E());
+        }
+    }
+
+    /**
+     * The slot names of 1.12.2 (slot.weapon.mainhand, slot.weapon.offhand, slot.armor.head ... feet, slot.hotbar.0-8,
+     * slot.inventory.0-26, slot.enderchest.0-26) and the plain numbers of before.
+     */
+    static void putInSlot(ICommandSender sender, EntityPlayerMP player, String slot, ItemStack stack) {
+        if ("slot.weapon".equals(slot) || "slot.weapon.mainhand".equals(slot)) {
+            player.inventory.setInventorySlotContents(player.inventory.currentItem, stack);
+        } else if ("slot.weapon.offhand".equals(slot)) {
+            OffhandInventory.get(player).setStack(stack);
+            OffhandMessages.synchronize(player);
+        } else if (slot.startsWith("slot.armor.")) {
+            String[] parts = {"feet", "legs", "chest", "head"};
+            int i = java.util.Arrays.asList(parts).indexOf(slot.substring(11));
+            if (i < 0) {
+                throw new net.minecraft.command.CommandException("commands.generic.parameter.invalid", slot);
+            }
+            player.inventory.armorInventory[i] = stack;
+        } else if (slot.startsWith("slot.hotbar.")) {
+            player.inventory.setInventorySlotContents(CommandBase.parseIntBounded(sender, slot.substring(12), 0, 8), stack);
+        } else if (slot.startsWith("slot.inventory.")) {
+            player.inventory.setInventorySlotContents(9 + CommandBase.parseIntBounded(sender, slot.substring(15), 0, 26), stack);
+        } else if (slot.startsWith("slot.enderchest.")) {
+            player.getInventoryEnderChest().setInventorySlotContents(CommandBase.parseIntBounded(sender, slot.substring(16), 0, 26), stack);
+        } else {
+            player.inventory.setInventorySlotContents(CommandBase.parseIntBounded(sender, slot, 0, 35), stack);
         }
     }
 

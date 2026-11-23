@@ -139,7 +139,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "visual".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -424,6 +424,8 @@ public final class Scenarios {
             armorStage();
         } else if ("brewing".equals(STAGE)) {
             brewingStage();
+        } else if ("visual".equals(STAGE)) {
+            visual();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -4093,6 +4095,8 @@ public final class Scenarios {
                 // the wings of a landing dragon kill a player on the portal (as in 1.12.2): resistance V keeps it alive
                 p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.resistance.id, 6000, 4));
                 p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.regeneration.id, 6000, 4));
+                // the wings knock the player out of the 20 blocks the sitting dragon looks in: it stays put
+                p().getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.knockbackResistance).setBaseValue(1.0D);
                 breathsBefore = ru.codex.offhand1710.Dragon112.breaths;
                 ru.codex.offhand1710.Dragon112.setPhase(fightDragon, ru.codex.offhand1710.Dragon112.state(fightDragon), ru.codex.offhand1710.Dragon112.LANDING_APPROACH);
             }
@@ -4109,6 +4113,7 @@ public final class Scenarios {
                 result("a player near the sitting dragon: SittingAttacking, then SittingFlaming with a breath cloud",
                     saw(ru.codex.offhand1710.Dragon112.SITTING_ATTACKING) && saw(ru.codex.offhand1710.Dragon112.SITTING_FLAMING)
                     && ru.codex.offhand1710.Dragon112.breaths > breathsBefore, "breaths=" + (ru.codex.offhand1710.Dragon112.breaths - breathsBefore));
+                p().getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.knockbackResistance).setBaseValue(0.0D);
                 // damage: a sitting dragon shrugs arrows off
                 ru.codex.offhand1710.Dragon112.setPhase(fightDragon, ru.codex.offhand1710.Dragon112.state(fightDragon), ru.codex.offhand1710.Dragon112.SITTING_SCANNING);
                 float before = fightDragon.getHealth();
@@ -4449,6 +4454,102 @@ public final class Scenarios {
             public void run() {
                 shot("brewing");
                 mc.displayGuiScreen(null);
+            }
+        });
+        finish();
+    }
+
+    /**
+     * The screenshot bench: plays the scene file (MC112_SCENE) that HarnessScene plays in vanilla 1.12.2, with the same
+     * picture settings, so the two sets of screenshots can be compared pixel by pixel.
+     */
+    private void visual() {
+        java.util.List<String> lines;
+        try {
+            lines = java.nio.file.Files.readAllLines(new File(System.getenv("MC112_SCENE")).toPath(), java.nio.charset.Charset.forName("UTF-8"));
+        } catch (Exception e) {
+            log("FAIL no scene file: " + e);
+            finish();
+            return;
+        }
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                mc.gameSettings.fovSetting = 70.0F;
+                mc.gameSettings.fancyGraphics = true;
+                mc.gameSettings.ambientOcclusion = 2;
+                mc.gameSettings.clouds = false;
+                mc.gameSettings.particleSetting = 0;
+                mc.gameSettings.guiScale = 0;
+                mc.gameSettings.gammaSetting = 0.0F;
+                mc.gameSettings.viewBobbing = true;
+                mc.gameSettings.renderDistanceChunks = 8;
+            }
+        });
+        int pending = 0;
+        int shots = 0;
+        for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            int sp = line.indexOf(' ');
+            String op = sp < 0 ? line : line.substring(0, sp);
+            final String arg = sp < 0 ? "" : line.substring(sp + 1);
+            if ("wait".equals(op)) {
+                pending += Integer.parseInt(arg);
+                continue;
+            }
+            int delay = 1 + pending;
+            pending = 0;
+            if ("cmd".equals(op)) {
+                server(delay, new Runnable() {
+                    @Override
+                    public void run() {
+                        cmd(arg);
+                    }
+                });
+            } else if ("shot".equals(op)) {
+                shots++;
+                client(delay, new Runnable() {
+                    @Override
+                    public void run() {
+                        shot(arg);
+                    }
+                });
+            } else if ("hud".equals(op)) {
+                client(delay, new Runnable() {
+                    @Override
+                    public void run() {
+                        mc.gameSettings.hideGUI = "off".equals(arg);
+                    }
+                });
+            } else if ("view".equals(op)) {
+                client(delay, new Runnable() {
+                    @Override
+                    public void run() {
+                        mc.gameSettings.thirdPersonView = Integer.parseInt(arg);
+                    }
+                });
+            } else if ("gui".equals(op)) {
+                client(delay, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!"close".equals(arg)) {
+                            // as the inventory key does: the "taking inventory" hint goes away
+                            mc.getNetHandler().addToSendQueue(new net.minecraft.network.play.client.C16PacketClientStatus(
+                                net.minecraft.network.play.client.C16PacketClientStatus.EnumState.OPEN_INVENTORY_ACHIEVEMENT));
+                        }
+                        mc.displayGuiScreen("close".equals(arg) ? null : new net.minecraft.client.gui.inventory.GuiInventory(mc.thePlayer));
+                    }
+                });
+            }
+        }
+        final int total = shots;
+        client(20 + pending, new Runnable() {
+            @Override
+            public void run() {
+                log("INFO visual bench: " + total + " shots");
             }
         });
         finish();

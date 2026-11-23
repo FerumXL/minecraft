@@ -229,6 +229,27 @@ public final class Rules112 {
         }
     }
 
+    // ---- NoAI (EntityLiving.isAIDisabled of 1.9 - 1.12.2) ----
+
+    /** EntityLiving.readEntityFromNBT: NoAI kept beside the entity's data. */
+    public static void readNoAI(net.minecraft.entity.EntityLiving e, net.minecraft.nbt.NBTTagCompound nbt) {
+        if (nbt.hasKey("NoAI")) {
+            e.getEntityData().setBoolean("NoAI", nbt.getBoolean("NoAI"));
+        }
+    }
+
+    /** EntityLiving.writeEntityToNBT: written back under its 1.12.2 name. */
+    public static void writeNoAI(net.minecraft.entity.EntityLiving e, net.minecraft.nbt.NBTTagCompound nbt) {
+        if (e.getEntityData().getBoolean("NoAI")) {
+            nbt.setBoolean("NoAI", true);
+        }
+    }
+
+    /** updateAITasks / updateEntityActionState: a mob with NoAI thinks nothing (it still falls and burns). */
+    public static boolean noAI(net.minecraft.entity.EntityLiving e) {
+        return !OFF && e.getEntityData().getBoolean("NoAI");
+    }
+
     // ---- hooks (Transformer) ----
 
     /** WorldServer.func_147456_g: blocks ticked at random in each 16-high section (randomTickSpeed, 3 in 1.7.10). */

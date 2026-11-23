@@ -30,6 +30,15 @@ public final class RulesClient {
         }
     }
 
+    /** GuiIngame.renderAttackIndicator of 1.12.2 draws the crosshair only in the first person view. */
+    @SubscribeEvent
+    public void onCrosshair(RenderGameOverlayEvent.Pre event) {
+        if (event.type == RenderGameOverlayEvent.ElementType.CROSSHAIRS && !Rules112.OFF
+            && net.minecraft.client.Minecraft.getMinecraft().gameSettings.thirdPersonView != 0) {
+            event.setCanceled(true);
+        }
+    }
+
     /** A new server starts with the full screen until it says otherwise. */
     @SubscribeEvent
     public void onConnect(cpw.mods.fml.common.network.FMLNetworkEvent.ClientConnectedToServerEvent event) {

@@ -1625,12 +1625,26 @@ public final class DataClient {
                 synchronized (TOAST_QUEUE) {
                     while (next == null && !TOAST_QUEUE.isEmpty()) {
                         next = TOAST_QUEUE.remove(0);
-                        if (!Data112.ADVANCEMENTS.containsKey(next)) {
+                        if (!next.startsWith("recipes:") && !Data112.ADVANCEMENTS.containsKey(next)) {
                             next = null;
                         }
                     }
                 }
-                if (next != null) {
+                if (next != null && next.startsWith("recipes:")) {
+                    // recipes unlocked while a recipe toast is up join it, as in 1.12.2
+                    ToastSlot open = null;
+                    for (ToastSlot s : TOAST_SLOTS) {
+                        if (s != null && s.recipes != null && !s.hiding) {
+                            open = s;
+                        }
+                    }
+                    if (open != null) {
+                        open.addRecipes(next.substring(8));
+                    } else {
+                        TOAST_SLOTS[i] = new ToastSlot(null);
+                        TOAST_SLOTS[i].addRecipes(next.substring(8));
+                    }
+                } else if (next != null) {
                     TOAST_SLOTS[i] = new ToastSlot(Data112.ADVANCEMENTS.get(next));
                 }
             }
@@ -1661,11 +1675,41 @@ public final class DataClient {
         private final Data112.Advancement a;
         private long start = -1L;
         private long shown = -1L;
-        private boolean hiding;
+        boolean hiding;
         private boolean played;
+
+        /** The results of the recipes of a recipe toast, or null for an advancement toast. */
+        private List<ItemStack> recipes;
 
         ToastSlot(Data112.Advancement a) {
             this.a = a;
+        }
+
+        void addRecipes(String ids) {
+            if (recipes == null) {
+                recipes = new ArrayList<ItemStack>();
+            }
+            for (String id : ids.split(",")) {
+                Data112.Recipe r = Data112.RECIPES.get(id);
+                if (r != null && r.result != null) {
+                    recipes.add(r.result);
+                }
+            }
+        }
+
+        /** RecipeToast.draw of 1.12.2: the lower band of toasts.png, a small crafting table and the results in turn. */
+        private boolean drawRecipes(Minecraft mc, long time) {
+            FontRenderer font = mc.fontRenderer;
+            textured();
+            mc.getTextureManager().bindTexture(TOASTS);
+            blit(0, 0, 0, 32, 160, 32);
+            font.drawString(StatCollector.translateToLocal("recipe.toast.title"), 30, 7, -11534256);
+            font.drawString(StatCollector.translateToLocal("recipe.toast.description"), 30, 18, -16777216);
+            if (!recipes.isEmpty()) {
+                ItemStack shown = recipes.get((int) (time / Math.max(1L, 5000L / recipes.size()) % recipes.size()));
+                icon(shown, 8, 8);
+            }
+            return time >= 5000L;
         }
 
         private float visibility(long now) {
@@ -1699,6 +1743,9 @@ public final class DataClient {
         /** Returns true when its time is up. */
         @SuppressWarnings("unchecked")
         private boolean draw(Minecraft mc, long time) {
+            if (recipes != null) {
+                return drawRecipes(mc, time);
+            }
             FontRenderer font = mc.fontRenderer;
             if (!played) {
                 played = true;

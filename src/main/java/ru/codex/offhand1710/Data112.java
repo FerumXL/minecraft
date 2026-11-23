@@ -474,8 +474,18 @@ public final class Data112 {
     private static void finish(EntityPlayerMP p, Advancement a) {
         if (!a.rewardRecipes.isEmpty()) {
             Set<String> known = set(p, "recipes");
+            StringBuilder fresh = new StringBuilder();
+            for (String r : a.rewardRecipes) {
+                if (!known.contains(r) && RECIPES.containsKey(r)) {
+                    fresh.append(fresh.length() == 0 ? "" : ",").append(r);
+                }
+            }
             known.addAll(a.rewardRecipes);
             write(p, "recipes", known);
+            if (fresh.length() > 0) {
+                // RecipeToast of 1.12.2: "New Recipes Unlocked!"
+                MC112Bridge.NETWORK.channel.sendTo(new Toast("recipes:" + fresh), p);
+            }
         }
         if (a.rewardXp > 0) {
             p.addExperience(a.rewardXp);
@@ -487,7 +497,14 @@ public final class Data112 {
             MC112Bridge.NETWORK.channel.sendTo(new Toast(a.id), p);
         }
         if (a.shown && a.announce && !a.hidden && Rules112.flag(p.worldObj, "announceAdvancements")) {
-            IChatComponent title = new ChatComponentTranslation(a.title);
+            // DisplayInfo of 1.12.2: "[title]" in green (purple for a challenge), the description on hover
+            net.minecraft.util.EnumChatFormatting colour = "challenge".equals(a.frame) ? net.minecraft.util.EnumChatFormatting.DARK_PURPLE
+                : net.minecraft.util.EnumChatFormatting.GREEN;
+            IChatComponent hover = new ChatComponentTranslation(a.title);
+            hover.getChatStyle().setColor(colour);
+            hover.appendText("\n").appendSibling(new ChatComponentTranslation(a.description));
+            IChatComponent title = new net.minecraft.util.ChatComponentText("[").appendSibling(new ChatComponentTranslation(a.title)).appendText("]");
+            title.getChatStyle().setColor(colour).setChatHoverEvent(new net.minecraft.event.HoverEvent(net.minecraft.event.HoverEvent.Action.SHOW_TEXT, hover));
             MinecraftServer.getServer().getConfigurationManager().sendChatMsg(new ChatComponentTranslation("chat.type.advancement." + a.frame, p.func_145748_c_(), title));
         }
         sync(p);
