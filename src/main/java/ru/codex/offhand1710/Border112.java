@@ -52,7 +52,7 @@ public final class Border112 {
     /** The server's border (the overworld's level.dat) and the one this client was sent. */
     private static final Map<WorldInfo, Border112> SAVED = new WeakHashMap<WorldInfo, Border112>();
     public static Border112 client = new Border112();
-    private static final Map<Entity, Boolean> OUTSIDE = new WeakHashMap<Entity, Boolean>();
+    private static final SideMap<Entity, Boolean> OUTSIDE = new SideMap<Entity, Boolean>();
 
     // ---- WorldBorder of 1.12.2 ----
 

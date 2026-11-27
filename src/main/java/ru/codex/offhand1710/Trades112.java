@@ -236,7 +236,7 @@ public final class Trades112 {
             }
         }
 
-        private final Map<EntityVillager, State> states = new WeakHashMap<EntityVillager, State>();
+        private final SideMap<EntityVillager, State> states = new SideMap<EntityVillager, State>();
 
         /**
          * EntityVillager.useRecipe of 1.12.2 refreshes after the first use of any trade or with a chance of 1 in 5,

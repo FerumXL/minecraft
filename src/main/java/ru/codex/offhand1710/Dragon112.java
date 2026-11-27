@@ -75,16 +75,13 @@ public final class Dragon112 {
         EntityDragonPart neck;
     }
 
-    // Entity.equals of 1.7.10 compares entityId, and in single player the client and the server copy share it:
-    // without a map per side both would share one State
-    private static final Map<EntityDragon, State> STATES = new WeakHashMap<EntityDragon, State>();
-    private static final Map<EntityDragon, State> CLIENT_STATES = new WeakHashMap<EntityDragon, State>();
+    private static final SideMap<EntityDragon, State> STATES = new SideMap<EntityDragon, State>();
 
     public static synchronized State state(EntityDragon d) {
-        State s = (d.worldObj.isRemote ? CLIENT_STATES : STATES).get(d);
+        State s = STATES.get(d);
         if (s == null) {
             s = new State();
-            (d.worldObj.isRemote ? CLIENT_STATES : STATES).put(d, s);
+            STATES.put(d, s);
         }
         return s;
     }

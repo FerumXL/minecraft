@@ -4163,6 +4163,8 @@ public final class Scenarios {
                 fightDragon.setPosition(0.0D, top + 6, 0.0D);
                 fightDragon.setHealth(1.0F);
                 fightDragon.hurtResistantTime = 0;
+                // only a flying dragon goes to Dying: a sitting one just dies, as in 1.12.2 (getIsStationary)
+                ru.codex.offhand1710.Dragon112.setPhase(fightDragon, ru.codex.offhand1710.Dragon112.state(fightDragon), ru.codex.offhand1710.Dragon112.HOLDING);
                 fightDragon.attackEntityFromPart(fightDragon.dragonPartHead, net.minecraft.util.DamageSource.causePlayerDamage(p()), 20.0F);
                 result("the killing blow turns it to Dying instead", ru.codex.offhand1710.Dragon112.phase(fightDragon) == ru.codex.offhand1710.Dragon112.DYING, phases());
             }

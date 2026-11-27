@@ -61,10 +61,7 @@ public final class Boat112 {
         public Boolean[] input;
     }
 
-    // Entity.equals of 1.7.10 compares entityId, and in single player the client and the server copy share it:
-    // without a map per side both would share one State
-    private static final Map<EntityBoat, State> STATES = new WeakHashMap<EntityBoat, State>();
-    private static final Map<EntityBoat, State> CLIENT_STATES = new WeakHashMap<EntityBoat, State>();
+    private static final SideMap<EntityBoat, State> STATES = new SideMap<EntityBoat, State>();
     /** Autotest: the last paddle sound. */
     public static volatile String lastSound = "";
 
@@ -72,10 +69,10 @@ public final class Boat112 {
     }
 
     public static State state(EntityBoat b) {
-        State s = (b.worldObj.isRemote ? CLIENT_STATES : STATES).get(b);
+        State s = STATES.get(b);
         if (s == null) {
             s = new State();
-            (b.worldObj.isRemote ? CLIENT_STATES : STATES).put(b, s);
+            STATES.put(b, s);
         }
         return s;
     }

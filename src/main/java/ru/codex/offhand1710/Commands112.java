@@ -579,8 +579,36 @@ public final class Commands112 {
                 out = put(out, 3, String.valueOf(it[1]));
             }
             Stats112.set(sender, Stats112.AFFECTED_ITEMS, 0);
-            super.processCommand(sender, out);
+            if (GIVE17 || out.length >= 5) {
+                super.processCommand(sender, out);
+            } else {
+                give112(sender, out);
+            }
             Stats112.set(sender, Stats112.AFFECTED_ITEMS, out.length >= 3 ? parseIntBounded(sender, out[2], 1, 64) : 1);
+        }
+
+        private static final boolean GIVE17 = System.getProperty("mc112.give17") != null;
+
+        /** CommandGive of 1.12.2: into the inventory first; only what does not fit is dropped, at once pickable. */
+        private void give112(ICommandSender sender, String[] out) {
+            net.minecraft.entity.player.EntityPlayerMP player = getPlayer(sender, out[0]);
+            net.minecraft.item.Item item = getItemByText(sender, out[1]);
+            int count = out.length >= 3 ? parseIntBounded(sender, out[2], 1, 64) : 1;
+            int meta = out.length >= 4 ? parseInt(sender, out[3]) : 0;
+            net.minecraft.item.ItemStack stack = new net.minecraft.item.ItemStack(item, count, meta);
+            net.minecraft.item.ItemStack shown = stack.copy();
+            player.inventory.addItemStackToInventory(stack);
+            player.worldObj.playSoundAtEntity(player, "random.pop", 0.2F,
+                ((player.getRNG().nextFloat() - player.getRNG().nextFloat()) * 0.7F + 1.0F) * 2.0F);
+            player.inventoryContainer.detectAndSendChanges();
+            if (stack.stackSize > 0) {
+                net.minecraft.entity.item.EntityItem drop = player.dropPlayerItemWithRandomChoice(stack, false);
+                if (drop != null) {
+                    drop.delayBeforeCanPickup = 0;
+                    drop.func_145797_a(player.getCommandSenderName());
+                }
+            }
+            func_152373_a(sender, this, "commands.give.success", shown.func_151000_E(), count, player.getCommandSenderName());
         }
 
         @Override

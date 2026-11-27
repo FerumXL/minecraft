@@ -43,10 +43,10 @@ public final class Sounds112 {
     private static final String P = MC112Bridge.MOD_ID + ":";
     private static final Random RAND = new Random();
     /** The last damage source per entity, for the player's hurt sound (1.12 EntityPlayer.getHurtSound(DamageSource)). */
-    private static final Map<Entity, DamageSource> LAST = new WeakHashMap<Entity, DamageSource>();
-    private static final Map<Entity, Long> LAST_TICK = new WeakHashMap<Entity, Long>();
+    private static final SideMap<Entity, DamageSource> LAST = new SideMap<Entity, DamageSource>();
+    private static final SideMap<Entity, Long> LAST_TICK = new SideMap<Entity, Long>();
     /** One bottle sound per player and tick: the bottle method may reach two potion stacks on one use. */
-    private static final Map<Entity, Long> BOTTLE = new WeakHashMap<Entity, Long>();
+    private static final SideMap<Entity, Long> BOTTLE = new SideMap<Entity, Long>();
     private static long portalTick = -1L;
     /** For the autotest: the last sound name played through these hooks or renamed by the handler. */
     public static volatile String last = "";
