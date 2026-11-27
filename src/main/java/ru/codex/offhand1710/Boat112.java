@@ -457,7 +457,10 @@ public final class Boat112 {
             float g = MathHelper.clamp_float(f, -105.0F, 105.0F);
             r.prevRotationYaw += g - f;
             r.rotationYaw += g - f;
-            r.setRotationYawHead(r.rotationYaw);
+            if (r instanceof net.minecraft.entity.EntityLivingBase) {
+                // Entity.setRotationYawHead is client-only in 1.7.10
+                ((net.minecraft.entity.EntityLivingBase) r).rotationYawHead = r.rotationYaw;
+            }
         }
         return true;
     }

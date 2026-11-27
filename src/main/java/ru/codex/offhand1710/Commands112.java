@@ -255,7 +255,10 @@ public final class Commands112 {
                 ((EntityPlayerMP) e).playerNetServerHandler.setPlayerLocation(x, y, z, yaw, pitch);
             } else {
                 e.setLocationAndAngles(x, y, z, yaw, pitch);
-                e.setRotationYawHead(yaw);
+                if (e instanceof net.minecraft.entity.EntityLivingBase) {
+                    // Entity.setRotationYawHead is client-only in 1.7.10
+                    ((net.minecraft.entity.EntityLivingBase) e).rotationYawHead = yaw;
+                }
             }
         }
     }

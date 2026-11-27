@@ -321,7 +321,7 @@ public final class Brew112 {
             if (!worldObj.isRemote) {
                 Cloud cloud = new Cloud(worldObj, posX, posY, posZ);
                 cloud.owner = getThrower();
-                cloud.setColor(Items.potionitem.getColorFromDamage(getPotionDamage()));
+                cloud.setColor(net.minecraft.potion.PotionHelper.calcPotionLiquidColor(net.minecraft.potion.PotionHelper.getPotionEffects(getPotionDamage(), false)));
                 cloud.radius(3.0F);
                 cloud.radiusOnUse = -0.5F;
                 cloud.waitTime = 10;

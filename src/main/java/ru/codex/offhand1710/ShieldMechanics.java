@@ -18,6 +18,14 @@ import net.minecraftforge.event.entity.living.LivingHurtEvent;
 
 /** Shield blocking of 1.12.2 (EntityLivingBase.attackEntityFrom, canBlockDamageSource, damageShield...). */
 public final class ShieldMechanics {
+    /**
+     * EntityPlayer.getItemInUse is client-only in 1.7.10 (a dedicated server has no such method): the field is read
+     * instead, on both sides.
+     */
+    static ItemStack inUse(EntityPlayer player) {
+        return cpw.mods.fml.relauncher.ReflectionHelper.getPrivateValue(EntityPlayer.class, player, "itemInUse", "field_71074_e");
+    }
+
     /** Ticks a shield stays unusable after an axe hit (1.12.2 cooldown 100). */
     public static final int AXE_COOLDOWN = 100;
 
@@ -29,9 +37,9 @@ public final class ShieldMechanics {
                 && used.getMaxItemUseDuration() - offhand.useCount >= 5) {
             return used;
         }
-        ItemStack main = player.getItemInUse();
+        ItemStack main = inUse(player);
         if (player.isUsingItem() && main != null && main.getItem() instanceof ItemShield
-                && player.getItemInUseDuration() >= 5) {
+                && (main.getMaxItemUseDuration() - (Integer) cpw.mods.fml.relauncher.ReflectionHelper.getPrivateValue(EntityPlayer.class, player, "itemInUseCount", "field_71072_f")) >= 5) {
             return main;
         }
         return null;
@@ -91,7 +99,7 @@ public final class ShieldMechanics {
             return;
         }
         EntityPlayer player = (EntityPlayer) event.entityLiving;
-        ItemStack main = player.getItemInUse();
+        ItemStack main = inUse(player);
         if (player.isUsingItem() && main != null && main.getItem() instanceof ItemShield && event.ammount > 1.0F) {
             event.ammount = event.ammount * 2.0F - 1.0F;
         }
@@ -137,7 +145,7 @@ public final class ShieldMechanics {
         if (offhand.isUsing() && offhand.useStack != null && offhand.useStack.getItem() instanceof ItemShield) {
             OffhandEvents.stopOffhandUse(player);
         }
-        ItemStack main = player.getItemInUse();
+        ItemStack main = inUse(player);
         if (player.isUsingItem() && main != null && main.getItem() instanceof ItemShield) {
             player.clearItemInUse();
         }

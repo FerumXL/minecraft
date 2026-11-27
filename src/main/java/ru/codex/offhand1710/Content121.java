@@ -157,7 +157,7 @@ public final class Content121 {
                 } catch (RuntimeException e) {
                     component = new ChatComponentText(raw);
                 }
-                message = new TitleMessage(action, component == null ? raw : component.getFormattedText(), 0, 0, 0);
+                message = new TitleMessage(action, component == null ? raw : JSON + IChatComponent.Serializer.func_150696_a(component), 0, 0, 0);
             } else {
                 throw new WrongUsageException(getCommandUsage(sender));
             }
@@ -165,6 +165,12 @@ public final class Content121 {
             sender.addChatMessage(new ChatComponentText("Title command sent"));
         }
     }
+
+    /**
+     * Marks a text sent as a chat component in JSON: getFormattedText is client-only in 1.7.10, so a dedicated server
+     * cannot format it and the client does (as SPacketTitle of 1.12.2 carries the component).
+     */
+    public static final String JSON = "";
 
     /** Nearest structure in block coordinates, or null. Names as in 1.12.2. */
     public static int[] locate(World world, String name, int blockX, int blockZ) {

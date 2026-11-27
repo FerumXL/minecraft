@@ -34,16 +34,28 @@ public final class TitleOverlay {
         FMLCommonHandler.instance().bus().register(overlay);
     }
 
+    /** The text of a title message: a JSON component (Content121.JSON) is formatted here, on the client. */
+    static String text(String s) {
+        if (s == null || !s.startsWith(ru.codex.offhand1710.Content121.JSON)) {
+            return s;
+        }
+        try {
+            return net.minecraft.util.IChatComponent.Serializer.func_150699_a(s.substring(1)).getFormattedText();
+        } catch (RuntimeException e) {
+            return s.substring(1);
+        }
+    }
+
     public static final class Handler implements IMessageHandler<Content121.TitleMessage, IMessage> {
         @Override
         public IMessage onMessage(Content121.TitleMessage m, MessageContext context) {
             if ("title".equals(m.action)) {
-                title = m.text;
+                title = text(m.text);
                 timer = fadeIn + stay + fadeOut;
             } else if ("subtitle".equals(m.action)) {
-                subtitle = m.text;
+                subtitle = text(m.text);
             } else if ("actionbar".equals(m.action)) {
-                actionbar = m.text;
+                actionbar = text(m.text);
                 actionTimer = 60;
             } else if ("times".equals(m.action)) {
                 fadeIn = m.fadeIn;

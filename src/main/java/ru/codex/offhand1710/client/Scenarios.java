@@ -139,7 +139,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "visual".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -186,6 +186,72 @@ public final class Scenarios {
 
     private void cmd(String c) {
         MinecraftServer.getServer().getCommandManager().executeCommand(p(), c);
+    }
+
+    /** A player command from the client: it goes to the dedicated server as chat. */
+    private void say(String c) {
+        mc.thePlayer.sendChatMessage(c);
+    }
+
+    private int clientCount(net.minecraft.item.Item item) {
+        int n = 0;
+        for (ItemStack s : mc.thePlayer.inventory.mainInventory) {
+            n += s != null && s.getItem() == item ? s.stackSize : 0;
+        }
+        return n;
+    }
+
+    /** Stage online: only what crosses the network is checked, from the client side. */
+    private void online() {
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                result("the client plays on a dedicated server", !mc.isSingleplayer() && mc.theWorld != null && MinecraftServer.getServer() == null,
+                    "singleplayer=" + mc.isSingleplayer());
+                say("/gamemode 1");
+                say("/clear");
+                say("/replaceitem entity @p slot.weapon.offhand diamond 5");
+                say("/give @p iron_ingot 7");
+                say("/title @p title {\"text\":\"online\"}");
+                say("/summon Chicken ~ ~1 ~2 {NoAI:1b}");
+                say("/worldborder set 200");
+            }
+        });
+        client(60, new Runnable() {
+            @Override
+            public void run() {
+                ItemStack off = ru.codex.offhand1710.OffhandInventory.get(mc.thePlayer).getStack();
+                result("offhand set by the server reaches the client (Sync)", off != null && off.getItem() == Items.diamond && off.stackSize == 5, "offhand=" + off);
+                result("/give of 1.12.2 fills the client inventory", clientCount(Items.iron_ingot) == 7, "iron=" + clientCount(Items.iron_ingot));
+                String title = "";
+                try {
+                    java.lang.reflect.Field f = TitleOverlay.class.getDeclaredField("title");
+                    f.setAccessible(true);
+                    title = String.valueOf(f.get(null));
+                } catch (ReflectiveOperationException e) {
+                    title = e.toString();
+                }
+                result("/title reaches the client (TitleMessage)", title.contains("online"), "title=" + title);
+                int chickens = 0;
+                for (Object o : mc.theWorld.loadedEntityList) {
+                    chickens += o instanceof net.minecraft.entity.passive.EntityChicken && ((net.minecraft.entity.Entity) o).getDistanceToEntity(mc.thePlayer) < 6 ? 1 : 0;
+                }
+                result("a summoned mob is seen by the client", chickens >= 1, "chickens=" + chickens);
+                // client -> server: the F key's swap request
+                ru.codex.offhand1710.MC112Bridge.NETWORK.channel.sendToServer(new ru.codex.offhand1710.OffhandMessages.SwapRequest());
+            }
+        });
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                ItemStack main = mc.thePlayer.getHeldItem();
+                result("the swap request is done by the server and synced back", main != null && main.getItem() == Items.diamond, "main=" + main
+                    + " offhand=" + ru.codex.offhand1710.OffhandInventory.get(mc.thePlayer).getStack());
+                say("/kill @e[type=Chicken]");
+                say("/clear");
+                say("/worldborder set 60000000");
+            }
+        });
     }
 
     private void shot(String name) {
@@ -268,6 +334,14 @@ public final class Scenarios {
             mc.gameSettings.pauseOnLostFocus = false;
             String rd = System.getenv("MC112_BENCH_RD");
             mc.gameSettings.renderDistanceChunks = rd == null ? 8 : Integer.parseInt(rd);
+            if ("online".equals(STAGE)) {
+                // a dedicated server (MC112_SERVER, default localhost:25565) instead of an integrated one
+                String addr = System.getenv("MC112_SERVER") == null ? "localhost:25565" : System.getenv("MC112_SERVER");
+                // FML sets up its server list (and the latch the handshake waits on) only from the multiplayer screen
+                cpw.mods.fml.client.FMLClientHandler.instance().setupServerList();
+                cpw.mods.fml.client.FMLClientHandler.instance().connectToServer(mc.currentScreen, new net.minecraft.client.multiplayer.ServerData("mc112", addr));
+                return;
+            }
             if ("terrain".equals(STAGE) || "idle".equals(STAGE)) {
                 // MC112_WORLD: save folder (loaded if it exists, else created with MC112_SEED, DEFAULT, structures on)
                 String tw = System.getenv("MC112_WORLD") == null ? "audit112t" : System.getenv("MC112_WORLD");
@@ -299,7 +373,7 @@ public final class Scenarios {
             mc.launchIntegratedServer(world, world, new WorldSettings(112L, WorldSettings.GameType.CREATIVE, !"bench".equals(STAGE) ? false : true, false, type).enableCommands());
             return;
         }
-        if (mc.thePlayer == null || MinecraftServer.getServer() == null || MinecraftServer.getServer().getConfigurationManager().playerEntityList.isEmpty()) {
+        if (mc.thePlayer == null || !"online".equals(STAGE) && (MinecraftServer.getServer() == null || MinecraftServer.getServer().getConfigurationManager().playerEntityList.isEmpty())) {
             return;
         }
         if (!started) {
@@ -426,6 +500,8 @@ public final class Scenarios {
             brewingStage();
         } else if ("visual".equals(STAGE)) {
             visual();
+        } else if ("online".equals(STAGE)) {
+            online();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override
@@ -4148,7 +4224,8 @@ public final class Scenarios {
                 ru.codex.offhand1710.Dragon112.strafeAt(fightDragon, p());
             }
         });
-        server(500, new Runnable() {
+        // the path to the player may take a long way round the pillars
+        server(900, new Runnable() {
             @Override
             public void run() {
                 if (fightDragon == null) {
