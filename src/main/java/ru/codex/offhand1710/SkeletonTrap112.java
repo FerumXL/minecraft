@@ -66,7 +66,7 @@ public final class SkeletonTrap112 {
         return (float) d.getDifficultyId() * (f + f2);
     }
 
-    static float clamped(World world, int x, int z) {
+    public static float clamped(World world, int x, int z) {
         float f = additionalDifficulty(world, x, z);
         return f < 2.0F ? 0.0F : f > 4.0F ? 1.0F : (f - 2.0F) / 2.0F;
     }

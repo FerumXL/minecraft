@@ -18,7 +18,7 @@ public final class RulesClient {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public void onText(RenderGameOverlayEvent.Text event) {
-        if (!reduced || Rules112.OFF || event.left == null) {
+        if (!reduced || Rules112.OFF || event.left == null || !Debug112.OFF) {
             return;
         }
         // GuiIngameForge puts a spacer (null) after the dimension line; what follows is the player's position

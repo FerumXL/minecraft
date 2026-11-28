@@ -3730,11 +3730,52 @@ public final class Scenarios {
                 java.util.ArrayList<String> left = new java.util.ArrayList<String>(java.util.Arrays.asList("Minecraft 1.7.10 (60 fps)", "C: 1/2", "E: 1/2", "P: 0", "Overworld", null, "x: 1.0", "y: 64.0", "z: 1.0", "f: 0", "lc: 1 b: Plains"));
                 net.minecraft.client.gui.ScaledResolution res = new net.minecraft.client.gui.ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
                 net.minecraftforge.client.event.RenderGameOverlayEvent parent = new net.minecraftforge.client.event.RenderGameOverlayEvent(0.0F, res, 0, 0);
-                new RulesClient().onText(new net.minecraftforge.client.event.RenderGameOverlayEvent.Text(parent, left, new java.util.ArrayList<String>()));
-                result("reducedDebugInfo: F3 keeps the frame and chunk lines, not the position", left.size() == 6 && left.get(4).equals("Overworld"), String.valueOf(left));
+                if (Debug112.OFF) {
+                    new RulesClient().onText(new net.minecraftforge.client.event.RenderGameOverlayEvent.Text(parent, left, new java.util.ArrayList<String>()));
+                    result("reducedDebugInfo: F3 keeps the frame and chunk lines, not the position", left.size() == 6 && left.get(4).equals("Overworld"), String.valueOf(left));
+                } else {
+                    // the debug screen of 1.12.2 (Debug112): Forge lists of 1.7.10 in, the columns of 1.12.2 out
+                    left.add("ws: 0.100, fs: 0.050, g: true, fl: 64");
+                    java.util.List<String> right17 = new java.util.ArrayList<String>(java.util.Arrays.asList("Used memory: 1% (1MB) of 2MB", "Allocated memory: 1% (1MB)", null));
+                    right17.addAll(cpw.mods.fml.common.FMLCommonHandler.instance().getBrandings(false));
+                    right17.add("other mod line");
+                    java.util.List<String> l = new java.util.ArrayList<String>();
+                    java.util.List<String> r = new java.util.ArrayList<String>();
+                    boolean made = Debug112.layout(left, right17, false, l, r);
+                    String sl = String.valueOf(l);
+                    result("F3 of 1.12.2: XYZ, Block, Chunk, Facing, Biome, Light, Local Difficulty in that order", made && l.get(0).startsWith("Minecraft 1.7.10 (1.7.10/")
+                        && l.get(1).matches("\\d+ fps \\(\\d+ chunk updates?\\) T: .*") && "".equals(l.get(6)) && l.get(7).startsWith("XYZ: ") && l.get(8).startsWith("Block: ")
+                        && l.get(9).matches("Chunk: \\d+ \\d+ \\d+ in -?\\d+ -?\\d+ -?\\d+") && l.get(10).matches("Facing: (north|south|east|west) \\(Towards (positive|negative) [XZ]\\) \\(-?[\\d.,]+ / -?[\\d.,]+\\)")
+                        && l.get(11).startsWith("Biome: ") && l.get(12).matches("Light: \\d+ \\(\\d+ sky, \\d+ block\\)") && l.get(13).startsWith("Local Difficulty: "), sl);
+                    result("F3 right column: Java, Mem, Allocated, CPU, Display, renderer, version; other mods' lines kept", made && r.get(0).startsWith("Java: ") && r.get(1).startsWith("Mem: ")
+                        && r.get(2).startsWith("Allocated: ") && r.get(4).startsWith("CPU: ") && r.get(6).startsWith("Display: ") && r.contains("other mod line")
+                        && !r.contains(cpw.mods.fml.common.FMLCommonHandler.instance().getBrandings(false).get(0)), String.valueOf(r));
+                    l.clear();
+                    r.clear();
+                    Debug112.layout(left, right17, true, l, r);
+                    result("reducedDebugInfo: F3 of 1.12.2 ends with Chunk-relative, no block on the right", l.size() == 8 && l.get(7).matches("Chunk-relative: \\d+ \\d+ \\d+")
+                        && r.size() == 10 && r.get(9).equals("other mod line"), l + " " + r);
+                    // F3 + G and F3 + Q
+                    Debug112.PRINTED.clear();
+                    boolean g = Debug112.combo(org.lwjgl.input.Keyboard.KEY_G) && Debug112.chunkBorders;
+                    Debug112.combo(org.lwjgl.input.Keyboard.KEY_Q);
+                    result("F3 + G shows the chunk borders, F3 + Q lists the keys", g && Debug112.PRINTED.contains("debug.chunk_boundaries.on") && Debug112.PRINTED.contains("debug.help.message")
+                        && Debug112.PRINTED.contains("debug.reload_resourcepacks.help"), String.valueOf(Debug112.PRINTED));
+                    mc.gameSettings.showDebugInfo = true;
+                }
                 cmd("gamerule reducedDebugInfo false");
                 cmd("gamerule announceAdvancements false");
                 cmd("advancement grant @p only minecraft:story/mine_stone");
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                if (!Debug112.OFF) {
+                    shot("debug112");
+                    mc.gameSettings.showDebugInfo = false;
+                    Debug112.combo(org.lwjgl.input.Keyboard.KEY_G);
+                }
             }
         });
         server(30, new Runnable() {

@@ -1569,3 +1569,27 @@ commands.replaceitem.tagError=Ошибка распознавания тегов
 commands.replaceitem.usage=/replaceitem <entity|block>...
 recipe.toast.description=Загляните в справочник
 recipe.toast.title=Открыты новые рецепты!
+debug.prefix=[Отладка]:
+debug.reload_chunks.help=F3 + A = Перезагрузить чанки
+debug.show_hitboxes.help=F3 + B = Отображать хитбоксы
+debug.clear_chat.help=F3 + D = Очистить чат
+debug.cycle_renderdistance.help=F3 + F = Увеличить дальность прорисовки (Shift для уменьшения)
+debug.chunk_boundaries.help=F3 + G = Отображать границы чанков
+debug.advanced_tooltips.help=F3 + H = Расширенные подсказки
+debug.creative_spectator.help=F3 + N = Переключение творческий <-> наблюдатель
+debug.pause_focus.help=F3 + P = Пауза при сворачивании игры
+debug.help.help=F3 + Q = Показать этот список
+debug.reload_resourcepacks.help=F3 + T = Перезагрузить пакеты ресурсов
+debug.reload_chunks.message=Перезагрузка всех чанков
+debug.show_hitboxes.on=Хитбоксы: вкл.
+debug.show_hitboxes.off=Хитбоксы: выкл.
+debug.cycle_renderdistance.message=Дальность прорисовки: %s
+debug.chunk_boundaries.on=Границы чанков: вкл.
+debug.chunk_boundaries.off=Границы чанков: выкл.
+debug.advanced_tooltips.on=Расширенные подсказки: вкл.
+debug.advanced_tooltips.off=Расширенные подсказки: выкл.
+debug.creative_spectator.error=Не удалось сменить режим игры, отсутствуют необходимые полномочия
+debug.pause_focus.on=Пауза при сворачивании: вкл.
+debug.pause_focus.off=Пауза при сворачивании: выкл.
+debug.help.message=Назначение клавиш:
+debug.reload_resourcepacks.message=Пакеты ресурсов перезагружены

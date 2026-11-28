@@ -59,6 +59,9 @@ public final class ClientProxy extends CommonProxy {
         RulesClient rules = new RulesClient();
         MinecraftForge.EVENT_BUS.register(rules);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(rules);
+        Debug112 debug = new Debug112();
+        MinecraftForge.EVENT_BUS.register(debug);
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(debug);
         MinecraftForge.EVENT_BUS.register(new OffhandPlayerRenderer());
         MinecraftForge.EVENT_BUS.register(new OffhandFirstPersonRenderer());
         MinecraftForge.EVENT_BUS.register(new OffhandGuiHandler());

@@ -1569,3 +1569,27 @@ commands.replaceitem.failed=Could not replace slot %s with %s * %s
 commands.replaceitem.success=Replaced slot %s with %s * %s
 recipe.toast.title=New Recipes Unlocked!
 recipe.toast.description=Check your recipe book
+debug.prefix=[Debug]:
+debug.reload_chunks.help=F3 + A = Reload chunks
+debug.show_hitboxes.help=F3 + B = Show hitboxes
+debug.clear_chat.help=F3 + D = Clear chat
+debug.cycle_renderdistance.help=F3 + F = Cycle render distance (Shift to invert)
+debug.chunk_boundaries.help=F3 + G = Show chunk boundaries
+debug.advanced_tooltips.help=F3 + H = Advanced tooltips
+debug.creative_spectator.help=F3 + N = Cycle creative <-> spectator
+debug.pause_focus.help=F3 + P = Pause on lost focus
+debug.help.help=F3 + Q = Show this list
+debug.reload_resourcepacks.help=F3 + T = Reload resource packs
+debug.reload_chunks.message=Reloading all chunks
+debug.show_hitboxes.on=Hitboxes: shown
+debug.show_hitboxes.off=Hitboxes: hidden
+debug.cycle_renderdistance.message=Render Distance: %s
+debug.chunk_boundaries.on=Chunk borders: shown
+debug.chunk_boundaries.off=Chunk borders: hidden
+debug.advanced_tooltips.on=Advanced tooltips: shown
+debug.advanced_tooltips.off=Advanced tooltips: hidden
+debug.creative_spectator.error=Unable to switch gamemode, no permission
+debug.pause_focus.on=Pause on lost focus: enabled
+debug.pause_focus.off=Pause on lost focus: disabled
+debug.help.message=Key bindings:
+debug.reload_resourcepacks.message=Reloaded resource packs
