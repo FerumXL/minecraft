@@ -24,6 +24,9 @@ public final class ClientProxy extends CommonProxy {
             net.minecraft.entity.Entity e = world.getEntityByID(x);
             return e instanceof ru.codex.offhand1710.MoreMobs.Llama ? new LlamaGui(player.inventory, (ru.codex.offhand1710.MoreMobs.Llama) e, y) : null;
         }
+        if (id == ru.codex.offhand1710.Items112.GUI_ENCHANT) {
+            return new EnchantGui112(player.inventory, world, x, y, z);
+        }
         net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
         return id == ru.codex.offhand1710.Items112.GUI_BOX && tile instanceof ru.codex.offhand1710.BlockShulkerBox.Tile ? Items112Client.boxScreen(player.inventory, (ru.codex.offhand1710.BlockShulkerBox.Tile) tile) : null;
     }

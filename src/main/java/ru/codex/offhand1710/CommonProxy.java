@@ -23,6 +23,9 @@ public class CommonProxy implements IGuiHandler {
             net.minecraft.entity.Entity e = world.getEntityByID(x);
             return e instanceof MoreMobs.Llama ? new LlamaContainer(player.inventory, (MoreMobs.Llama) e, y) : null;
         }
+        if (id == Items112.GUI_ENCHANT) {
+            return new Enchant112.Table(player.inventory, world, x, y, z);
+        }
         TileEntity tile = world.getTileEntity(x, y, z);
         return id == Items112.GUI_BOX && tile instanceof BlockShulkerBox.Tile ? new BlockShulkerBox.BoxContainer(player.inventory, (BlockShulkerBox.Tile) tile) : null;
     }

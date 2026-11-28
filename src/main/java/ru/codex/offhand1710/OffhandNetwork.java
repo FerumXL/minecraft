@@ -57,5 +57,6 @@ public final class OffhandNetwork {
         channel.registerMessage(Spectator112.TeleportHandler.class, Spectator112.TeleportMsg.class, 21, Side.SERVER);
         client("ru.codex.offhand1710.client.RulesClient$Handler", Rules112.Debug.class, 22);
         client("ru.codex.offhand1710.client.Border112Client$Handler", Border112.Msg.class, 23);
+        client("ru.codex.offhand1710.client.EnchantGui112$NameHandler", Enchant112.Name.class, 24);
     }
 }

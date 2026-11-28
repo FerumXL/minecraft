@@ -142,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -645,6 +645,8 @@ public final class Scenarios {
             armorStage();
         } else if ("brewing".equals(STAGE)) {
             brewingStage();
+        } else if ("enchant".equals(STAGE)) {
+            enchantStage();
         } else if ("visual".equals(STAGE)) {
             visual();
         } else if ("online".equals(STAGE)) {
@@ -4753,6 +4755,174 @@ public final class Scenarios {
     }
 
     /** The brewing stand of 1.9 (BrewFuel112): blaze powder fuel for 20 brews, the fifth slot, the window. */
+    private int[] enchAt;
+
+    /** A table of 1.12.2 (Enchant112) on the server side, with the item and lapis given. */
+    private ru.codex.offhand1710.Enchant112.Table table(ItemStack item, int lapis) {
+        ru.codex.offhand1710.Enchant112.Table t = new ru.codex.offhand1710.Enchant112.Table(p().inventory, w(), enchAt[0], enchAt[1], enchAt[2]);
+        if (lapis > 0) {
+            t.table.setInventorySlotContents(1, new ItemStack(Items.dye, lapis, 4));
+        }
+        t.table.setInventorySlotContents(0, item);
+        return t;
+    }
+
+    private static String offers(ru.codex.offhand1710.Enchant112.Table t) {
+        return java.util.Arrays.toString(t.enchantLevels) + java.util.Arrays.toString(t.enchantClue) + java.util.Arrays.toString(t.worldClue);
+    }
+
+    /** The enchanting table of 1.8 - 1.12.2 (Enchant112, EnchantGui112). */
+    private void enchantStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                p().experienceLevel = 30;
+                int x = (int) Math.floor(p().posX) + 4;
+                int y = (int) Math.floor(p().posY);
+                int z = (int) Math.floor(p().posZ);
+                enchAt = new int[] {x, y, z};
+                for (int dx = -2; dx <= 2; dx++) {
+                    for (int dz = -2; dz <= 2; dz++) {
+                        w().setBlock(x + dx, y - 1, z + dz, net.minecraft.init.Blocks.stone);
+                        for (int dy = 0; dy <= 2; dy++) {
+                            boolean ring = Math.max(Math.abs(dx), Math.abs(dz)) == 2 && dy <= 1 && !(dx == -2 && dz == 0);
+                            w().setBlock(x + dx, y + dy, z + dz, ring ? net.minecraft.init.Blocks.bookshelf : net.minecraft.init.Blocks.air);
+                        }
+                    }
+                }
+                w().setBlock(x, y, z, net.minecraft.init.Blocks.enchanting_table);
+                if (ru.codex.offhand1710.Enchant112.OFF) {
+                    return;
+                }
+                ru.codex.offhand1710.Enchant112.Table t = table(new ItemStack(Items.iron_sword), 0);
+                result("15+ bookshelves: the third offer is level 30, all three have a clue", t.enchantLevels[2] == 30 && t.enchantLevels[0] >= 1
+                    && t.enchantLevels[1] > t.enchantLevels[0] && t.enchantClue[0] >= 0 && t.enchantClue[1] >= 0 && t.enchantClue[2] >= 0, offers(t));
+                String first = offers(t);
+                t.table.setInventorySlotContents(0, null);
+                t.table.setInventorySlotContents(0, new ItemStack(Items.iron_sword));
+                ru.codex.offhand1710.Enchant112.Table again = table(new ItemStack(Items.iron_sword), 0);
+                result("the offers stay the same when the sword is put back or the table opened again (seed per player)", first.equals(offers(t)) && first.equals(offers(again)),
+                    first + " / " + offers(t) + " / " + offers(again));
+                boolean noLapis = !t.enchantItem(p(), 2);
+                t.table.setInventorySlotContents(1, new ItemStack(Items.dye, 3, 4));
+                int seed = ru.codex.offhand1710.Enchant112.xpSeed(p());
+                boolean done = t.enchantItem(p(), 2);
+                ItemStack sword = t.table.getStackInSlot(0);
+                result("the third offer costs 3 lapis and 3 levels (not 30); nothing without lapis", noLapis && done && sword != null && sword.isItemEnchanted()
+                    && p().experienceLevel == 27 && t.table.getStackInSlot(1) == null, "noLapis=" + noLapis + " done=" + done + " level=" + p().experienceLevel
+                    + " lapis=" + t.table.getStackInSlot(1) + " ench=" + (sword == null ? null : sword.getEnchantmentTagList()));
+                result("enchanting gives the player a new seed, so new offers", ru.codex.offhand1710.Enchant112.xpSeed(p()) != seed
+                    && !first.equals(offers(table(new ItemStack(Items.iron_sword), 0))), seed + " -> " + ru.codex.offhand1710.Enchant112.xpSeed(p()));
+                p().experienceLevel = 5;
+                ru.codex.offhand1710.Enchant112.Table low = table(new ItemStack(Items.iron_sword), 3);
+                boolean third = low.enchantItem(p(), 2);
+                result("level 5: the level 30 offer is refused, its level is a requirement", !third && p().experienceLevel == 5, "third=" + third + " level=" + p().experienceLevel);
+                p().experienceLevel = 30;
+                ru.codex.offhand1710.Enchant112.Table book = table(new ItemStack(Items.book), 1);
+                boolean b = book.enchantItem(p(), 0);
+                ItemStack got = book.table.getStackInSlot(0);
+                result("a book becomes an enchanted book for 1 lapis and 1 level", b && got != null && got.getItem() == Items.enchanted_book
+                    && Items.enchanted_book.func_92110_g(got).tagCount() >= 1 && p().experienceLevel == 29, "got=" + got + " level=" + p().experienceLevel);
+                int treasure = 0;
+                for (int s = 0; s < 400; s++) {
+                    for (ItemStack it : new ItemStack[] {new ItemStack(Items.book), new ItemStack(Items.diamond_boots), new ItemStack(Items.diamond_pickaxe)}) {
+                        for (net.minecraft.enchantment.EnchantmentData d : ru.codex.offhand1710.Enchant112.buildEnchantmentList(new java.util.Random(s), it, 30)) {
+                            if (ru.codex.offhand1710.Content119.isTreasure(d.enchantmentobj)) {
+                                treasure++;
+                            }
+                        }
+                    }
+                }
+                result("no treasure enchantments (mending, frost walker, curses) from the table, books included", treasure == 0, "treasure=" + treasure);
+                int before = 0;
+                for (ItemStack s : p().inventory.mainInventory) {
+                    before += s != null && s.getItem() == Items.dye ? s.stackSize : 0;
+                }
+                ru.codex.offhand1710.Enchant112.Table closing = table(new ItemStack(Items.golden_sword), 2);
+                closing.onContainerClosed(p());
+                int after = 0;
+                boolean swordBack = false;
+                for (ItemStack s : p().inventory.mainInventory) {
+                    after += s != null && s.getItem() == Items.dye ? s.stackSize : 0;
+                    swordBack |= s != null && s.getItem() == Items.golden_sword;
+                }
+                result("closing the window puts the item and the lapis back into the inventory", after == before + 2 && swordBack, before + " -> " + after);
+                p().inventory.clearInventory(Items.golden_sword, -1);
+                p().inventory.clearInventory(Items.dye, -1);
+            }
+        });
+        // a right click on the table opens the window of 1.12.2 through the server
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.inventory.currentItem = 8;
+                mc.playerController.onPlayerRightClick(mc.thePlayer, mc.theWorld, mc.thePlayer.getHeldItem(), enchAt[0], enchAt[1], enchAt[2], 1,
+                    net.minecraft.util.Vec3.createVectorHelper(enchAt[0] + 0.5D, enchAt[1] + 0.75D, enchAt[2] + 0.5D));
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                if (ru.codex.offhand1710.Enchant112.OFF) {
+                    result("-Dmc112.enchant17: the window of 1.7.10", p().openContainer instanceof net.minecraft.inventory.ContainerEnchantment
+                        && mc.currentScreen instanceof net.minecraft.client.gui.GuiEnchantment, String.valueOf(mc.currentScreen));
+                    return;
+                }
+                result("a right click opens the table of 1.12.2 on both sides (2 + 36 slots)", p().openContainer instanceof ru.codex.offhand1710.Enchant112.Table
+                    && EnchantGui112.current() != null && EnchantGui112.current().table().inventorySlots.size() == 38
+                    && EnchantGui112.current().table().windowId == p().openContainer.windowId, String.valueOf(mc.currentScreen) + " " + p().openContainer);
+                if (p().openContainer instanceof ru.codex.offhand1710.Enchant112.Table) {
+                    ru.codex.offhand1710.Enchant112.Table t = (ru.codex.offhand1710.Enchant112.Table) p().openContainer;
+                    t.table.setInventorySlotContents(0, new ItemStack(Items.diamond_sword));
+                    t.table.setInventorySlotContents(1, new ItemStack(Items.dye, 2, 4));
+                    t.detectAndSendChanges();
+                    p().addExperienceLevel(30 - p().experienceLevel);
+                }
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                EnchantGui112 g = EnchantGui112.current();
+                if (g == null || !(p().openContainer instanceof ru.codex.offhand1710.Enchant112.Table)) {
+                    return;
+                }
+                ru.codex.offhand1710.Enchant112.Table server = (ru.codex.offhand1710.Enchant112.Table) p().openContainer;
+                result("the client gets the levels and clues of the server", java.util.Arrays.equals(g.table().enchantLevels, server.enchantLevels)
+                    && java.util.Arrays.equals(g.table().enchantClue, server.enchantClue) && g.table().lapisAmount() == 2, offers(g.table()) + " / " + offers(server));
+                int left = (g.width - 176) / 2;
+                int top = (g.height - 166) / 2;
+                java.util.List<String> tip = g.tooltip(left + 100, top + 14 + 19 * 2 + 5);
+                String s = String.valueOf(tip);
+                result("the tooltip of the third offer: the clue, 3 lapis in red (2 in the slot), 3 levels", tip != null && tip.size() == 4 && s.contains(". . . ?")
+                    && tip.get(2).startsWith(net.minecraft.util.EnumChatFormatting.RED.toString()) && tip.get(3).contains("3"), s);
+                shot("enchant112");
+                // the first offer through the window, as a click does
+                if (g.table().enchantItem(mc.thePlayer, 0)) {
+                    mc.playerController.sendEnchantPacket(g.table().windowId, 0);
+                }
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                EnchantGui112 g = EnchantGui112.current();
+                ItemStack item = g == null ? null : g.table().getSlot(0).getStack();
+                result("a click on the first offer: the sword enchanted, 1 lapis and 1 level paid, seen by the client", g != null && item != null && item.isItemEnchanted()
+                    && g.table().lapisAmount() == 1 && mc.thePlayer.experienceLevel == 29, "item=" + item + " lapis=" + (g == null ? -1 : g.table().lapisAmount())
+                    + " level=" + mc.thePlayer.experienceLevel);
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.closeScreen();
+            }
+        });
+        finish();
+    }
+
     private void brewingStage() {
         server(40, new Runnable() {
             @Override

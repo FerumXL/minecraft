@@ -84,6 +84,8 @@ public final class Items112 {
     public static final int GUI_BOX = 0;
     /** The inventory of a llama; x is its entity id. */
     public static final int GUI_LLAMA = 1;
+    /** The enchanting table of 1.12.2 (Enchant112). */
+    public static final int GUI_ENCHANT = 2;
 
     private Items112() {
     }
