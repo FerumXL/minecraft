@@ -142,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "oldai19".equals(STAGE) || "spec19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "oldai19".equals(STAGE) || "spec19".equals(STAGE) || "mines19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -668,6 +668,8 @@ public final class Scenarios {
             oldAIStage();
         } else if ("spec19".equals(STAGE)) {
             spec19Stage();
+        } else if ("mines19".equals(STAGE)) {
+            mines19Stage();
         } else if ("visual".equals(STAGE)) {
             visual();
         } else if ("online".equals(STAGE)) {
@@ -5463,6 +5465,49 @@ public final class Scenarios {
             @Override
             public void run() {
                 cmd("gamemode 1");
+            }
+        });
+        finish();
+    }
+
+    /** Mesa mineshafts of 1.10 (Mines112). */
+    private void mines19Stage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.world.gen.MapGenBase gen = net.minecraftforge.event.terraingen.TerrainGen.getModdedMapGen(new net.minecraft.world.gen.structure.MapGenMineshaft(),
+                    net.minecraftforge.event.terraingen.InitMapGenEvent.EventType.MINESHAFT);
+                result("new worlds get the mineshaft generator with the MESA type", gen instanceof ru.codex.offhand1710.Mines112.Gen, String.valueOf(gen));
+                int cx = ((int) Math.floor(p().posX) >> 4) + 2;
+                int cz = ((int) Math.floor(p().posZ) >> 4) + 2;
+                java.util.Random rand = new java.util.Random(1234L);
+                net.minecraft.world.gen.structure.StructureMineshaftStart s = new net.minecraft.world.gen.structure.StructureMineshaftStart(w(), rand, cx, cz);
+                ru.codex.offhand1710.Mines112.raise(s);
+                net.minecraft.world.gen.structure.StructureBoundingBox box = s.getBoundingBox();
+                int ySize = box.maxY - box.minY + 1;
+                result("a mesa mineshaft is raised: top = sea level + half its height + 5", box.maxY == 68 + ySize / 2, "maxY=" + box.maxY + " ySize=" + ySize);
+                net.minecraft.world.gen.structure.StructureBoundingBox all = new net.minecraft.world.gen.structure.StructureBoundingBox(box.minX, box.minZ, box.maxX, box.maxZ);
+                s.generateStructure(w(), rand, all);
+                int changed = ru.codex.offhand1710.Mines112.darken(w(), s, all);
+                int oak = 0;
+                int dark = 0;
+                int oakFence = 0;
+                for (Object o : s.getComponents()) {
+                    net.minecraft.world.gen.structure.StructureBoundingBox b = ((net.minecraft.world.gen.structure.StructureComponent) o).getBoundingBox();
+                    for (int x = b.minX; x <= b.maxX; x++) {
+                        for (int z = b.minZ; z <= b.maxZ; z++) {
+                            for (int y = b.minY; y <= b.maxY; y++) {
+                                net.minecraft.block.Block bl = w().getBlock(x, y, z);
+                                int m = w().getBlockMetadata(x, y, z);
+                                oak += bl == net.minecraft.init.Blocks.planks && m == 0 ? 1 : 0;
+                                dark += bl == net.minecraft.init.Blocks.planks && m == 5 ? 1 : 0;
+                                oakFence += bl == net.minecraft.init.Blocks.fence ? 1 : 0;
+                            }
+                        }
+                    }
+                }
+                result("its planks and fences are dark oak", changed > 0 && oak == 0 && dark > 0 && oakFence == 0,
+                    "changed=" + changed + " oak=" + oak + " dark=" + dark + " oakFence=" + oakFence);
             }
         });
         finish();
