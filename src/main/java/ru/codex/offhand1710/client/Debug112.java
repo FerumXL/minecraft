@@ -10,6 +10,7 @@ import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderManager;
@@ -81,6 +82,9 @@ public final class Debug112 {
             }
         }
         int width = event.resolution.getScaledWidth();
+        if (lagometer) {
+            drawLagometer(event.resolution.getScaledHeight());
+        }
         for (int i = 0; i < right.size(); i++) {
             String s = right.get(i);
             if (s != null && !s.isEmpty()) {
@@ -589,22 +593,120 @@ public final class Debug112 {
     @SubscribeEvent
     public void onKey(InputEvent.KeyInputEvent event) {
         Minecraft mc = Minecraft.getMinecraft();
-        if (OFF || !Keyboard.getEventKeyState()) {
+        if (OFF) {
             return;
         }
         int key = Keyboard.getEventKey();
+        boolean down = Keyboard.getEventKeyState();
         if (key == Keyboard.KEY_F3) {
-            f3Used = false;
+            if (down) {
+                // 1.7.10 has just toggled the screen on the press (when no screen was open): undo it, 1.12.2 waits
+                // for the release and toggles only if F3 was not used with another key (Minecraft.runTick)
+                if (mc.currentScreen == null) {
+                    mc.gameSettings.showDebugInfo = !mc.gameSettings.showDebugInfo;
+                    f3Pending = true;
+                }
+                f3Used = false;
+            } else if (f3Pending) {
+                f3Pending = false;
+                if (!f3Used && mc.currentScreen == null) {
+                    mc.gameSettings.showDebugInfo = !mc.gameSettings.showDebugInfo;
+                    mc.gameSettings.showDebugProfilerChart = GuiScreen.isShiftKeyDown();
+                    lagometer = Keyboard.isKeyDown(Keyboard.KEY_LMENU) || Keyboard.isKeyDown(Keyboard.KEY_RMENU);
+                }
+            }
             return;
         }
-        if (mc.currentScreen != null || !Keyboard.isKeyDown(Keyboard.KEY_F3)) {
+        if (!down || mc.currentScreen != null || !Keyboard.isKeyDown(Keyboard.KEY_F3)) {
             return;
         }
-        if (combo(key) && !f3Used) {
-            // 1.7.10 toggled the screen when F3 went down; 1.12.2 does not when F3 is used with a key
+        if (combo(key)) {
             f3Used = true;
-            mc.gameSettings.showDebugInfo = !mc.gameSettings.showDebugInfo;
         }
+    }
+
+    /** F3 went down with no screen open; the toggle waits for the release. */
+    private static boolean f3Pending;
+    /** GameSettings.showLagometer of 1.12.2 (Alt + F3). */
+    public static boolean lagometer;
+
+    // ---- Alt + F3 (FrameTimer, GuiOverlayDebug.renderLagometer) ----
+
+    private static final long[] FRAMES = new long[240];
+    private static int frameIndex;
+    private static int frameCount;
+    private static long lastFrame;
+
+    @SubscribeEvent
+    public void onRenderTick(cpw.mods.fml.common.gameevent.TickEvent.RenderTickEvent event) {
+        if (event.phase != cpw.mods.fml.common.gameevent.TickEvent.Phase.START) {
+            return;
+        }
+        long now = System.nanoTime();
+        if (lastFrame != 0L) {
+            FRAMES[frameIndex] = now - lastFrame;
+            frameIndex = (frameIndex + 1) % FRAMES.length;
+            frameCount = Math.min(frameCount + 1, FRAMES.length);
+        }
+        lastFrame = now;
+    }
+
+    /** FrameTimer.getLagometerValue: 30 pixels for a frame of 1/60 s. */
+    private static int lag(long nanos) {
+        return (int) ((double) nanos / 1.6666666E7D * 30.0D);
+    }
+
+    private static int blend(int c1, int c2, float f) {
+        int out = 0;
+        for (int s = 24; s >= 0; s -= 8) {
+            int a = c1 >> s & 255;
+            int b = c2 >> s & 255;
+            out |= MathHelper.clamp_int((int) ((float) a + (float) (b - a) * f), 0, 255) << s;
+        }
+        return out;
+    }
+
+    /** GuiOverlayDebug.getFrameColor: green to yellow to red. */
+    private static int frameColor(int v) {
+        return v < 30 ? blend(-16711936, -256, (float) v / 30.0F) : blend(-256, -65536, (float) (v - 30) / 30.0F);
+    }
+
+    private static void vLine(int x, int y1, int y2, int color) {
+        Gui.drawRect(x, Math.min(y1, y2) + 1, x + 1, Math.max(y1, y2), color);
+    }
+
+    private static void hLine(int x1, int x2, int y, int color) {
+        Gui.drawRect(Math.min(x1, x2), y, Math.max(x1, x2) + 1, y + 1, color);
+    }
+
+    /** GuiOverlayDebug.renderLagometer of 1.12.2. */
+    static void drawLagometer(int h) {
+        Minecraft mc = Minecraft.getMinecraft();
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        Gui.drawRect(0, h - 60, 240, h, -1873784752);
+        int start = (frameIndex - frameCount + FRAMES.length) % FRAMES.length;
+        for (int n = 0; n < frameCount; n++) {
+            int v = lag(FRAMES[(start + n) % FRAMES.length]);
+            vLine(n, h, h - v, frameColor(MathHelper.clamp_int(v, 0, 60)));
+        }
+        Gui.drawRect(1, h - 30 + 1, 14, h - 30 + 10, -1873784752);
+        mc.fontRenderer.drawString("60", 2, h - 30 + 2, 14737632);
+        hLine(0, 239, h - 30, -1);
+        Gui.drawRect(1, h - 60 + 1, 14, h - 60 + 10, -1873784752);
+        mc.fontRenderer.drawString("30", 2, h - 60 + 2, 14737632);
+        hLine(0, 239, h - 60, -1);
+        hLine(0, 239, h - 1, -1);
+        vLine(0, h - 60, h, -1);
+        vLine(239, h - 60, h, -1);
+        if (mc.gameSettings.limitFramerate <= 120) {
+            hLine(0, 239, h - 60 + mc.gameSettings.limitFramerate / 2, -16711681);
+        }
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+    }
+
+    /** For the autotest: frames recorded. */
+    public static int framesRecorded() {
+        return frameCount;
     }
 
     /** One F3 combination after 1.7.10 did its own part of it; true when the key is one. */

@@ -551,6 +551,17 @@ public final class Brew112 {
             setSize(1.0F, 1.0F);
         }
 
+        /** EntityDragonFireball.getParticleType of 1.12.2: the trail is dragon breath, not smoke. */
+        @Override
+        public void onUpdate() {
+            Particles112.BREATH_TRAIL.set(Boolean.TRUE);
+            try {
+                super.onUpdate();
+            } finally {
+                Particles112.BREATH_TRAIL.remove();
+            }
+        }
+
         @Override
         protected void onImpact(MovingObjectPosition hit) {
             if (worldObj.isRemote || (hit.entityHit != null && hit.entityHit == shootingEntity)) {

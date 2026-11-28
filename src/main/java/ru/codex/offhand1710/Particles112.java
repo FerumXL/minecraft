@@ -55,6 +55,18 @@ public final class Particles112 {
         }
     }
 
+    /** Set around EntityFireball.onUpdate of a dragon fireball: its trail is dragon breath (getParticleType of 1.12.2). */
+    public static final ThreadLocal<Boolean> BREATH_TRAIL = new ThreadLocal<Boolean>();
+
+    /** EntityFireball.onUpdate spawns its trail through here (coremod). */
+    public static void trail(World world, String name, double x, double y, double z, double mx, double my, double mz) {
+        if (Boolean.TRUE.equals(BREATH_TRAIL.get()) && "smoke".equals(name)) {
+            dragonBreath(world, x, y, z, 0.0D, 0.0D, 0.0D);
+        } else {
+            world.spawnParticle(name, x, y, z, mx, my, mz);
+        }
+    }
+
     /** BlockFalling.getDustColor of 1.12.2: sand and red sand, gravel; everything else black. */
     public static int dustColor(Block block, int meta) {
         if (block == Blocks.sand) {

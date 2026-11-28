@@ -5087,6 +5087,21 @@ public final class Scenarios {
         return null;
     }
 
+    private int breathCount() {
+        int n = 0;
+        try {
+            java.lang.reflect.Field layers = cpw.mods.fml.relauncher.ReflectionHelper.findField(net.minecraft.client.particle.EffectRenderer.class, "fxLayers", "field_78876_b");
+            for (java.util.List<?> l : (java.util.List[]) layers.get(mc.effectRenderer)) {
+                for (Object o : l) {
+                    n += o instanceof Particles112Client.Breath ? 1 : 0;
+                }
+            }
+        } catch (Exception e) {
+            log("particles: " + e);
+        }
+        return n;
+    }
+
     private double stepStartY;
     private net.minecraft.util.MovementInput savedInput;
 
@@ -5232,6 +5247,31 @@ public final class Scenarios {
                     log("particles: " + e);
                 }
                 result("dragon breath and falling dust particles of 1.9 - 1.10", breath >= 10 && dust >= 10, "breath=" + breath + " dust=" + dust + " before=" + before);
+            }
+        });
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                // the trail of a dragon fireball (Particles112.trail through EntityFireball.onUpdate)
+                int before = breathCount();
+                ru.codex.offhand1710.Brew112.DragonFireball ball = new ru.codex.offhand1710.Brew112.DragonFireball(mc.theWorld);
+                ball.setPosition(mc.thePlayer.posX + 3, mc.thePlayer.posY + 1, mc.thePlayer.posZ);
+                for (int i = 0; i < 5; i++) {
+                    ball.onUpdate();
+                }
+                int after = breathCount();
+                result("a dragon fireball leaves dragon breath behind, not smoke", after >= before + 5, before + " -> " + after);
+                mc.gameSettings.showDebugInfo = true;
+                Debug112.lagometer = true;
+            }
+        });
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                result("Alt + F3: the frame times of the lagometer are recorded", Debug112.framesRecorded() > 20, "frames=" + Debug112.framesRecorded());
+                shot("lagometer");
+                mc.gameSettings.showDebugInfo = false;
+                Debug112.lagometer = false;
             }
         });
         finish();

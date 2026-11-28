@@ -912,6 +912,22 @@ public final class Transformer implements IClassTransformer {
             }
             return write(node);
         }
+        // the trail of a dragon fireball is dragon breath (Particles112.trail)
+        if ("net.minecraft.entity.projectile.EntityFireball".equals(transformedName) && System.getProperty("mc112.particles17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "onUpdate", "func_70071_h_") && "()V".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n instanceof MethodInsnNode && "net/minecraft/world/World".equals(((MethodInsnNode) n).owner)
+                            && ("spawnParticle".equals(((MethodInsnNode) n).name) || "func_72869_a".equals(((MethodInsnNode) n).name))) {
+                            m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Particles112", "trail",
+                                "(Lnet/minecraft/world/World;Ljava/lang/String;DDDDDD)V", false));
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
         return bytes;
     }
 }
