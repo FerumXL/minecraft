@@ -1169,10 +1169,10 @@ public final class Dragon112 {
                 double y = hy + d.getRNG().nextGaussian() / 2.0D;
                 double z = hz + d.getRNG().nextGaussian() / 2.0D;
                 if (phase == LANDING) {
-                    w.spawnParticle("portal", x, y, z, -look.xCoord * 0.08D + d.motionX, -look.yCoord * 0.3D + d.motionY, -look.zCoord * 0.08D + d.motionZ);
+                    Particles112.dragonBreath(w, x, y, z, -look.xCoord * 0.08D + d.motionX, -look.yCoord * 0.3D + d.motionY, -look.zCoord * 0.08D + d.motionZ);
                 } else {
                     for (int k = 0; k < 6; k++) {
-                        w.spawnParticle("portal", x, y, z, -look.xCoord * 0.08D * k, -look.yCoord * 0.6D, -look.zCoord * 0.08D * k);
+                        Particles112.dragonBreath(w, x, y, z, -look.xCoord * 0.08D * k, -look.yCoord * 0.6D, -look.zCoord * 0.08D * k);
                     }
                 }
                 look.rotateAroundY(0.19634955F);

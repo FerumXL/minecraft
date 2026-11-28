@@ -79,6 +79,10 @@ def main():
     print('copied %d, already present %d, failed %d' % (copied, same, failed))
     if failed:
         sys.exit(1)
+    # the other languages of the mod come from the same 1.12.2 installation
+    import runpy
+    sys.argv = [os.path.join(repo, 'tools', 'gen-langs.py'), mc]
+    runpy.run_path(sys.argv[0], run_name='__main__')
 
 
 if __name__ == '__main__':

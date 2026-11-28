@@ -43,6 +43,15 @@ final class Banner112Client {
         BoatRenderer boats = new BoatRenderer();
         RenderingRegistry.registerEntityRenderingHandler(EntityBoat.class, boats);
         RenderingRegistry.registerEntityRenderingHandler(Banner112.EntityBoat112.class, boats);
+        // LayerSnowmanHead of 1.12.2: the pumpkin only while the golem still wears it (Snowman112)
+        RenderingRegistry.registerEntityRenderingHandler(net.minecraft.entity.monster.EntitySnowman.class, new net.minecraft.client.renderer.entity.RenderSnowMan() {
+            @Override
+            protected void renderEquippedItems(net.minecraft.entity.monster.EntitySnowman golem, float partialTicks) {
+                if (ru.codex.offhand1710.Snowman112.hasPumpkin(golem)) {
+                    super.renderEquippedItems(golem, partialTicks);
+                }
+            }
+        });
         RenderingRegistry.registerEntityRenderingHandler(ru.codex.offhand1710.Content120.EntitySpectralArrow.class, new net.minecraft.client.renderer.entity.RenderArrow() {
             private final ResourceLocation texture = new ResourceLocation(DOMAIN, "textures/entity/projectiles/spectral_arrow.png");
 

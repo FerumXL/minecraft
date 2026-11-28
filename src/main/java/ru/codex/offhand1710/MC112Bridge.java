@@ -52,6 +52,9 @@ public final class MC112Bridge {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new ShieldMechanics());
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new Enchant112());
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(new Teams112());
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new Skeleton112());
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new Snowman112());
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new Villagers112());
         Cooldowns112 cooldowns = new Cooldowns112();
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(cooldowns);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(cooldowns);

@@ -1020,3 +1020,7 @@ src/main/resources/assets/mc112bridge/data/recipes/
 /src/main/resources/assets/mc112bridge/textures/misc/forcefield.png
 /src/main/resources/assets/mc112bridge/textures/gui/container/brewing_stand.png
 /src/main/resources/assets/mc112bridge/textures/gui/container/enchanting_table.png
+# languages made by tools/gen-langs.py from the player's 1.12.2 assets
+/src/main/resources/assets/mc112bridge/lang/*.lang
+!/src/main/resources/assets/mc112bridge/lang/en_US.lang
+!/src/main/resources/assets/mc112bridge/lang/ru_RU.lang

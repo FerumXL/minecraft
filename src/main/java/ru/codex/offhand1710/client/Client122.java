@@ -79,6 +79,7 @@ public final class Client122 {
         config = new Configuration(new File(Minecraft.getMinecraft().mcDataDir, "config/mc112bridge-client.cfg"));
         subtitles = config.get("general", "showSubtitles", false).getBoolean(false);
         leftHand = config.get("general", "mainHandLeft", false).getBoolean(false);
+        autoJump = config.get("general", "autoJump", true).getBoolean(true);
         config.save();
         InputStream in = Client122.class.getResourceAsStream("/assets/mc112bridge/subtitles.txt");
         if (in != null) {
@@ -104,8 +105,12 @@ public final class Client122 {
     private static void save() {
         config.get("general", "showSubtitles", false).set(subtitles);
         config.get("general", "mainHandLeft", false).set(leftHand);
+        config.get("general", "autoJump", true).set(autoJump);
         config.save();
     }
+
+    /** GameSettings.autoJump of 1.11 - 1.12.2, on by default (AutoJump112). */
+    public static boolean autoJump = true;
 
     private static SoundCategory category(String source) {
         if ("master".equals(source)) return SoundCategory.MASTER;
@@ -183,6 +188,9 @@ public final class Client122 {
             handButton = new GuiButton(9102, w / 2 + 5, h / 6 + 120, 150, 20, handText());
             event.buttonList.add(subtitleButton);
             event.buttonList.add(handButton);
+        } else if (event.gui instanceof net.minecraft.client.gui.GuiControls && !AutoJump112.OFF) {
+            // GuiControls of 1.12.2: AUTO_JUMP is the fourth option, right of Touchscreen
+            event.buttonList.add(new GuiButton(9103, w / 2 + 5, 42, 150, 20, onOff("options.autoJump", autoJump)));
         } else if (event.gui instanceof GuiCommandBlock) {
             CommandBlockLogic logic = ReflectionHelper.getPrivateValue(GuiCommandBlock.class, (GuiCommandBlock) event.gui, "localCommandBlock", "field_146489_h");
             ChunkCoordinates c = logic.getPlayerCoordinates();
@@ -225,6 +233,10 @@ public final class Client122 {
             if (Minecraft.getMinecraft().thePlayer != null) {
                 MC112Bridge.NETWORK.channel.sendToServer(new Content122.HandMessage(leftHand));
             }
+        } else if (id == 9103 && event.gui instanceof net.minecraft.client.gui.GuiControls) {
+            autoJump = !autoJump;
+            save();
+            event.button.displayString = onOff("options.autoJump", autoJump);
         } else if (id >= 9201 && id <= 9203) {
             if (id == 9201) {
                 mode = (mode + 1) % 3;

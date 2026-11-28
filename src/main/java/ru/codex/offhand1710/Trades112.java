@@ -270,6 +270,10 @@ public final class Trades112 {
                 }
                 if (refresh) {
                     state.pending = true;
+                    // useRecipe of 1.12.2: the same chance makes the villager willing to mate (Villagers112)
+                    if (!Villagers112.OFF) {
+                        Villagers112.setWilling(villager, true);
+                    }
                     ReflectionHelper.setPrivateValue(EntityVillager.class, villager, Integer.valueOf(40), "timeUntilReset", "field_70961_j");
                     if (villager.getCustomer() != null) {
                         ReflectionHelper.setPrivateValue(EntityVillager.class, villager, villager.getCustomer().getCommandSenderName(), "lastBuyingPlayer", "field_82189_bL");

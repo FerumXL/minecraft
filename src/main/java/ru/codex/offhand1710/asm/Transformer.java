@@ -855,6 +855,22 @@ public final class Transformer implements IClassTransformer {
             }
             return write(node);
         }
+        // falling dust of 1.10 under sand and gravel: every random display tick goes through Particles112
+        if ("net.minecraft.client.multiplayer.WorldClient".equals(transformedName) && System.getProperty("mc112.particles17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "doVoidFogParticles", "func_73029_E") && "(III)V".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n instanceof MethodInsnNode && "net/minecraft/block/Block".equals(((MethodInsnNode) n).owner)
+                            && ("randomDisplayTick".equals(((MethodInsnNode) n).name) || "func_149734_b".equals(((MethodInsnNode) n).name))) {
+                            m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Particles112", "displayTick",
+                                "(Lnet/minecraft/block/Block;Lnet/minecraft/world/World;IIILjava/util/Random;)V", false));
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
         return bytes;
     }
 }

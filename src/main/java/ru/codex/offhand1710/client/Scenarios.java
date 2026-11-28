@@ -142,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -660,6 +660,10 @@ public final class Scenarios {
             enchantStage();
         } else if ("items19".equals(STAGE)) {
             items19Stage();
+        } else if ("mobs19".equals(STAGE)) {
+            mobs19Stage();
+        } else if ("ui19".equals(STAGE)) {
+            ui19Stage();
         } else if ("visual".equals(STAGE)) {
             visual();
         } else if ("online".equals(STAGE)) {
@@ -4851,6 +4855,373 @@ public final class Scenarios {
     }
 
     /** The brewing stand of 1.9 (BrewFuel112): blaze powder fuel for 20 brews, the fifth slot, the window. */
+    private net.minecraft.entity.monster.EntitySkeleton skel;
+    private net.minecraft.entity.monster.EntitySnowman golem;
+    private net.minecraft.entity.passive.EntityVillager farmer;
+    private int[] fieldAt;
+
+    private static boolean hasExact(net.minecraft.entity.ai.EntityAITasks tasks, Class<?> type) {
+        for (Object o : tasks.taskEntries) {
+            if (((net.minecraft.entity.ai.EntityAITasks.EntityAITaskEntry) o).action.getClass() == type) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasTask(net.minecraft.entity.ai.EntityAITasks tasks, Class<?> type) {
+        for (Object o : tasks.taskEntries) {
+            if (type.isInstance(((net.minecraft.entity.ai.EntityAITasks.EntityAITaskEntry) o).action)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Mob AI of 1.8 - 1.9: skeleton (Skeleton112), snow golem (Snowman112), villagers (Villagers112). */
+    private void mobs19Stage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                cmd("difficulty 2");
+                cmd("time set 18000");
+                cmd("gamerule doMobSpawning false");
+                int x = (int) Math.floor(p().posX);
+                int y = (int) Math.floor(p().posY);
+                int z = (int) Math.floor(p().posZ);
+                for (int dx = -2; dx <= 22; dx++) {
+                    for (int dz = 6; dz <= 30; dz++) {
+                        w().setBlock(x + dx, y - 1, z + dz, net.minecraft.init.Blocks.stone);
+                        for (int dy = 0; dy <= 3; dy++) {
+                            w().setBlockToAir(x + dx, y + dy, z + dz);
+                        }
+                    }
+                }
+                // a skeleton 10 blocks from a pig that cannot move
+                net.minecraft.entity.passive.EntityPig pig = new net.minecraft.entity.passive.EntityPig(w());
+                pig.setPosition(x + 0.5D, y, z + 20.5D);
+                pig.getEntityData().setBoolean("NoAI", true);
+                pig.setHealth(pig.getMaxHealth());
+                pig.getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.maxHealth).setBaseValue(1000.0D);
+                pig.setHealth(1000.0F);
+                w().spawnEntityInWorld(pig);
+                skel = new net.minecraft.entity.monster.EntitySkeleton(w());
+                skel.setPosition(x + 0.5D, y, z + 10.5D);
+                skel.setCurrentItemOrArmor(0, new ItemStack(Items.bow));
+                w().spawnEntityInWorld(skel);
+                skel.setCurrentItemOrArmor(0, new ItemStack(Items.bow));
+                skel.setAttackTarget(pig);
+                result("a skeleton gets the bow AI and move helper of 1.9, avoids wolves, targets iron golems",
+                    hasTask(skel.tasks, ru.codex.offhand1710.Skeleton112.BowAttack.class) && !hasExact(skel.tasks, net.minecraft.entity.ai.EntityAIArrowAttack.class) && skel.getMoveHelper() instanceof ru.codex.offhand1710.Skeleton112.Strafer
+                    && hasTask(skel.tasks, net.minecraft.entity.ai.EntityAIAvoidEntity.class)
+                    && hasTask(skel.targetTasks, net.minecraft.entity.ai.EntityAINearestAttackableTarget.class), "");
+                // a snow golem
+                golem = new net.minecraft.entity.monster.EntitySnowman(w());
+                golem.setPosition(x + 6.5D, y, z + 8.5D);
+                w().spawnEntityInWorld(golem);
+                // a farmer by a field of ripe wheat
+                fieldAt = new int[] {x + 12, y - 1, z + 14};
+                for (int dx = 0; dx < 4; dx++) {
+                    for (int dz = 0; dz < 4; dz++) {
+                        w().setBlock(fieldAt[0] + dx, fieldAt[1], fieldAt[2] + dz, net.minecraft.init.Blocks.farmland, 7, 2);
+                        w().setBlock(fieldAt[0] + dx, fieldAt[1] + 1, fieldAt[2] + dz, net.minecraft.init.Blocks.wheat, 7, 2);
+                    }
+                }
+                w().setBlock(fieldAt[0] + 1, fieldAt[1] - 1, fieldAt[2] + 1, net.minecraft.init.Blocks.water);
+                farmer = new net.minecraft.entity.passive.EntityVillager(w(), 0);
+                farmer.setPosition(fieldAt[0] - 1.5D, y, fieldAt[2] + 2.0D);
+                w().spawnEntityInWorld(farmer);
+                result("villagers: the mating task needs willingness, farmers harvest, all share food", hasTask(farmer.tasks, ru.codex.offhand1710.Villagers112.Mate.class)
+                    && !hasTask(farmer.tasks, net.minecraft.entity.ai.EntityAIVillagerMate.class) && hasTask(farmer.tasks, ru.codex.offhand1710.Villagers112.Harvest.class)
+                    && hasTask(farmer.tasks, ru.codex.offhand1710.Villagers112.Interact.class), "");
+            }
+        });
+        server(15, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Skeleton112.BowAttack a = bow(skel);
+                StringBuilder running = new StringBuilder();
+                for (Object o : skel.tasks.taskEntries) {
+                    net.minecraft.entity.ai.EntityAITasks.EntityAITaskEntry e = (net.minecraft.entity.ai.EntityAITasks.EntityAITaskEntry) o;
+                    running.append(e.priority).append(':').append(e.action.getClass().getSimpleName()).append(' ');
+                }
+                result("15 ticks in: drawing the bow, no arrow yet", a != null && a.shots == 0 && a.drawTicks > 0, a == null ? "no task" : "shots=" + a.shots + " draw=" + a.drawTicks
+                    + " target=" + skel.getAttackTarget() + " dead=" + skel.isDead + " tasks=" + running);
+            }
+        });
+        server(15, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Skeleton112.BowAttack a = bow(skel);
+                result("30 ticks in: one arrow after a 20-tick draw", a != null && a.shots == 1, a == null ? "" : "shots=" + a.shots);
+                // shears on the golem
+                p().inventory.setInventorySlotContents(p().inventory.currentItem, new ItemStack(Items.shears));
+                p().capabilities.isCreativeMode = false;
+                boolean before = ru.codex.offhand1710.Snowman112.hasPumpkin(golem);
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.entity.player.EntityInteractEvent(p(), golem));
+                ItemStack shears = p().getCurrentEquippedItem();
+                p().capabilities.isCreativeMode = true;
+                net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+                golem.writeToNBT(tag);
+                result("shears take the pumpkin off a snow golem, wear 1, the golem remembers it", before && !ru.codex.offhand1710.Snowman112.hasPumpkin(golem)
+                    && shears != null && shears.getItemDamage() == 1 && tag.getCompoundTag("ForgeData").hasKey("Pumpkin") && !tag.getCompoundTag("ForgeData").getBoolean("Pumpkin"),
+                    "before=" + before + " shears=" + shears);
+                // villager food
+                net.minecraft.entity.passive.EntityVillager v = new net.minecraft.entity.passive.EntityVillager(w(), 1);
+                v.setPosition(farmer.posX, farmer.posY, farmer.posZ - 6);
+                w().spawnEntityInWorld(v);
+                net.minecraft.entity.item.EntityItem bread = new net.minecraft.entity.item.EntityItem(w(), v.posX, v.posY + 0.5D, v.posZ, new ItemStack(Items.bread, 5));
+                w().spawnEntityInWorld(bread);
+                villagerB = v;
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.passive.EntityVillager v = villagerB;
+                net.minecraft.inventory.InventoryBasic inv = ru.codex.offhand1710.Villagers112.inventory(v);
+                int bread = count(inv, Items.bread);
+                boolean wasWilling = ru.codex.offhand1710.Villagers112.isWilling(v);
+                boolean willing = ru.codex.offhand1710.Villagers112.willing(v);
+                result("a villager picks up 5 bread; becoming willing eats 3", bread == 5 && !wasWilling && willing && count(inv, Items.bread) == 2,
+                    "picked=" + bread + " left=" + count(inv, Items.bread) + " willing=" + willing);
+                net.minecraft.inventory.InventoryBasic farm = ru.codex.offhand1710.Villagers112.inventory(farmer);
+                ru.codex.offhand1710.Villagers112.add(farm, new ItemStack(Items.bread, 20));
+                int dropped = w().getEntitiesWithinAABB(net.minecraft.entity.item.EntityItem.class, farmer.boundingBox.expand(4, 4, 4)).size();
+                new ru.codex.offhand1710.Villagers112.Interact(farmer).give();
+                int after = w().getEntitiesWithinAABB(net.minecraft.entity.item.EntityItem.class, farmer.boundingBox.expand(4, 4, 4)).size();
+                result("a villager with 20 bread throws half of it", count(farm, Items.bread) == 10 && after == dropped + 1, "left=" + count(farm, Items.bread));
+                farm.setInventorySlotContents(0, null);
+                for (int i = 0; i < farm.getSizeInventory(); i++) {
+                    farm.setInventorySlotContents(i, null);
+                }
+                ru.codex.offhand1710.Skeleton112.BowAttack a = bow(skel);
+                result("strafing around the target once it was seen for a second within 15 blocks", a != null && a.strafed > 0, a == null ? "" : "strafed=" + a.strafed);
+            }
+        });
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.Entity c = mc.theWorld.getEntityByID(golem.getEntityId());
+                result("the client sees the golem without its pumpkin", c instanceof net.minecraft.entity.monster.EntitySnowman
+                    && !ru.codex.offhand1710.Snowman112.hasPumpkin((net.minecraft.entity.monster.EntitySnowman) c), String.valueOf(c));
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Skeleton112.BowAttack a = bow(skel);
+                int gap = a == null || a.shotTicks.size() < 2 ? -1 : a.shotTicks.get(1) - a.shotTicks.get(0);
+                result("normal difficulty: 40 ticks of cooldown and 20 of drawing between shots (60)", a != null && a.shots == 2 && gap >= 59 && gap <= 61,
+                    a == null ? "" : "shots=" + a.shots + " ticks=" + a.shotTicks);
+            }
+        });
+        server(30, new Runnable() {
+            @Override
+            public void run() {
+                ru.codex.offhand1710.Skeleton112.BowAttack a = bow(skel);
+                result("no third arrow before 120 ticks", a != null && a.shots == 2, a == null ? "" : "shots=" + a.shots);
+            }
+        });
+        server(500, new Runnable() {
+            @Override
+            public void run() {
+                int ripe = 0;
+                for (int dx = 0; dx < 4; dx++) {
+                    for (int dz = 0; dz < 4; dz++) {
+                        if (w().getBlock(fieldAt[0] + dx, fieldAt[1] + 1, fieldAt[2] + dz) == net.minecraft.init.Blocks.wheat
+                            && w().getBlockMetadata(fieldAt[0] + dx, fieldAt[1] + 1, fieldAt[2] + dz) == 7) {
+                            ripe++;
+                        }
+                    }
+                }
+                net.minecraft.inventory.InventoryBasic farm = ru.codex.offhand1710.Villagers112.inventory(farmer);
+                result("a farmer left alone reaps ripe wheat and picks up the harvest", ripe < 16 && (count(farm, Items.wheat) > 0 || count(farm, Items.wheat_seeds) > 0),
+                    "ripe left=" + ripe + " wheat=" + count(farm, Items.wheat) + " seeds=" + count(farm, Items.wheat_seeds));
+                cmd("gamerule doMobSpawning true");
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                shot("mobs19");
+            }
+        });
+        finish();
+    }
+
+    private net.minecraft.entity.passive.EntityVillager villagerB;
+
+    private static int count(net.minecraft.inventory.IInventory inv, net.minecraft.item.Item item) {
+        int n = 0;
+        for (int i = 0; i < inv.getSizeInventory(); i++) {
+            ItemStack s = inv.getStackInSlot(i);
+            n += s != null && s.getItem() == item ? s.stackSize : 0;
+        }
+        return n;
+    }
+
+    private static ru.codex.offhand1710.Skeleton112.BowAttack bow(net.minecraft.entity.monster.EntitySkeleton s) {
+        for (Object o : s.tasks.taskEntries) {
+            Object a = ((net.minecraft.entity.ai.EntityAITasks.EntityAITaskEntry) o).action;
+            if (a instanceof ru.codex.offhand1710.Skeleton112.BowAttack) {
+                return (ru.codex.offhand1710.Skeleton112.BowAttack) a;
+            }
+        }
+        return null;
+    }
+
+    private double stepStartY;
+    private net.minecraft.util.MovementInput savedInput;
+
+    /** Auto-jump of 1.11 (AutoJump112) and saved toolbars of 1.12 (Hotbars112). */
+    private void ui19Stage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                int x = (int) Math.floor(p().posX);
+                int y = (int) Math.floor(p().posY);
+                int z = (int) Math.floor(p().posZ);
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 12; dz++) {
+                        w().setBlock(x + dx, y - 1, z + dz, net.minecraft.init.Blocks.stone);
+                        for (int dy = 0; dy <= 4; dy++) {
+                            w().setBlockToAir(x + dx, y + dy, z + dz);
+                        }
+                    }
+                }
+                // a one-block step 3 blocks south, a two-block wall 9 blocks south
+                for (int dx = -1; dx <= 1; dx++) {
+                    w().setBlock(x + dx, y, z + 3, net.minecraft.init.Blocks.stone);
+                    w().setBlock(x + dx, y, z + 9, net.minecraft.init.Blocks.stone);
+                    w().setBlock(x + dx, y + 1, z + 9, net.minecraft.init.Blocks.stone);
+                    w().setBlock(x + dx, y + 2, z + 9, net.minecraft.init.Blocks.stone);
+                }
+                for (int dz = 4; dz <= 8; dz++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        w().setBlock(x + dx, y, z + dz, net.minecraft.init.Blocks.stone);
+                    }
+                }
+                p().playerNetServerHandler.setPlayerLocation(x + 0.5D, y, z + 0.5D, 0.0F, 0.0F);
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                Client122.autoJump = true;
+                stepStartY = mc.thePlayer.posY;
+                mc.thePlayer.rotationYaw = 0.0F;
+                // the keys are released while the test window has no focus: a movement input that always walks forward
+                savedInput = mc.thePlayer.movementInput;
+                mc.thePlayer.movementInput = new OffhandMovementInput(new net.minecraft.util.MovementInput() {
+                    @Override
+                    public void updatePlayerMoveState() {
+                        moveForward = 1.0F;
+                        moveStrafe = 0.0F;
+                        jump = false;
+                        sneak = false;
+                    }
+                }, mc.thePlayer);
+            }
+        });
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                double up = mc.thePlayer.posY - stepStartY;
+                result("auto-jump: walking south onto a one-block step climbs it", up >= 0.99D, "dy=" + up + " z=" + mc.thePlayer.posZ);
+                stepStartY = mc.thePlayer.posY;
+            }
+        });
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.movementInput = savedInput;
+                double up = mc.thePlayer.posY - stepStartY;
+                result("no auto-jump against a two-block wall", Math.abs(up) < 0.01D && mc.thePlayer.onGround, "dy=" + up + " z=" + mc.thePlayer.posZ);
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                p().inventory.clearInventory(null, -1);
+                p().inventory.setInventorySlotContents(0, new ItemStack(Items.diamond_sword));
+                p().inventory.setInventorySlotContents(4, new ItemStack(Items.apple, 12));
+                p().inventoryContainer.detectAndSendChanges();
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                Hotbars112.handle(mc, 2, false, true);
+                java.io.File f = new java.io.File(mc.mcDataDir, "mc112bridge-hotbar.nbt");
+                result("C + 3 saves the toolbar to mc112bridge-hotbar.nbt", f.exists() && Hotbars112.snapshots()[2][0] != null
+                    && Hotbars112.snapshots()[2][4] != null && Hotbars112.snapshots()[2][4].stackSize == 12, "file=" + f.exists());
+                java.util.List<ItemStack> tab = new java.util.ArrayList<ItemStack>();
+                for (net.minecraft.creativetab.CreativeTabs t : net.minecraft.creativetab.CreativeTabs.creativeTabArray) {
+                    if (t instanceof Hotbars112.Tab) {
+                        t.displayAllReleventItems(tab);
+                    }
+                }
+                result("the Saved Toolbars tab: 9 rows, the saved one with its items, papers in the empty ones", tab.size() == 81 && tab.get(18) != null
+                    && tab.get(18).getItem() == Items.diamond_sword && tab.get(0) != null && tab.get(0).getItem() == Items.paper, "size=" + tab.size());
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                p().inventory.clearInventory(null, -1);
+                p().inventoryContainer.detectAndSendChanges();
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                Hotbars112.handle(mc, 2, true, false);
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                ItemStack a = p().inventory.getStackInSlot(0);
+                ItemStack b = p().inventory.getStackInSlot(4);
+                result("X + 3 puts the toolbar back, the server has it too", a != null && a.getItem() == Items.diamond_sword && b != null && b.stackSize == 12,
+                    a + " " + b);
+            }
+        });
+        client(5, new Runnable() {
+            @Override
+            public void run() {
+                // particles of 1.9 - 1.10 (Particles112): dragon breath and falling dust reach the effect renderer
+                String before = mc.effectRenderer.getStatistics();
+                double x = mc.thePlayer.posX + 2;
+                double y = mc.thePlayer.posY + 1;
+                double z = mc.thePlayer.posZ;
+                for (int i = 0; i < 20; i++) {
+                    ru.codex.offhand1710.Particles112.dragonBreath(mc.theWorld, x, y, z, 0.0D, 0.01D, 0.0D);
+                    ru.codex.offhand1710.Particles112.factory.fallingDust(mc.theWorld, x, y, z, ru.codex.offhand1710.Particles112.dustColor(net.minecraft.init.Blocks.sand, 0));
+                }
+                int breath = 0;
+                int dust = 0;
+                try {
+                    java.lang.reflect.Field layers = cpw.mods.fml.relauncher.ReflectionHelper.findField(net.minecraft.client.particle.EffectRenderer.class, "fxLayers", "field_78876_b");
+                    for (java.util.List<?> l : (java.util.List[]) layers.get(mc.effectRenderer)) {
+                        for (Object o : l) {
+                            breath += o instanceof Particles112Client.Breath ? 1 : 0;
+                            dust += o instanceof Particles112Client.Dust ? 1 : 0;
+                        }
+                    }
+                } catch (Exception e) {
+                    log("particles: " + e);
+                }
+                result("dragon breath and falling dust particles of 1.9 - 1.10", breath >= 10 && dust >= 10, "breath=" + breath + " dust=" + dust + " before=" + before);
+            }
+        });
+        finish();
+    }
+
     private int[] frameAt;
 
     /** Item cooldowns of 1.9 (Cooldowns112) and item frames of 1.8 (Frames112). */

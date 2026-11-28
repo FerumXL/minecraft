@@ -480,7 +480,7 @@ public final class Brew112 {
                 double x = posX + (double) (MathHelper.cos(angle) * dist);
                 double z = posZ + (double) (MathHelper.sin(angle) * dist);
                 if (isBreath()) {
-                    worldObj.spawnParticle("portal", x, posY, z, 0.0D, 0.01D, 0.0D);
+                    Particles112.dragonBreath(worldObj, x, posY, z, 0.0D, 0.01D, 0.0D);
                 } else {
                     worldObj.spawnParticle("mobSpell", x, posY, z, red, green, blue);
                 }
