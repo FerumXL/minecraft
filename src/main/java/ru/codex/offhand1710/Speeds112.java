@@ -29,6 +29,9 @@ public final class Speeds112 {
             return;
         }
         EntityCreature e = (EntityCreature) event.entityLiving;
+        if (Mobs19.handles(e)) {
+            return; // the task AI of 1.12.2 with its own speeds (Mobs19)
+        }
         boolean chasing = e.getEntityToAttack() != null;
         double base;
         if (e instanceof EntitySpider) {

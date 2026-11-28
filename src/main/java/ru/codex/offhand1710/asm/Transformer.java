@@ -871,6 +871,29 @@ public final class Transformer implements IClassTransformer {
             }
             return write(node);
         }
+        // the task AI of 1.12.2 for spiders, silverfish and zombie pigmen (Mobs19): isAIEnabled asks Mobs19
+        if (("net.minecraft.entity.monster.EntitySpider".equals(transformedName) || "net.minecraft.entity.monster.EntitySilverfish".equals(transformedName)
+            || "net.minecraft.entity.monster.EntityPigZombie".equals(transformedName)) && System.getProperty("mc112.mobAI17") == null) {
+            ClassNode node = read(bytes);
+            MethodNode found = null;
+            for (MethodNode m : node.methods) {
+                if (named(m, "isAIEnabled", "func_70650_aV") && "()Z".equals(m.desc)) {
+                    found = m;
+                }
+            }
+            if (found == null) {
+                Object dev = net.minecraft.launchwrapper.Launch.blackboard.get("fml.deobfuscatedEnvironment");
+                found = new MethodNode(Opcodes.ACC_PROTECTED, Boolean.TRUE.equals(dev) ? "isAIEnabled" : "func_70650_aV", "()Z", null, null);
+                node.methods.add(found);
+            }
+            found.instructions.clear();
+            found.tryCatchBlocks.clear();
+            found.localVariables = null;
+            found.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Mobs19", "aiEnabled", "()Z", false));
+            found.instructions.add(new org.objectweb.asm.tree.InsnNode(Opcodes.IRETURN));
+            System.out.println("[mc112bridge] 1.12 task AI in " + transformedName + "." + found.name);
+            return write(node);
+        }
         return bytes;
     }
 }

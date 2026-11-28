@@ -142,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "oldai19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -664,6 +664,8 @@ public final class Scenarios {
             mobs19Stage();
         } else if ("ui19".equals(STAGE)) {
             ui19Stage();
+        } else if ("oldai19".equals(STAGE)) {
+            oldAIStage();
         } else if ("visual".equals(STAGE)) {
             visual();
         } else if ("online".equals(STAGE)) {
@@ -5220,6 +5222,135 @@ public final class Scenarios {
             }
         });
         finish();
+    }
+
+    private net.minecraft.entity.monster.EntitySpider spiderDark;
+    private net.minecraft.entity.monster.EntitySpider spiderDay;
+    private net.minecraft.entity.monster.EntitySilverfish fishHurt;
+    private net.minecraft.entity.monster.EntitySilverfish fishWalled;
+    private net.minecraft.entity.monster.EntityPigZombie pigA;
+    private net.minecraft.entity.monster.EntityPigZombie pigB;
+    private int[] eggAt;
+    private int fishBefore;
+    private int[] walledAt;
+
+    private int silverfishNear(int x, int y, int z) {
+        return w().getEntitiesWithinAABB(net.minecraft.entity.monster.EntitySilverfish.class,
+            net.minecraft.util.AxisAlignedBB.getBoundingBox(x - 12, y - 6, z - 12, x + 12, y + 6, z + 12)).size();
+    }
+
+    /** The task AI of 1.12.2 for spiders, silverfish and zombie pigmen (Mobs19). */
+    private void oldAIStage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                cmd("difficulty 2");
+                cmd("gamerule doMobSpawning false");
+                cmd("time set 18000");
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.resistance.id, 4000, 4));
+                p().addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.regeneration.id, 4000, 4));
+                int x = (int) Math.floor(p().posX);
+                int y = (int) Math.floor(p().posY);
+                int z = (int) Math.floor(p().posZ);
+                for (int dx = -14; dx <= 14; dx++) {
+                    for (int dz = -14; dz <= 14; dz++) {
+                        w().setBlock(x + dx, y - 1, z + dz, net.minecraft.init.Blocks.stone);
+                        for (int dy = 0; dy <= 4; dy++) {
+                            w().setBlockToAir(x + dx, y + dy, z + dz);
+                        }
+                    }
+                }
+                spiderDark = new net.minecraft.entity.monster.EntitySpider(w());
+                spiderDark.setPosition(x + 6.5D, y, z + 0.5D);
+                w().spawnEntityInWorld(spiderDark);
+                result("spiders, silverfish and pigmen get isAIEnabled and the tasks of 1.12.2", isAI(spiderDark)
+                    && hasTask(spiderDark.tasks, net.minecraft.entity.ai.EntityAILeapAtTarget.class) && hasTask(spiderDark.tasks, ru.codex.offhand1710.Mobs19.Melee.class)
+                    && Math.abs(spiderDark.getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.movementSpeed).getBaseValue() - 0.3D) < 1e-6, "");
+                // infested stone around a silverfish 8 blocks west
+                eggAt = new int[] {x - 8, y, z};
+                for (int dz = -3; dz <= 3; dz++) {
+                    w().setBlock(x - 10, y, z + dz, net.minecraft.init.Blocks.monster_egg, 0, 3);
+                }
+                fishHurt = new net.minecraft.entity.monster.EntitySilverfish(w());
+                fishHurt.setPosition(x - 8.5D, y, z + 0.5D);
+                w().spawnEntityInWorld(fishHurt);
+                // a silverfish walled in stone 10 blocks north
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        for (int dy = -1; dy <= 1; dy++) {
+                            w().setBlock(x + dx, y + dy, z - 10 + dz, net.minecraft.init.Blocks.stone);
+                        }
+                    }
+                }
+                w().setBlockToAir(x, y, z - 10);
+                walledAt = new int[] {x, y, z - 10};
+                fishWalled = new net.minecraft.entity.monster.EntitySilverfish(w());
+                fishWalled.setPosition(x + 0.5D, y, z - 9.5D);
+                w().spawnEntityInWorld(fishWalled);
+                // two pigmen 8 blocks south
+                pigA = new net.minecraft.entity.monster.EntityPigZombie(w());
+                pigA.setPosition(x + 0.5D, y, z + 8.5D);
+                pigA.setCurrentItemOrArmor(0, new ItemStack(Items.golden_sword));
+                w().spawnEntityInWorld(pigA);
+                pigB = new net.minecraft.entity.monster.EntityPigZombie(w());
+                pigB.setPosition(x + 3.5D, y, z + 9.5D);
+                w().spawnEntityInWorld(pigB);
+                fishBefore = silverfishNear(eggAt[0], eggAt[1], eggAt[2]);
+                fishHurt.attackEntityFrom(net.minecraft.util.DamageSource.causePlayerDamage(p()), 1.0F);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                result("a spider in the dark hunts the player", spiderDark.getAttackTarget() == p(), String.valueOf(spiderDark.getAttackTarget()));
+                int now = silverfishNear(eggAt[0], eggAt[1], eggAt[2]);
+                int eggs = 0;
+                for (int dz = -3; dz <= 3; dz++) {
+                    eggs += w().getBlock(eggAt[0] - 2, eggAt[1], eggAt[2] + dz) == net.minecraft.init.Blocks.monster_egg ? 1 : 0;
+                }
+                result("a hurt silverfish calls its kin out of infested stone", now > fishBefore && eggs < 7, "silverfish " + fishBefore + " -> " + now + ", eggs left " + eggs);
+                result("calm pigmen leave the player alone", pigA.getAttackTarget() == null && ru.codex.offhand1710.Mobs19.anger(pigA) == 0, String.valueOf(pigA.getAttackTarget()));
+                pigA.attackEntityFrom(net.minecraft.util.DamageSource.causePlayerDamage(p()), 1.0F);
+                spiderDark.setDead();
+                cmd("time set 6000");
+                spiderDay = new net.minecraft.entity.monster.EntitySpider(w());
+                spiderDay.setPosition(p().posX + 6, p().posY, p().posZ + 2);
+                w().spawnEntityInWorld(spiderDay);
+            }
+        });
+        server(60, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.entity.ai.attributes.IAttributeInstance s = pigA.getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.movementSpeed);
+                result("a hit pigman and the one beside it turn on the player, with the speed boost of 1.12.2 (0.05)", pigA.getAttackTarget() == p()
+                    && ru.codex.offhand1710.Mobs19.anger(pigA) > 0 && pigB.getAttackTarget() == p() && Math.abs(s.getAttributeValue() - 0.28D) < 0.01D,
+                    "A=" + pigA.getAttackTarget() + " B=" + pigB.getAttackTarget() + " speed=" + s.getAttributeValue());
+                result("a spider in daylight does not look for prey", spiderDay.getAttackTarget() == null, String.valueOf(spiderDay.getAttackTarget()));
+                int infested = 0;
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            infested += w().getBlock(walledAt[0] + dx, walledAt[1] + dy, walledAt[2] + dz) == net.minecraft.init.Blocks.monster_egg ? 1 : 0;
+                        }
+                    }
+                }
+                result("a walled-in silverfish hides in the stone", fishWalled.isDead && infested == 1, "dead=" + fishWalled.isDead + " infested=" + infested);
+                cmd("gamerule doMobSpawning true");
+                cmd("kill @e[type=PigZombie]");
+            }
+        });
+        finish();
+    }
+
+    private static boolean isAI(net.minecraft.entity.EntityLivingBase e) {
+        try {
+            java.lang.reflect.Method m = cpw.mods.fml.relauncher.ReflectionHelper.findMethod(net.minecraft.entity.EntityLivingBase.class, e,
+                new String[] {"isAIEnabled", "func_70650_aV"});
+            return (Boolean) m.invoke(e);
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private int[] frameAt;
