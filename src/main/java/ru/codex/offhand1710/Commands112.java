@@ -432,7 +432,48 @@ public final class Commands112 {
                 enable(sender, args);
                 return;
             }
+            boolean teams = !Rules112.TeamOptions.OFF && args.length >= 3 && "teams".equalsIgnoreCase(args[0]);
+            if (teams && args.length >= 4 && "option".equalsIgnoreCase(args[1]) && "deathMessageVisibility".equals(args[3])) {
+                deathVisibility(sender, args);
+                return;
+            }
             super.processCommand(sender, args);
+            if (teams && ("add".equalsIgnoreCase(args[1]) || "remove".equalsIgnoreCase(args[1]))) {
+                // a new or removed team starts again from "always", as a new Team of 1.12.2
+                Rules112.TeamOptions.set(args[2], null);
+            }
+        }
+
+        /** "scoreboard teams option <team> deathMessageVisibility <value>" of 1.12.2 (CommandScoreboard.setTeamOption). */
+        private void deathVisibility(ICommandSender sender, String[] args) {
+            net.minecraft.scoreboard.ScorePlayerTeam team = func_147183_a(args[2]);
+            if (team == null) {
+                return;
+            }
+            String value = args.length >= 5 ? args[4] : null;
+            if (value == null || !java.util.Arrays.asList(Rules112.TeamOptions.VISIBLE).contains(value)) {
+                throw new WrongUsageException("commands.scoreboard.teams.option.noValue", args[3], joinNiceString(Rules112.TeamOptions.VISIBLE));
+            }
+            Rules112.TeamOptions.set(team.getRegisteredName(), value);
+            func_152373_a(sender, this, "commands.scoreboard.teams.option.success", args[3], team.getRegisteredName(), value);
+        }
+
+        @Override
+        public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+            if (!Rules112.TeamOptions.OFF && args.length >= 4 && "teams".equalsIgnoreCase(args[0]) && "option".equalsIgnoreCase(args[1])) {
+                if (args.length == 4) {
+                    List base = super.addTabCompletionOptions(sender, args);
+                    List out = base == null ? new java.util.ArrayList() : new java.util.ArrayList(base);
+                    if ("deathMessageVisibility".toLowerCase().startsWith(args[3].toLowerCase())) {
+                        out.add("deathMessageVisibility");
+                    }
+                    return out;
+                }
+                if (args.length == 5 && "deathMessageVisibility".equals(args[3])) {
+                    return getListOfStringsMatchingLastWord(args, Rules112.TeamOptions.VISIBLE);
+                }
+            }
+            return super.addTabCompletionOptions(sender, args);
         }
 
         /** "scoreboard players enable <player> <trigger>" of 1.12.2: the player may use /trigger once. */

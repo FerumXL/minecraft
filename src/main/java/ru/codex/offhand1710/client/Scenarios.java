@@ -3754,6 +3754,48 @@ public final class Scenarios {
                 result("announceAdvancements true: the next one is", chat.seen("chat.type.advancement"), String.valueOf(chat.keys));
             }
         });
+        // deathMessageVisibility of 1.12.2: a fake player "DeathBot" dies, the client player is on its team or not
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("scoreboard teams add mc112deathA");
+                cmd("scoreboard teams add mc112deathB");
+                cmd("scoreboard teams option mc112deathA deathMessageVisibility hideForOwnTeam");
+                result("teams option deathMessageVisibility is stored", "hideForOwnTeam".equals(ru.codex.offhand1710.Rules112.TeamOptions.deathVisibility("mc112deathA")),
+                    ru.codex.offhand1710.Rules112.TeamOptions.deathVisibility("mc112deathA"));
+                cmd("scoreboard teams option mc112deathA deathMessageVisibility sometimes");
+                result("a wrong value is refused", "hideForOwnTeam".equals(ru.codex.offhand1710.Rules112.TeamOptions.deathVisibility("mc112deathA")), "");
+                java.util.List<?> tab = net.minecraft.server.MinecraftServer.getServer().getCommandManager().getPossibleCommands(p(), "scoreboard teams option mc112deathA deathMessageVisibility hide");
+                result("tab completes the values", tab != null && tab.contains("hideForOtherTeams") && tab.contains("hideForOwnTeam"), String.valueOf(tab));
+                net.minecraft.entity.player.EntityPlayerMP bot = net.minecraftforge.common.util.FakePlayerFactory.get(w(), new com.mojang.authlib.GameProfile(java.util.UUID.nameUUIDFromBytes("mc112DeathBot".getBytes()), "DeathBot"));
+                net.minecraft.scoreboard.Scoreboard board = w().getScoreboard();
+                board.func_151392_a("DeathBot", "mc112deathA");
+                net.minecraft.server.management.ServerConfigurationManager pl = net.minecraft.server.MinecraftServer.getServer().getConfigurationManager();
+                chat.keys.clear();
+                String[] modes = {"always", "never", "hideForOtherTeams", "hideForOwnTeam"};
+                for (int own = 0; own < 2; own++) {
+                    if (own == 1) {
+                        board.func_151392_a(p().getCommandSenderName(), "mc112deathA");
+                    }
+                    for (String m : modes) {
+                        ru.codex.offhand1710.Rules112.TeamOptions.set("mc112deathA", m);
+                        ru.codex.offhand1710.Rules112.deathMessage(pl, new net.minecraft.util.ChatComponentTranslation("mc112.deathvis." + m + "." + own), bot);
+                    }
+                }
+                cmd("scoreboard teams remove mc112deathA");
+                cmd("scoreboard teams remove mc112deathB");
+                result("a removed team forgets the option", "always".equals(ru.codex.offhand1710.Rules112.TeamOptions.deathVisibility("mc112deathA")), "");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                // 0: the player is on no team, 1: on the dead player's team
+                boolean ok = chat.seen("mc112.deathvis.always.0") && !chat.seen("mc112.deathvis.never.0") && !chat.seen("mc112.deathvis.hideForOtherTeams.0") && chat.seen("mc112.deathvis.hideForOwnTeam.0")
+                    && chat.seen("mc112.deathvis.always.1") && !chat.seen("mc112.deathvis.never.1") && chat.seen("mc112.deathvis.hideForOtherTeams.1") && !chat.seen("mc112.deathvis.hideForOwnTeam.1");
+                result("deathMessageVisibility: always, never, hideForOtherTeams, hideForOwnTeam as in 1.12.2", ok, String.valueOf(chat.keys));
+            }
+        });
         finish();
     }
 

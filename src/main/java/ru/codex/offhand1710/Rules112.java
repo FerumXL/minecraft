@@ -259,8 +259,88 @@ public final class Rules112 {
 
     /** EntityPlayerMP.onDeath: the death message goes to chat only with showDeathMessages. */
     public static void deathMessage(ServerConfigurationManager players, IChatComponent message, EntityPlayerMP dead) {
-        if (flag(dead.worldObj, "showDeathMessages")) {
+        if (!flag(dead.worldObj, "showDeathMessages")) {
+            return;
+        }
+        net.minecraft.scoreboard.ScorePlayerTeam team = dead.worldObj.getScoreboard().getPlayersTeam(dead.getCommandSenderName());
+        String vis = team == null ? "always" : TeamOptions.deathVisibility(team.getRegisteredName());
+        if ("always".equals(vis)) {
             players.sendChatMsg(message);
+        } else if ("hideForOtherTeams".equals(vis)) {
+            // PlayerList.sendMessageToAllTeamMembers of 1.12.2: the team without the dead player
+            for (Object o : team.getMembershipCollection()) {
+                EntityPlayerMP p = players.func_152612_a((String) o);
+                if (p != null && p != dead) {
+                    p.addChatMessage(message);
+                }
+            }
+        } else if ("hideForOwnTeam".equals(vis)) {
+            // PlayerList.sendMessageToTeamOrAllPlayers of 1.12.2: everyone not on the team
+            for (Object o : players.playerEntityList) {
+                EntityPlayerMP p = (EntityPlayerMP) o;
+                if (dead.worldObj.getScoreboard().getPlayersTeam(p.getCommandSenderName()) != team) {
+                    p.addChatMessage(message);
+                }
+            }
+        }
+    }
+
+    /**
+     * Team options of 1.12.2 that ScorePlayerTeam of 1.7.10 has no field for (deathMessageVisibility), by team name,
+     * saved with the overworld. -Dmc112.deathVis17 leaves "scoreboard teams option" and death messages as in 1.7.10.
+     */
+    public static final class TeamOptions extends net.minecraft.world.WorldSavedData {
+        public static final boolean OFF = System.getProperty("mc112.deathVis17") != null;
+        public static final String KEY = "mc112teams";
+        /** Team.EnumVisible of 1.12.2. */
+        public static final String[] VISIBLE = {"always", "never", "hideForOtherTeams", "hideForOwnTeam"};
+        public final Map<String, String> death = new java.util.HashMap<String, String>();
+
+        public TeamOptions(String key) {
+            super(key);
+        }
+
+        @Override
+        public void readFromNBT(net.minecraft.nbt.NBTTagCompound nbt) {
+            death.clear();
+            net.minecraft.nbt.NBTTagCompound d = nbt.getCompoundTag("DeathMessageVisibility");
+            for (Object k : d.func_150296_c()) {
+                death.put((String) k, d.getString((String) k));
+            }
+        }
+
+        @Override
+        public void writeToNBT(net.minecraft.nbt.NBTTagCompound nbt) {
+            net.minecraft.nbt.NBTTagCompound d = new net.minecraft.nbt.NBTTagCompound();
+            for (Map.Entry<String, String> e : death.entrySet()) {
+                d.setString(e.getKey(), e.getValue());
+            }
+            nbt.setTag("DeathMessageVisibility", d);
+        }
+
+        public static TeamOptions get() {
+            World w = MinecraftServer.getServer().worldServers[0];
+            TeamOptions t = (TeamOptions) w.mapStorage.loadData(TeamOptions.class, KEY);
+            if (t == null) {
+                t = new TeamOptions(KEY);
+                w.mapStorage.setData(KEY, t);
+            }
+            return t;
+        }
+
+        public static String deathVisibility(String team) {
+            if (OFF) {
+                return "always";
+            }
+            String v = get().death.get(team);
+            return v == null ? "always" : v;
+        }
+
+        public static void set(String team, String value) {
+            TeamOptions t = get();
+            if (value == null ? t.death.remove(team) != null : !value.equals(t.death.put(team, value))) {
+                t.markDirty();
+            }
         }
     }
 
