@@ -180,7 +180,43 @@ public final class Spectator112 {
     public void onInteract(PlayerInteractEvent event) {
         if (is(event.entityPlayer)) {
             event.setCanceled(true);
+            if (event.action == PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK && !event.entityPlayer.worldObj.isRemote && !CONTAINERS_OFF) {
+                openContainer(event.entityPlayer, event.x, event.y, event.z);
+            }
         }
+    }
+
+    /** -Dmc112.spectatorChests17: a spectator opens nothing, as before. */
+    static final boolean CONTAINERS_OFF = System.getProperty("mc112.spectatorChests17") != null;
+
+    /**
+     * PlayerInteractionManager.processRightClickBlock of 1.12.2 for a spectator: a container opens to look into
+     * (Container.slotClick refuses its clicks, see noClick); nothing else is touched.
+     */
+    static void openContainer(EntityPlayer player, int x, int y, int z) {
+        net.minecraft.world.World w = player.worldObj;
+        net.minecraft.tileentity.TileEntity te = w.getTileEntity(x, y, z);
+        if (te instanceof net.minecraft.tileentity.TileEntityChest && w.getBlock(x, y, z) instanceof net.minecraft.block.BlockChest) {
+            net.minecraft.inventory.IInventory inv = ((net.minecraft.block.BlockChest) w.getBlock(x, y, z)).func_149951_m(w, x, y, z);
+            if (inv != null) {
+                player.displayGUIChest(inv);
+            }
+        } else if (te instanceof net.minecraft.tileentity.TileEntityFurnace) {
+            player.func_146101_a((net.minecraft.tileentity.TileEntityFurnace) te);
+        } else if (te instanceof net.minecraft.tileentity.TileEntityDispenser) {
+            player.func_146102_a((net.minecraft.tileentity.TileEntityDispenser) te);
+        } else if (te instanceof net.minecraft.tileentity.TileEntityBrewingStand) {
+            player.func_146098_a((net.minecraft.tileentity.TileEntityBrewingStand) te);
+        } else if (te instanceof net.minecraft.tileentity.TileEntityHopper) {
+            player.func_146093_a((net.minecraft.tileentity.TileEntityHopper) te);
+        } else if (te instanceof net.minecraft.inventory.IInventory) {
+            player.displayGUIChest((net.minecraft.inventory.IInventory) te);
+        }
+    }
+
+    /** Start of Container.slotClick (coremod): a spectator may look, not take. */
+    public static boolean noClick(EntityPlayer player) {
+        return !CONTAINERS_OFF && player != null && is(player);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)

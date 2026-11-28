@@ -308,10 +308,75 @@ public final class Debug112 {
             Block c = alongX ? w.getBlock(x + 1, y, z) : w.getBlock(x, y, z + 1);
             put(p, "in_wall", a instanceof net.minecraft.block.BlockWall || c instanceof net.minecraft.block.BlockWall);
         }
+        if (b instanceof net.minecraft.block.BlockStairs && p.containsKey("shape")) {
+            p.put("shape", stairsShape(w, x, y, z, b, p));
+        }
         if (p.containsKey("snowy")) {
             Block above = w.getBlock(x, y + 1, z);
             put(p, "snowy", above == net.minecraft.init.Blocks.snow || above == net.minecraft.init.Blocks.snow_layer);
         }
+    }
+
+    private static final String[] FACINGS = {"north", "east", "south", "west"};
+
+    private static int[] step(String facing) {
+        return "north".equals(facing) ? new int[] {0, -1} : "south".equals(facing) ? new int[] {0, 1} : "east".equals(facing) ? new int[] {1, 0} : new int[] {-1, 0};
+    }
+
+    private static String opposite(String f) {
+        return "north".equals(f) ? "south" : "south".equals(f) ? "north" : "east".equals(f) ? "west" : "east";
+    }
+
+    /** EnumFacing.rotateYCCW. */
+    private static String ccw(String f) {
+        return "north".equals(f) ? "west" : "west".equals(f) ? "south" : "south".equals(f) ? "east" : "north";
+    }
+
+    private static boolean xAxis(String f) {
+        return "east".equals(f) || "west".equals(f);
+    }
+
+    /** facing and half of a stairs block, or null. */
+    private static Map<String, String> stairs(net.minecraft.world.IBlockAccess w, int x, int y, int z) {
+        Block b = w.getBlock(x, y, z);
+        if (!(b instanceof net.minecraft.block.BlockStairs)) {
+            return null;
+        }
+        int meta = w.getBlockMetadata(x, y, z);
+        String n = States112.name112(b, meta);
+        return n == null ? null : States112.props(n, meta);
+    }
+
+    /** BlockStairs.getStairsShape of 1.12.2. */
+    static String stairsShape(net.minecraft.world.IBlockAccess w, int x, int y, int z, Block b, Map<String, String> self) {
+        String facing = self.get("facing");
+        String half = self.get("half");
+        if (facing == null || half == null) {
+            return "straight";
+        }
+        int[] f = step(facing);
+        Map<String, String> front = stairs(w, x + f[0], y, z + f[1]);
+        if (front != null && half.equals(front.get("half"))) {
+            String f1 = front.get("facing");
+            if (f1 != null && xAxis(f1) != xAxis(facing) && different(w, x, y, z, self, opposite(f1))) {
+                return f1.equals(ccw(facing)) ? "outer_left" : "outer_right";
+            }
+        }
+        Map<String, String> back = stairs(w, x - f[0], y, z - f[1]);
+        if (back != null && half.equals(back.get("half"))) {
+            String f2 = back.get("facing");
+            if (f2 != null && xAxis(f2) != xAxis(facing) && different(w, x, y, z, self, f2)) {
+                return f2.equals(ccw(facing)) ? "inner_left" : "inner_right";
+            }
+        }
+        return "straight";
+    }
+
+    /** BlockStairs.isDifferentStairs. */
+    private static boolean different(net.minecraft.world.IBlockAccess w, int x, int y, int z, Map<String, String> self, String side) {
+        int[] s = step(side);
+        Map<String, String> o = stairs(w, x + s[0], y, z + s[1]);
+        return o == null || !self.get("facing").equals(o.get("facing")) || !self.get("half").equals(o.get("half"));
     }
 
     private static void put(Map<String, String> p, String key, boolean value) {

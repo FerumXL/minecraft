@@ -894,6 +894,24 @@ public final class Transformer implements IClassTransformer {
             System.out.println("[mc112bridge] 1.12 task AI in " + transformedName + "." + found.name);
             return write(node);
         }
+        // a spectator of 1.12.2 looks into containers without taking anything (Spectator112.noClick)
+        if ("net.minecraft.inventory.Container".equals(transformedName) && System.getProperty("mc112.spectatorChests17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "slotClick", "func_75144_a") && "(IIILnet/minecraft/entity/player/EntityPlayer;)Lnet/minecraft/item/ItemStack;".equals(m.desc)) {
+                    InsnList head = new InsnList();
+                    org.objectweb.asm.tree.LabelNode go = new org.objectweb.asm.tree.LabelNode();
+                    head.add(new VarInsnNode(Opcodes.ALOAD, 4));
+                    head.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Spectator112", "noClick", "(Lnet/minecraft/entity/player/EntityPlayer;)Z", false));
+                    head.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.IFEQ, go));
+                    head.add(new org.objectweb.asm.tree.InsnNode(Opcodes.ACONST_NULL));
+                    head.add(new org.objectweb.asm.tree.InsnNode(Opcodes.ARETURN));
+                    head.add(go);
+                    m.instructions.insert(head);
+                }
+            }
+            return write(node);
+        }
         return bytes;
     }
 }

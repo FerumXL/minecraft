@@ -60,6 +60,67 @@ public final class SpectatorClient {
         }
     }
 
+    /** After the other handlers, which may still swap the models of this renderer (OffhandPlayerRenderer). */
+    @SubscribeEvent(priority = cpw.mods.fml.common.eventhandler.EventPriority.LOWEST)
+    public void onPlayerHead(RenderPlayerEvent.Pre event) {
+        EntityPlayer p = event.entityPlayer;
+        if (event.isCanceled()) {
+            return;
+        }
+        // RenderPlayer.setModelVisibilities and the TRANSPARENT_MODEL blend of 1.12.2: another spectator is a see-through head
+        if (Spectator112.is(p) && !HEADS_OFF) {
+            net.minecraft.client.model.ModelBiped m = event.renderer.modelBipedMain;
+            m.bipedBody.showModel = false;
+            m.bipedRightArm.showModel = false;
+            m.bipedLeftArm.showModel = false;
+            m.bipedRightLeg.showModel = false;
+            m.bipedLeftLeg.showModel = false;
+            m.bipedHead.showModel = true;
+            m.bipedHeadwear.showModel = true;
+            org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_BLEND);
+            org.lwjgl.opengl.GL11.glBlendFunc(org.lwjgl.opengl.GL11.GL_SRC_ALPHA, org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA);
+            org.lwjgl.opengl.GL11.glColor4f(1.0F, 1.0F, 1.0F, 0.15F);
+            org.lwjgl.opengl.GL11.glDepthMask(false);
+            headDrawn = p;
+        }
+    }
+
+    /** -Dmc112.spectatorHeads17: other spectators drawn whole, as before. */
+    private static final boolean HEADS_OFF = System.getProperty("mc112.spectatorHeads17") != null;
+    private EntityPlayer headDrawn;
+
+    @SubscribeEvent
+    public void onPlayerPost(RenderPlayerEvent.Post event) {
+        if (headDrawn == event.entityPlayer) {
+            headDrawn = null;
+            net.minecraft.client.model.ModelBiped m = event.renderer.modelBipedMain;
+            m.bipedBody.showModel = true;
+            m.bipedRightArm.showModel = true;
+            m.bipedLeftArm.showModel = true;
+            m.bipedRightLeg.showModel = true;
+            m.bipedLeftLeg.showModel = true;
+            org.lwjgl.opengl.GL11.glDepthMask(true);
+            org.lwjgl.opengl.GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        }
+    }
+
+    /** No armour, held items or cape on a spectator's head. */
+    @SubscribeEvent
+    public void onArmor(RenderPlayerEvent.SetArmorModel event) {
+        if (Spectator112.is(event.entityPlayer) && !HEADS_OFF) {
+            event.result = -1;
+        }
+    }
+
+    @SubscribeEvent
+    public void onSpecials(RenderPlayerEvent.Specials.Pre event) {
+        if (Spectator112.is(event.entityPlayer) && !HEADS_OFF) {
+            event.renderHelmet = false;
+            event.renderItem = false;
+            event.renderCape = false;
+        }
+    }
+
     @SubscribeEvent
     public void onHand(RenderHandEvent event) {
         if (self()) {

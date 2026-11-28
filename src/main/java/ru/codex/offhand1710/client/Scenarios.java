@@ -142,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "oldai19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "mobs19".equals(STAGE) || "ui19".equals(STAGE) || "oldai19".equals(STAGE) || "spec19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -666,6 +666,8 @@ public final class Scenarios {
             ui19Stage();
         } else if ("oldai19".equals(STAGE)) {
             oldAIStage();
+        } else if ("spec19".equals(STAGE)) {
+            spec19Stage();
         } else if ("visual".equals(STAGE)) {
             visual();
         } else if ("online".equals(STAGE)) {
@@ -3837,6 +3839,17 @@ public final class Scenarios {
                     String plantTop = actual(ws, bx + 11, by + 1, bz, got);
                     String wire = actual(ws, bx + 13, by, bz, got);
                     String gate = actual(ws, bx + 13, by, bz + 2, got);
+                    // an outer corner: oak stairs facing east, in front of it (east) stairs facing north
+                    java.util.Map<String, String> want = new java.util.TreeMap<String, String>();
+                    want.put("facing", "east");
+                    want.put("half", "bottom");
+                    want.put("shape", "straight");
+                    int metaEast = ru.codex.offhand1710.States112.meta("minecraft:oak_stairs", want);
+                    want.put("facing", "north");
+                    int metaNorth = ru.codex.offhand1710.States112.meta("minecraft:oak_stairs", want);
+                    ws.setBlock(bx + 2, by, bz + 2, net.minecraft.init.Blocks.oak_stairs, Math.max(0, metaEast), 2);
+                    ws.setBlock(bx + 3, by, bz + 2, net.minecraft.init.Blocks.oak_stairs, Math.max(0, metaNorth), 2);
+                    String stair = actual(ws, bx + 2, by, bz + 2, got);
                     result("F3 block lines: neighbours as getActualState of 1.12.2 (fence, wall, pane, snowy, door, double plant, redstone, gate)",
                         fence.contains("east=true") && fence.contains("west=false")
                         && wallMid.contains("north=true") && wallMid.contains("south=true") && wallMid.contains("up=false")
@@ -3846,7 +3859,7 @@ public final class Scenarios {
                         && doorTop.contains("half=upper") && doorTop.contains("facing=south")
                         && plantTop.contains("half=upper") && plantTop.contains("variant=sunflower")
                         && wire.contains("east=up")
-                        && gate.contains("in_wall=true"), got.toString());
+                        && gate.contains("in_wall=true") && stair.contains("shape=outer_left"), got.toString());
                 }
                 cmd("gamerule reducedDebugInfo false");
                 cmd("gamerule announceAdvancements false");
@@ -5351,6 +5364,68 @@ public final class Scenarios {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    private int[] chestAt;
+
+    /** Spectators of 1.12.2: looking into containers, other spectators as heads (Spectator112, SpectatorClient). */
+    private void spec19Stage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+                int x = (int) Math.floor(p().posX) + 2;
+                int y = (int) Math.floor(p().posY);
+                int z = (int) Math.floor(p().posZ);
+                chestAt = new int[] {x, y, z};
+                w().setBlockToAir(x, y + 1, z);
+                w().setBlock(x, y, z, net.minecraft.init.Blocks.chest);
+                net.minecraft.tileentity.TileEntityChest c = (net.minecraft.tileentity.TileEntityChest) w().getTileEntity(x, y, z);
+                c.setInventorySlotContents(0, new ItemStack(Items.diamond, 5));
+                cmd("gamemode spectator");
+            }
+        });
+        server(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraftforge.event.entity.player.PlayerInteractEvent e = new net.minecraftforge.event.entity.player.PlayerInteractEvent(p(),
+                    net.minecraftforge.event.entity.player.PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK, chestAt[0], chestAt[1], chestAt[2], 1, w());
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(e);
+                boolean open = p().openContainer instanceof net.minecraft.inventory.ContainerChest;
+                ItemStack taken = open ? p().openContainer.slotClick(0, 0, 0, p()) : null;
+                net.minecraft.tileentity.TileEntityChest c = (net.minecraft.tileentity.TileEntityChest) w().getTileEntity(chestAt[0], chestAt[1], chestAt[2]);
+                result("a spectator right-clicking a chest sees into it but cannot take anything", ru.codex.offhand1710.Spectator112.is(p()) && e.isCanceled() && open
+                    && taken == null && c.getStackInSlot(0) != null && c.getStackInSlot(0).stackSize == 5 && p().inventory.getItemStack() == null,
+                    "open=" + open + " slot0=" + c.getStackInSlot(0) + " cursor=" + p().inventory.getItemStack());
+                p().closeScreen();
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.client.entity.EntityOtherPlayerMP other = new net.minecraft.client.entity.EntityOtherPlayerMP(mc.theWorld,
+                    new com.mojang.authlib.GameProfile(java.util.UUID.nameUUIDFromBytes("mc112Ghost".getBytes()), "Ghost"));
+                other.setEntityId(987654);
+                ru.codex.offhand1710.Spectator112.CLIENT.add(987654);
+                net.minecraft.client.renderer.entity.RenderPlayer r = (net.minecraft.client.renderer.entity.RenderPlayer)
+                    net.minecraft.client.renderer.entity.RenderManager.instance.getEntityRenderObject(other);
+                net.minecraftforge.client.event.RenderPlayerEvent.Pre pre = new net.minecraftforge.client.event.RenderPlayerEvent.Pre(other, r, 1.0F);
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(pre);
+                boolean head = !pre.isCanceled() && r.modelBipedMain.bipedHead.showModel && !r.modelBipedMain.bipedBody.showModel && !r.modelBipedMain.bipedLeftLeg.showModel;
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.client.event.RenderPlayerEvent.Post(other, r, 1.0F));
+                boolean back = r.modelBipedMain.bipedBody.showModel && r.modelBipedMain.bipedLeftLeg.showModel;
+                ru.codex.offhand1710.Spectator112.CLIENT.remove(987654);
+                result("a spectator sees another spectator as a head only; the model is whole again afterwards", ru.codex.offhand1710.Spectator112.is(mc.thePlayer) && head && back,
+                    "self=" + ru.codex.offhand1710.Spectator112.is(mc.thePlayer) + " head=" + head + " back=" + back);
+            }
+        });
+        server(10, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 1");
+            }
+        });
+        finish();
     }
 
     private int[] frameAt;
