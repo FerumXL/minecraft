@@ -202,6 +202,7 @@ public final class Debug112 {
             right.add(n112 != null ? n112 : String.valueOf(Block.blockRegistry.getNameForObject(b)));
             Map<String, String> props = n112 == null ? null : States112.props(n112, meta);
             if (props != null) {
+                actualState(world, hit.blockX, hit.blockY, hit.blockZ, b, props);
                 for (Map.Entry<String, String> p : props.entrySet()) {
                     String v = p.getValue();
                     if ("true".equals(v)) {
@@ -217,6 +218,106 @@ public final class Debug112 {
             right.add(right17.get(i));
         }
         return true;
+    }
+
+    /**
+     * Block.getActualState of 1.12.2 for the properties it takes from the neighbours, which the metadata of 1.7.10 does
+     * not hold: connections of fences, walls, panes, vines and redstone, snowy, the other half of doors and double
+     * plants, in_wall of fence gates. The connections are those the 1.7.10 renderer draws. -Dmc112.actualState17 shows
+     * the metadata only.
+     */
+    public static void actualState(net.minecraft.world.IBlockAccess w, int x, int y, int z, Block b, Map<String, String> p) {
+        if (System.getProperty("mc112.actualState17") != null) {
+            return;
+        }
+        if (b instanceof net.minecraft.block.BlockFence) {
+            net.minecraft.block.BlockFence f = (net.minecraft.block.BlockFence) b;
+            put(p, "north", f.canConnectFenceTo(w, x, y, z - 1));
+            put(p, "south", f.canConnectFenceTo(w, x, y, z + 1));
+            put(p, "west", f.canConnectFenceTo(w, x - 1, y, z));
+            put(p, "east", f.canConnectFenceTo(w, x + 1, y, z));
+        } else if (b instanceof net.minecraft.block.BlockWall) {
+            net.minecraft.block.BlockWall wall = (net.minecraft.block.BlockWall) b;
+            boolean n = wall.canConnectWallTo(w, x, y, z - 1);
+            boolean s = wall.canConnectWallTo(w, x, y, z + 1);
+            boolean we = wall.canConnectWallTo(w, x - 1, y, z);
+            boolean e = wall.canConnectWallTo(w, x + 1, y, z);
+            boolean straight = n && !e && s && !we || !n && e && !s && we;
+            put(p, "north", n);
+            put(p, "south", s);
+            put(p, "west", we);
+            put(p, "east", e);
+            put(p, "up", !straight || !w.isAirBlock(x, y + 1, z));
+        } else if (b instanceof net.minecraft.block.BlockPane) {
+            net.minecraft.block.BlockPane pane = (net.minecraft.block.BlockPane) b;
+            put(p, "north", pane.canPaneConnectTo(w, x, y, z - 1, net.minecraftforge.common.util.ForgeDirection.NORTH));
+            put(p, "south", pane.canPaneConnectTo(w, x, y, z + 1, net.minecraftforge.common.util.ForgeDirection.SOUTH));
+            put(p, "west", pane.canPaneConnectTo(w, x - 1, y, z, net.minecraftforge.common.util.ForgeDirection.WEST));
+            put(p, "east", pane.canPaneConnectTo(w, x + 1, y, z, net.minecraftforge.common.util.ForgeDirection.EAST));
+        } else if (b instanceof net.minecraft.block.BlockRedstoneWire) {
+            // RenderBlocks.renderBlockRedstoneWire of 1.7.10: a side, or up the face of a full block
+            boolean coverUp = w.getBlock(x, y + 1, z).isNormalCube();
+            int[][] sides = {{0, -1, 2}, {0, 1, 0}, {-1, 0, 1}, {1, 0, 3}};
+            String[] names = {"north", "south", "west", "east"};
+            for (int i = 0; i < 4; i++) {
+                int sx = x + sides[i][0];
+                int sz = z + sides[i][1];
+                boolean full = w.getBlock(sx, y, sz).isNormalCube();
+                String v = "none";
+                if (!coverUp && full && net.minecraft.block.BlockRedstoneWire.isPowerProviderOrWire(w, sx, y + 1, sz, -1)) {
+                    v = "up";
+                } else if (net.minecraft.block.BlockRedstoneWire.isPowerProviderOrWire(w, sx, y, sz, sides[i][2])
+                    || !full && net.minecraft.block.BlockRedstoneWire.isPowerProviderOrWire(w, sx, y - 1, sz, -1)) {
+                    v = "side";
+                }
+                if (p.containsKey(names[i])) {
+                    p.put(names[i], v);
+                }
+            }
+        } else if (b instanceof net.minecraft.block.BlockVine) {
+            Block above = w.getBlock(x, y + 1, z);
+            put(p, "up", above.renderAsNormalBlock() && above.getMaterial().blocksMovement());
+        } else if (b instanceof net.minecraft.block.BlockDoor) {
+            int meta = w.getBlockMetadata(x, y, z);
+            boolean upper = (meta & 8) != 0;
+            int oy = upper ? y - 1 : y + 1;
+            if (w.getBlock(x, oy, z) == b) {
+                String n112 = States112.name112(b, meta);
+                Map<String, String> other = n112 == null ? null : States112.props(n112, w.getBlockMetadata(x, oy, z));
+                if (other != null) {
+                    for (String k : upper ? new String[] {"facing", "open"} : new String[] {"hinge", "powered"}) {
+                        if (other.containsKey(k) && p.containsKey(k)) {
+                            p.put(k, other.get(k));
+                        }
+                    }
+                }
+            }
+        } else if (b instanceof net.minecraft.block.BlockDoublePlant) {
+            int meta = w.getBlockMetadata(x, y, z);
+            if ((meta & 8) != 0 && w.getBlock(x, y - 1, z) == b) {
+                String n112 = States112.name112(b, w.getBlockMetadata(x, y - 1, z));
+                Map<String, String> lower = n112 == null ? null : States112.props(n112, w.getBlockMetadata(x, y - 1, z));
+                if (lower != null && lower.containsKey("variant") && p.containsKey("variant")) {
+                    p.put("variant", lower.get("variant"));
+                }
+            }
+        } else if (b instanceof net.minecraft.block.BlockFenceGate) {
+            int dir = net.minecraft.block.BlockDirectional.getDirection(w.getBlockMetadata(x, y, z));
+            boolean alongX = dir == 0 || dir == 2;
+            Block a = alongX ? w.getBlock(x - 1, y, z) : w.getBlock(x, y, z - 1);
+            Block c = alongX ? w.getBlock(x + 1, y, z) : w.getBlock(x, y, z + 1);
+            put(p, "in_wall", a instanceof net.minecraft.block.BlockWall || c instanceof net.minecraft.block.BlockWall);
+        }
+        if (p.containsKey("snowy")) {
+            Block above = w.getBlock(x, y + 1, z);
+            put(p, "snowy", above == net.minecraft.init.Blocks.snow || above == net.minecraft.init.Blocks.snow_layer);
+        }
+    }
+
+    private static void put(Map<String, String> p, String key, boolean value) {
+        if (p.containsKey(key)) {
+            p.put(key, String.valueOf(value));
+        }
     }
 
     /** Minecraft.debug of 1.12.2 from that of 1.7.10 ("60 fps, 3 chunk updates"). */

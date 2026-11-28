@@ -366,6 +366,20 @@ public final class Scenarios {
         });
     }
 
+    /** The F3 block line of 1.12.2 for a block: name and properties with getActualState (Debug112.actualState). */
+    private static String actual(WorldServer ws, int x, int y, int z, StringBuilder log) {
+        net.minecraft.block.Block b = ws.getBlock(x, y, z);
+        int meta = ws.getBlockMetadata(x, y, z);
+        String n = ru.codex.offhand1710.States112.name112(b, meta);
+        java.util.Map<String, String> p = n == null ? null : ru.codex.offhand1710.States112.props(n, meta);
+        if (p != null) {
+            Debug112.actualState(ws, x, y, z, b, p);
+        }
+        String s = n + p;
+        log.append(s).append(' ');
+        return s;
+    }
+
     private void shot(String name) {
         ScreenShotHelper.saveScreenshot(mc.mcDataDir, "s-" + name + ".png", mc.displayWidth, mc.displayHeight, mc.getFramebuffer());
     }
@@ -3762,6 +3776,56 @@ public final class Scenarios {
                     result("F3 + G shows the chunk borders, F3 + Q lists the keys", g && Debug112.PRINTED.contains("debug.chunk_boundaries.on") && Debug112.PRINTED.contains("debug.help.message")
                         && Debug112.PRINTED.contains("debug.reload_resourcepacks.help"), String.valueOf(Debug112.PRINTED));
                     mc.gameSettings.showDebugInfo = true;
+                    // getActualState of 1.12.2 in the block lines (Debug112.actualState)
+                    WorldServer ws = w();
+                    int bx = sx + 20;
+                    int by = sy + 1;
+                    int bz = sz + 20;
+                    for (int dx = -1; dx <= 14; dx++) {
+                        for (int dz = -1; dz <= 3; dz++) {
+                            ws.setBlock(bx + dx, by - 1, bz + dz, net.minecraft.init.Blocks.stone);
+                            for (int dy = 0; dy <= 2; dy++) {
+                                ws.setBlockToAir(bx + dx, by + dy, bz + dz);
+                            }
+                        }
+                    }
+                    ws.setBlock(bx, by, bz, net.minecraft.init.Blocks.fence);
+                    ws.setBlock(bx + 1, by, bz, net.minecraft.init.Blocks.stone);
+                    ws.setBlock(bx + 3, by, bz, net.minecraft.init.Blocks.cobblestone_wall);
+                    ws.setBlock(bx + 3, by, bz + 1, net.minecraft.init.Blocks.cobblestone_wall);
+                    ws.setBlock(bx + 3, by, bz - 1, net.minecraft.init.Blocks.cobblestone_wall);
+                    ws.setBlock(bx + 5, by, bz, net.minecraft.init.Blocks.glass_pane);
+                    ws.setBlock(bx + 5, by, bz + 1, net.minecraft.init.Blocks.glass);
+                    ws.setBlock(bx + 7, by, bz, net.minecraft.init.Blocks.grass);
+                    ws.setBlock(bx + 7, by + 1, bz, net.minecraft.init.Blocks.snow_layer);
+                    net.minecraft.item.ItemDoor.placeDoorBlock(ws, bx + 9, by, bz, 1, net.minecraft.init.Blocks.wooden_door);
+                    ws.setBlock(bx + 11, by - 1, bz, net.minecraft.init.Blocks.grass);
+                    net.minecraft.init.Blocks.double_plant.func_149889_c(ws, bx + 11, by, bz, 0, 2);
+                    ws.setBlock(bx + 13, by, bz, net.minecraft.init.Blocks.redstone_wire);
+                    ws.setBlock(bx + 14, by, bz, net.minecraft.init.Blocks.stone);
+                    ws.setBlock(bx + 14, by + 1, bz, net.minecraft.init.Blocks.redstone_wire);
+                    ws.setBlock(bx + 13, by, bz + 2, net.minecraft.init.Blocks.fence_gate, 0, 2);
+                    ws.setBlock(bx + 12, by, bz + 2, net.minecraft.init.Blocks.cobblestone_wall);
+                    StringBuilder got = new StringBuilder();
+                    String fence = actual(ws, bx, by, bz, got);
+                    String wallMid = actual(ws, bx + 3, by, bz, got);
+                    String wallEnd = actual(ws, bx + 3, by, bz + 1, got);
+                    String pane = actual(ws, bx + 5, by, bz, got);
+                    String grass = actual(ws, bx + 7, by, bz, got);
+                    String doorTop = actual(ws, bx + 9, by + 1, bz, got);
+                    String plantTop = actual(ws, bx + 11, by + 1, bz, got);
+                    String wire = actual(ws, bx + 13, by, bz, got);
+                    String gate = actual(ws, bx + 13, by, bz + 2, got);
+                    result("F3 block lines: neighbours as getActualState of 1.12.2 (fence, wall, pane, snowy, door, double plant, redstone, gate)",
+                        fence.contains("east=true") && fence.contains("west=false")
+                        && wallMid.contains("north=true") && wallMid.contains("south=true") && wallMid.contains("up=false")
+                        && wallEnd.contains("up=true")
+                        && pane.contains("south=true") && pane.contains("north=false")
+                        && grass.contains("snowy=true")
+                        && doorTop.contains("half=upper") && doorTop.contains("facing=south")
+                        && plantTop.contains("half=upper") && plantTop.contains("variant=sunflower")
+                        && wire.contains("east=up")
+                        && gate.contains("in_wall=true"), got.toString());
                 }
                 cmd("gamerule reducedDebugInfo false");
                 cmd("gamerule announceAdvancements false");
