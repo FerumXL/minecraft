@@ -52,6 +52,21 @@ final class RulePatches {
                     list.add(new InsnNode(Opcodes.POP));
                     m.instructions.insert(list);
                     count++;
+                    if (System.getProperty("mc112.nullChunk17") == null) {
+                        // a null result (a chunk read while Forge saves it on its IO thread) crashes the caller:
+                        // the empty chunk stands in for that one read
+                        for (org.objectweb.asm.tree.AbstractInsnNode n : m.instructions.toArray()) {
+                            if (n.getOpcode() == Opcodes.ARETURN) {
+                                InsnList guard = new InsnList();
+                                guard.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                                guard.add(new VarInsnNode(Opcodes.ILOAD, 1));
+                                guard.add(new VarInsnNode(Opcodes.ILOAD, 2));
+                                guard.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Hooks112", "notNullChunk",
+                                    "(Lnet/minecraft/world/chunk/Chunk;Lnet/minecraft/world/gen/ChunkProviderServer;II)Lnet/minecraft/world/chunk/Chunk;", false));
+                                m.instructions.insertBefore(n, guard);
+                            }
+                        }
+                    }
                 }
             }
             System.out.println("[mc112bridge] spectatorsGenerateChunks in ChunkProviderServer: " + count);

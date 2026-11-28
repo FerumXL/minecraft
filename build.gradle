@@ -10,7 +10,7 @@ buildscript {
 
 apply plugin: 'forge'
 
-version = '0.47.0'
+version = '1.0.0'
 group = 'ru.ferumxl.mc112bridge'
 archivesBaseName = 'mc112bridge'
 
@@ -20,6 +20,9 @@ targetCompatibility = 1.6
 minecraft {
     version = '1.7.10-10.13.4.1614-1.7.10'
     runDir = 'run'
+    // the @Mod version (shown in the handshake and in the mod rejection message) follows the build
+    replace '@VERSION@', project.version
+    replaceIn 'MC112Bridge.java'
 }
 
 processResources {

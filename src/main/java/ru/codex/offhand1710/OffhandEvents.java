@@ -97,6 +97,23 @@ public final class OffhandEvents {
         OffhandMessages.synchronize((EntityPlayerMP) event.player);
     }
 
+    /**
+     * A player who comes into view of another (or joins next to one) gets the offhand and elytra state of that one;
+     * without it a later viewer sees an empty offhand until the item changes. -Dmc112.noTrackSync turns it off.
+     */
+    @SubscribeEvent
+    public void onStartTracking(PlayerEvent.StartTracking event) {
+        if (System.getProperty("mc112.noTrackSync") != null || !(event.target instanceof EntityPlayerMP) || !(event.entityPlayer instanceof EntityPlayerMP)) {
+            return;
+        }
+        EntityPlayerMP target = (EntityPlayerMP) event.target;
+        EntityPlayerMP viewer = (EntityPlayerMP) event.entityPlayer;
+        MC112Bridge.NETWORK.channel.sendTo(new OffhandMessages.Sync(target), viewer);
+        if (OffhandInventory.get(target).elytraFlying) {
+            MC112Bridge.NETWORK.channel.sendTo(new OffhandMessages.ElytraState(target.getEntityId(), true, 0), viewer);
+        }
+    }
+
     @SubscribeEvent
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         OffhandMessages.synchronize((EntityPlayerMP) event.player);

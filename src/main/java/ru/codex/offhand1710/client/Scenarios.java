@@ -34,6 +34,7 @@ import net.minecraft.entity.EntityList;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.passive.EntityPig;
 import net.minecraft.entity.passive.EntityVillager;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.projectile.EntityArrow;
 import net.minecraft.entity.projectile.EntityFishHook;
@@ -71,6 +72,8 @@ import ru.codex.offhand1710.Trades112;
 /** Client-driven test scenarios; active only with MC112_AUDIT = more, more2, scene or bench. */
 public final class Scenarios {
     private static final String STAGE = System.getenv("MC112_AUDIT");
+    /** Stages played on a dedicated server instead of an integrated one. */
+    private static final boolean NET = "online".equals(STAGE) || "duo".equals(STAGE);
     private final Minecraft mc = Minecraft.getMinecraft();
     private final ArrayDeque<Step> steps = new ArrayDeque<Step>();
     private FileWriter out;
@@ -139,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -250,6 +253,115 @@ public final class Scenarios {
                 say("/kill @e[type=Chicken]");
                 say("/clear");
                 say("/worldborder set 60000000");
+                // the next block: elytra, an advancement and its toast, a dragon
+                say("/replaceitem entity @p slot.armor.chest mc112bridge:elytra 1");
+                say("/advancement grant @p only minecraft:story/root");
+                say("/summon EnderDragon ~ ~12 ~8 {NoAI:1b}");
+                say("/tp @p ~ ~120 ~");
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.capabilities.isFlying = false;
+                mc.thePlayer.sendPlayerAbilities();
+            }
+        });
+        client(8, new Runnable() {
+            @Override
+            public void run() {
+                // falling: the client asks to open the wings (what the jump key does in the air)
+                ru.codex.offhand1710.MC112Bridge.NETWORK.channel.sendToServer(new ru.codex.offhand1710.OffhandMessages.ElytraStart());
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                result("elytra flight started by the server reaches the client (ElytraState)", ru.codex.offhand1710.OffhandInventory.get(mc.thePlayer).elytraFlying,
+                    "y=" + (int) mc.thePlayer.posY + " motionY=" + mc.thePlayer.motionY);
+                java.util.Set<?> done = java.util.Collections.emptySet();
+                int toasts = -1;
+                try {
+                    java.lang.reflect.Field f = DataClient.class.getDeclaredField("DONE");
+                    f.setAccessible(true);
+                    done = (java.util.Set<?>) f.get(null);
+                    java.lang.reflect.Field q = DataClient.class.getDeclaredField("TOAST_QUEUE");
+                    q.setAccessible(true);
+                    Object queue = q.get(null);
+                    toasts = queue instanceof java.util.Collection ? ((java.util.Collection<?>) queue).size() : -2;
+                } catch (ReflectiveOperationException e) {
+                    log("reflection " + e);
+                }
+                result("a granted advancement reaches the client (Data112.Sync)", done.contains("minecraft:story/root") || done.contains("story/root"), "done=" + done);
+                net.minecraft.entity.boss.EntityDragon dragon = null;
+                for (Object o : mc.theWorld.loadedEntityList) {
+                    dragon = o instanceof net.minecraft.entity.boss.EntityDragon ? (net.minecraft.entity.boss.EntityDragon) o : dragon;
+                }
+                result("a dragon is seen by the client", dragon != null, "dragon=" + dragon + " toastQueue=" + toasts);
+                say("/kill @e[type=EnderDragon]");
+                say("/clear");
+                say("/tp @p ~ 4 ~");
+            }
+        });
+    }
+
+    private EntityPlayer other() {
+        for (Object o : mc.theWorld.playerEntities) {
+            if (o != mc.thePlayer) {
+                return (EntityPlayer) o;
+            }
+        }
+        return null;
+    }
+
+    private static String offName(EntityPlayer pl) {
+        ItemStack s = pl == null ? null : ru.codex.offhand1710.OffhandInventory.get(pl).getStack();
+        return s == null ? "none" : s.getItem() == null ? "?" : s.getItem().getUnlocalizedName();
+    }
+
+    /**
+     * Stage duo: two clients on one dedicated server, MC112_ROLE A (joins first) and B (joins about a minute later).
+     * A sets its offhand before B comes, so B sees it only through the sync sent when B starts tracking A.
+     */
+    private void duo() {
+        final boolean a = !"B".equals(System.getenv("MC112_ROLE"));
+        client(40, new Runnable() {
+            @Override
+            public void run() {
+                say("/gamemode 1");
+                say("/clear");
+                say("/replaceitem entity @p slot.weapon.offhand " + (a ? "mc112bridge:shield" : "torch") + " 1");
+                say("/replaceitem entity @p slot.armor.chest " + (a ? "mc112bridge:elytra" : "diamond_chestplate") + " 1");
+                say("/replaceitem entity @p slot.weapon.mainhand " + (a ? "diamond_sword" : "bow") + " 1");
+                if (!a) {
+                    say("/tp @p AuditBot");
+                }
+            }
+        });
+        client(a ? 2600 : 100, new Runnable() {
+            @Override
+            public void run() {
+                EntityPlayer o = other();
+                result("the other player is seen", o != null, "players=" + mc.theWorld.playerEntities.size());
+                // by A's check B has already swapped: bow in the offhand, torch in the main hand
+                String want = a ? "bow" : "shield";
+                result("the other player's offhand is seen (" + want + ")", offName(o).contains(want), "offhand=" + offName(o));
+                ItemStack chest = o == null ? null : o.getEquipmentInSlot(3);
+                result("the other player's chest armor is seen", chest != null && (a ? chest.getItem() == Items.diamond_chestplate : chest.getItem() instanceof ru.codex.offhand1710.ItemElytra),
+                    "chest=" + chest);
+                ItemStack held = o == null ? null : o.getHeldItem();
+                result("the other player's main hand is seen", held != null && held.getItem() == (a ? Item.getItemFromBlock(net.minecraft.init.Blocks.torch) : Items.diamond_sword), "held=" + held);
+                if (!a) {
+                    // B swaps: A must see the torch go to B's main hand and the bow to the offhand
+                    ru.codex.offhand1710.MC112Bridge.NETWORK.channel.sendToServer(new ru.codex.offhand1710.OffhandMessages.SwapRequest());
+                }
+            }
+        });
+        // B stays until A has looked at it (A checks about 130 s after joining, B joins about 60 s after A)
+        client(a ? 100 : 2000, new Runnable() {
+            @Override
+            public void run() {
+                say("/clear");
             }
         });
     }
@@ -334,7 +446,7 @@ public final class Scenarios {
             mc.gameSettings.pauseOnLostFocus = false;
             String rd = System.getenv("MC112_BENCH_RD");
             mc.gameSettings.renderDistanceChunks = rd == null ? 8 : Integer.parseInt(rd);
-            if ("online".equals(STAGE)) {
+            if (NET) {
                 // a dedicated server (MC112_SERVER, default localhost:25565) instead of an integrated one
                 String addr = System.getenv("MC112_SERVER") == null ? "localhost:25565" : System.getenv("MC112_SERVER");
                 // FML sets up its server list (and the latch the handshake waits on) only from the multiplayer screen
@@ -373,7 +485,7 @@ public final class Scenarios {
             mc.launchIntegratedServer(world, world, new WorldSettings(112L, WorldSettings.GameType.CREATIVE, !"bench".equals(STAGE) ? false : true, false, type).enableCommands());
             return;
         }
-        if (mc.thePlayer == null || !"online".equals(STAGE) && (MinecraftServer.getServer() == null || MinecraftServer.getServer().getConfigurationManager().playerEntityList.isEmpty())) {
+        if (mc.thePlayer == null || !NET && (MinecraftServer.getServer() == null || MinecraftServer.getServer().getConfigurationManager().playerEntityList.isEmpty())) {
             return;
         }
         if (!started) {
@@ -444,6 +556,27 @@ public final class Scenarios {
             @Override
             public void run() {
                 log("DONE");
+                // if the game is still alive 30 s after asking it to stop, the stacks go to the log (a quit that hangs)
+                Thread quit = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Thread.sleep(30000L);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        StringBuilder b = new StringBuilder("QUIT HANGS\n");
+                        for (java.util.Map.Entry<Thread, StackTraceElement[]> en : Thread.getAllStackTraces().entrySet()) {
+                            b.append(en.getKey().getName()).append(' ').append(en.getKey().getState()).append('\n');
+                            for (StackTraceElement el : en.getValue()) {
+                                b.append("    ").append(el).append('\n');
+                            }
+                        }
+                        log(b.toString());
+                    }
+                }, "mc112-quitdog");
+                quit.setDaemon(true);
+                quit.start();
                 mc.shutdown();
             }
         });
@@ -502,6 +635,10 @@ public final class Scenarios {
             visual();
         } else if ("online".equals(STAGE)) {
             online();
+            finish();
+        } else if ("duo".equals(STAGE)) {
+            duo();
+            finish();
         } else if ("more2".equals(STAGE)) {
             server(40, new Runnable() {
                 @Override

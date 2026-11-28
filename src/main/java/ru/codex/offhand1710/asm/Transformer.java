@@ -746,6 +746,26 @@ public final class Transformer implements IClassTransformer {
         if ("net.minecraft.item.ItemStack".equals(transformedName)) {
             return Entities.itemStack(bytes);
         }
+        if ("net.minecraft.client.renderer.entity.Render".equals(transformedName) && System.getProperty("mc112.shadow17") == null) {
+            // renderShadow of 1.7.10 measures from posY + height / 2: the shadow is fainter than in 1.12.2 and the
+            // local player (posY at the eyes) gets none at all. 1.12.2 measures from the feet.
+            ClassNode node = read(bytes);
+            int n = 0;
+            for (MethodNode m : node.methods) {
+                if (named(m, "renderShadow", "func_76975_c")) {
+                    for (AbstractInsnNode i : m.instructions.toArray()) {
+                        if (i instanceof MethodInsnNode && ("getShadowSize".equals(((MethodInsnNode) i).name) || "func_70053_R".equals(((MethodInsnNode) i).name))
+                            && "()F".equals(((MethodInsnNode) i).desc)) {
+                            m.instructions.set(i, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/client/ShadowFix", "feet",
+                                "(Lnet/minecraft/entity/Entity;)F", false));
+                            n++;
+                        }
+                    }
+                }
+            }
+            System.out.println("[mc112bridge] 1.12 shadow height in net.minecraft.client.renderer.entity.Render: " + n);
+            return write(node);
+        }
         if ("net.minecraft.client.renderer.EntityRenderer".equals(transformedName)) {
             ClassNode node = read(bytes);
             String hook = "ru/codex/offhand1710/client/Client122";

@@ -11,7 +11,6 @@ Remove-Item -Recurse -Force "$g\saves", "$g\screenshots", $shots -Confirm:$false
 New-Item -ItemType Directory -Force "$g\mods", $shots | Out-Null
 Get-ChildItem "$g\mods" -File | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -Confirm:$false }
 Copy-Item (Get-ChildItem "$PSScriptRoot\..\..\build\release\mc112bridge-*.jar" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName "$g\mods\"
-eleasemc112bridge-*.jar" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName "$gmods\"
 $opts = @('fov:0.0', 'renderDistance:8', 'guiScale:0', 'fancyGraphics:true', 'ao:2', 'clouds:false', 'particles:0', 'maxFps:60',
     'enableVsync:false', 'mipmapLevels:4', 'lang:en_US', 'pauseOnLostFocus:false', 'gamma:0.0', 'useVbo:true', 'bobView:true',
     'soundCategory_master:0.0', 'chatVisibility:0')

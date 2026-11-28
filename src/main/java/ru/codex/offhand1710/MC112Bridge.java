@@ -15,9 +15,10 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraftforge.oredict.OreDictionary;
 
-@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = "0.34.0", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = MC112Bridge.MOD_ID, name = "Minecraft 1.12.2 Content for 1.7.10", version = MC112Bridge.VERSION, acceptedMinecraftVersions = "[1.7.10]")
 public final class MC112Bridge {
     public static final String MOD_ID = "mc112bridge";
+    public static final String VERSION = "@VERSION@";
     public static final String[] COLOR_NAMES = {
             "white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
             "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black"

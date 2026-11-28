@@ -25,4 +25,19 @@ public final class Hooks112 {
         LogManager.getLogger("mc112bridge").warn("Ticked chunk " + cx + "," + cz + " is null (loaded=" + loaded + ", thread "
                 + Thread.currentThread().getName() + "); mood sound and relight skipped for this tick");
     }
+
+    private static int nullProvided;
+
+    /** End of ChunkProviderServer.provideChunk: a null chunk becomes the empty chunk for this read, logged 10 times. */
+    public static net.minecraft.world.chunk.Chunk notNullChunk(net.minecraft.world.chunk.Chunk chunk, ChunkProviderServer provider, int x, int z) {
+        if (chunk != null) {
+            return chunk;
+        }
+        if (nullProvided < 10) {
+            nullProvided++;
+            LogManager.getLogger("mc112bridge").warn("provideChunk " + x + "," + z + " gave null (thread " + Thread.currentThread().getName()
+                + "); the empty chunk stands in for this read");
+        }
+        return new net.minecraft.world.chunk.EmptyChunk(provider.worldObj, x, z);
+    }
 }
