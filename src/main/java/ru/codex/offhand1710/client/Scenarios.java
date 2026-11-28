@@ -380,6 +380,17 @@ public final class Scenarios {
         return s;
     }
 
+    /** Whether self would push e: the list of collideWithNearbyEntities after Teams112.filter. */
+    private static boolean pushes(net.minecraft.entity.EntityLivingBase self, net.minecraft.entity.Entity e, StringBuilder log) {
+        java.util.List<net.minecraft.entity.Entity> l = new java.util.ArrayList<net.minecraft.entity.Entity>();
+        l.add(e);
+        ru.codex.offhand1710.Teams112.filter(l, self);
+        log.append(self.getCommandSenderName()).append("->").append(e.getCommandSenderName()).append('=').append(!l.isEmpty()).append(' ');
+        return !l.isEmpty();
+    }
+
+    private String teamTag = "";
+
     private void shot(String name) {
         ScreenShotHelper.saveScreenshot(mc.mcDataDir, "s-" + name + ".png", mc.displayWidth, mc.displayHeight, mc.getFramebuffer());
     }
@@ -3901,6 +3912,89 @@ public final class Scenarios {
                 boolean ok = chat.seen("mc112.deathvis.always.0") && !chat.seen("mc112.deathvis.never.0") && !chat.seen("mc112.deathvis.hideForOtherTeams.0") && chat.seen("mc112.deathvis.hideForOwnTeam.0")
                     && chat.seen("mc112.deathvis.always.1") && !chat.seen("mc112.deathvis.never.1") && chat.seen("mc112.deathvis.hideForOtherTeams.1") && !chat.seen("mc112.deathvis.hideForOwnTeam.1");
                 result("deathMessageVisibility: always, never, hideForOtherTeams, hideForOwnTeam as in 1.12.2", ok, String.valueOf(chat.keys));
+            }
+        });
+        // nametagVisibility and collisionRule of 1.8 / 1.9 (Teams112)
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                String me = p().getCommandSenderName();
+                cmd("scoreboard teams add mc112tA");
+                cmd("scoreboard teams add mc112tB");
+                cmd("scoreboard teams join mc112tA " + me);
+                cmd("scoreboard teams option mc112tA collisionRule never");
+                cmd("scoreboard teams option mc112tB nametagVisibility never");
+                cmd("scoreboard teams option mc112tA nametagVisibility sometimes");
+                ru.codex.offhand1710.Rules112.TeamOptions o = ru.codex.offhand1710.Rules112.TeamOptions.get();
+                result("teams option collisionRule and nametagVisibility are stored, a wrong value refused", "never".equals(o.collision.get("mc112tA"))
+                    && "never".equals(o.nametag.get("mc112tB")) && !o.nametag.containsKey("mc112tA"), o.collision + " " + o.nametag);
+                java.util.List<?> tab = net.minecraft.server.MinecraftServer.getServer().getCommandManager().getPossibleCommands(p(), "scoreboard teams option mc112tA ");
+                java.util.List<?> tab2 = net.minecraft.server.MinecraftServer.getServer().getCommandManager().getPossibleCommands(p(), "scoreboard teams option mc112tA collisionRule push");
+                result("tab completes the options and the collision values", tab != null && tab.contains("collisionRule") && tab.contains("nametagVisibility")
+                    && tab2 != null && tab2.contains("pushOtherTeams") && tab2.contains("pushOwnTeam"), tab + " " + tab2);
+                // collisions: the player (team A) and a fake player TeamBot
+                net.minecraft.entity.passive.EntityPig pig = new net.minecraft.entity.passive.EntityPig(w());
+                pig.setPosition(p().posX, p().posY, p().posZ);
+                net.minecraft.entity.player.EntityPlayerMP bot = net.minecraftforge.common.util.FakePlayerFactory.get(w(),
+                    new com.mojang.authlib.GameProfile(java.util.UUID.nameUUIDFromBytes("mc112TeamBot".getBytes()), "TeamBot"));
+                StringBuilder log = new StringBuilder();
+                boolean neverPig = !pushes(pig, p(), log);
+                cmd("scoreboard teams option mc112tA collisionRule always");
+                boolean alwaysPig = pushes(pig, p(), log);
+                cmd("scoreboard teams join mc112tA TeamBot");
+                cmd("scoreboard teams option mc112tA collisionRule pushOwnTeam");
+                boolean ownSame = !pushes(p(), bot, log);
+                cmd("scoreboard teams option mc112tA collisionRule pushOtherTeams");
+                boolean otherSame = pushes(p(), bot, log);
+                cmd("scoreboard teams join mc112tB TeamBot");
+                boolean otherOther = !pushes(p(), bot, log);
+                result("collisionRule as EntitySelectors 1.12.2: never (pig), always, pushOwnTeam stops the own team, pushOtherTeams only the own team",
+                    neverPig && alwaysPig && ownSame && otherSame && otherOther, log.toString());
+                cmd("scoreboard teams option mc112tA collisionRule always");
+                cmd("scoreboard teams option mc112tA nametagVisibility hideForOtherTeams");
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                result("the client gets the options (Teams112.Sync)", "never".equals(ru.codex.offhand1710.Teams112.CLIENT_NAMETAG.get("mc112tB"))
+                    && "hideForOtherTeams".equals(ru.codex.offhand1710.Teams112.CLIENT_NAMETAG.get("mc112tA")) && !ru.codex.offhand1710.Teams112.CLIENT_COLLISION.containsKey("mc112tA"),
+                    ru.codex.offhand1710.Teams112.CLIENT_NAMETAG + " " + ru.codex.offhand1710.Teams112.CLIENT_COLLISION);
+                // TeamBot (team B, never) as another player on this client; then in team A (hideForOtherTeams) with the viewer
+                net.minecraft.client.entity.EntityOtherPlayerMP other = new net.minecraft.client.entity.EntityOtherPlayerMP(mc.theWorld,
+                    new com.mojang.authlib.GameProfile(java.util.UUID.nameUUIDFromBytes("mc112TeamBot".getBytes()), "TeamBot"));
+                other.setPosition(mc.thePlayer.posX + 2, mc.thePlayer.posY, mc.thePlayer.posZ);
+                net.minecraft.client.renderer.entity.RendererLivingEntity r = (net.minecraft.client.renderer.entity.RendererLivingEntity)
+                    net.minecraft.client.renderer.entity.RenderManager.instance.getEntityRenderObject(other);
+                net.minecraftforge.client.event.RenderLivingEvent.Specials.Pre ev = new net.minecraftforge.client.event.RenderLivingEvent.Specials.Pre(other, r, 2, 0, 0);
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(ev);
+                teamTag = ev.isCanceled() + "/" + ru.codex.offhand1710.Teams112.nameShown(mc.thePlayer, other);
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("scoreboard teams join mc112tA TeamBot");
+            }
+        });
+        client(20, new Runnable() {
+            @Override
+            public void run() {
+                net.minecraft.client.entity.EntityOtherPlayerMP other = new net.minecraft.client.entity.EntityOtherPlayerMP(mc.theWorld,
+                    new com.mojang.authlib.GameProfile(java.util.UUID.nameUUIDFromBytes("mc112TeamBot".getBytes()), "TeamBot"));
+                boolean sameTeam = ru.codex.offhand1710.Teams112.nameShown(mc.thePlayer, other);
+                result("nametagVisibility: never hides the name (render event cancelled), hideForOtherTeams shows it to the own team",
+                    "true/false".equals(teamTag) && sameTeam, teamTag + " sameTeam=" + sameTeam);
+            }
+        });
+        server(5, new Runnable() {
+            @Override
+            public void run() {
+                cmd("scoreboard teams remove mc112tA");
+                cmd("scoreboard teams remove mc112tB");
+                ru.codex.offhand1710.Rules112.TeamOptions o = ru.codex.offhand1710.Rules112.TeamOptions.get();
+                result("removed teams forget nametagVisibility and collisionRule", !o.nametag.containsKey("mc112tA") && !o.nametag.containsKey("mc112tB")
+                    && !o.collision.containsKey("mc112tA"), o.nametag + " " + o.collision);
             }
         });
         finish();

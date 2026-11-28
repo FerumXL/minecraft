@@ -286,36 +286,55 @@ public final class Rules112 {
     }
 
     /**
-     * Team options of 1.12.2 that ScorePlayerTeam of 1.7.10 has no field for (deathMessageVisibility), by team name,
-     * saved with the overworld. -Dmc112.deathVis17 leaves "scoreboard teams option" and death messages as in 1.7.10.
+     * Team options of 1.12.2 that ScorePlayerTeam of 1.7.10 has no field for, by team name, saved with the overworld:
+     * deathMessageVisibility (-Dmc112.deathVis17 turns it off), nametagVisibility and collisionRule (-Dmc112.teams17).
+     * The last two are sent to the clients (Teams112.Sync), as SPacketTeams of 1.12.2 carries them.
      */
     public static final class TeamOptions extends net.minecraft.world.WorldSavedData {
         public static final boolean OFF = System.getProperty("mc112.deathVis17") != null;
+        public static final boolean TEAMS_OFF = System.getProperty("mc112.teams17") != null;
         public static final String KEY = "mc112teams";
+        public static final String DEATH = "deathMessageVisibility";
+        public static final String NAMETAG = "nametagVisibility";
+        public static final String COLLISION = "collisionRule";
         /** Team.EnumVisible of 1.12.2. */
         public static final String[] VISIBLE = {"always", "never", "hideForOtherTeams", "hideForOwnTeam"};
+        /** Team.CollisionRule of 1.12.2. */
+        public static final String[] COLLISIONS = {"always", "never", "pushOtherTeams", "pushOwnTeam"};
+        private static final String[] TAGS = {"DeathMessageVisibility", "NameTagVisibility", "CollisionRule"};
         public final Map<String, String> death = new java.util.HashMap<String, String>();
+        public final Map<String, String> nametag = new java.util.HashMap<String, String>();
+        public final Map<String, String> collision = new java.util.HashMap<String, String>();
 
         public TeamOptions(String key) {
             super(key);
         }
 
+        private List<Map<String, String>> maps() {
+            return java.util.Arrays.asList(death, nametag, collision);
+        }
+
         @Override
         public void readFromNBT(net.minecraft.nbt.NBTTagCompound nbt) {
-            death.clear();
-            net.minecraft.nbt.NBTTagCompound d = nbt.getCompoundTag("DeathMessageVisibility");
-            for (Object k : d.func_150296_c()) {
-                death.put((String) k, d.getString((String) k));
+            for (int i = 0; i < 3; i++) {
+                Map<String, String> m = maps().get(i);
+                m.clear();
+                net.minecraft.nbt.NBTTagCompound d = nbt.getCompoundTag(TAGS[i]);
+                for (Object k : d.func_150296_c()) {
+                    m.put((String) k, d.getString((String) k));
+                }
             }
         }
 
         @Override
         public void writeToNBT(net.minecraft.nbt.NBTTagCompound nbt) {
-            net.minecraft.nbt.NBTTagCompound d = new net.minecraft.nbt.NBTTagCompound();
-            for (Map.Entry<String, String> e : death.entrySet()) {
-                d.setString(e.getKey(), e.getValue());
+            for (int i = 0; i < 3; i++) {
+                net.minecraft.nbt.NBTTagCompound d = new net.minecraft.nbt.NBTTagCompound();
+                for (Map.Entry<String, String> e : maps().get(i).entrySet()) {
+                    d.setString(e.getKey(), e.getValue());
+                }
+                nbt.setTag(TAGS[i], d);
             }
-            nbt.setTag("DeathMessageVisibility", d);
         }
 
         public static TeamOptions get() {
@@ -328,6 +347,24 @@ public final class Rules112 {
             return t;
         }
 
+        /** The option names "scoreboard teams option" takes here, with their values; null when it is not one of them. */
+        public static String[] values(String option) {
+            if (DEATH.equals(option)) {
+                return OFF ? null : VISIBLE;
+            }
+            if (NAMETAG.equals(option)) {
+                return TEAMS_OFF ? null : VISIBLE;
+            }
+            if (COLLISION.equals(option)) {
+                return TEAMS_OFF ? null : COLLISIONS;
+            }
+            return null;
+        }
+
+        private Map<String, String> map(String option) {
+            return DEATH.equals(option) ? death : NAMETAG.equals(option) ? nametag : collision;
+        }
+
         public static String deathVisibility(String team) {
             if (OFF) {
                 return "always";
@@ -337,9 +374,24 @@ public final class Rules112 {
         }
 
         public static void set(String team, String value) {
+            set(DEATH, team, value);
+        }
+
+        public static void set(String option, String team, String value) {
             TeamOptions t = get();
-            if (value == null ? t.death.remove(team) != null : !value.equals(t.death.put(team, value))) {
+            Map<String, String> m = t.map(option);
+            if (value == null || "always".equals(value) ? m.remove(team) != null : !value.equals(m.put(team, value))) {
                 t.markDirty();
+                if (!DEATH.equals(option)) {
+                    Teams112.broadcast();
+                }
+            }
+        }
+
+        /** A team added or removed: every option back to "always", as a new Team of 1.12.2. */
+        public static void reset(String team) {
+            for (String o : new String[] {DEATH, NAMETAG, COLLISION}) {
+                set(o, team, null);
             }
         }
     }
@@ -350,6 +402,7 @@ public final class Rules112 {
      * is cut to the box itself here.
      */
     public static void cramming(List<?> near, EntityLivingBase self) {
+        Teams112.filter(near, self);
         if (near == null || near.isEmpty() || self.worldObj.isRemote) {
             return;
         }
