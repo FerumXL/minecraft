@@ -62,6 +62,7 @@ public final class ClientProxy extends CommonProxy {
         RulesClient rules = new RulesClient();
         MinecraftForge.EVENT_BUS.register(rules);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(rules);
+        MinecraftForge.EVENT_BUS.register(new Cooldowns112Client());
         TeamsClient teams = new TeamsClient();
         MinecraftForge.EVENT_BUS.register(teams);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(teams);

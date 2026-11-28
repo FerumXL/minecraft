@@ -59,5 +59,6 @@ public final class OffhandNetwork {
         client("ru.codex.offhand1710.client.Border112Client$Handler", Border112.Msg.class, 23);
         client("ru.codex.offhand1710.client.EnchantGui112$NameHandler", Enchant112.Name.class, 24);
         client("ru.codex.offhand1710.client.TeamsClient$Handler", Teams112.Sync.class, 25);
+        client("ru.codex.offhand1710.client.Cooldowns112Client$Handler", Cooldowns112.Msg.class, 26);
     }
 }

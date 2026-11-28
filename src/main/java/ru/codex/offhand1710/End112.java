@@ -1821,6 +1821,8 @@ public final class End112 implements IWorldGenerator {
         @Override
         protected void onFoodEaten(ItemStack stack, World world, EntityPlayer player) {
             super.onFoodEaten(stack, world, player);
+            // ItemChorusFruit.onItemUseFinish of 1.12.2: 20 ticks before the next one
+            Cooldowns112.set(player, this, 20);
             if (world.isRemote) {
                 return;
             }

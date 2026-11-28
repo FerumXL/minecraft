@@ -142,7 +142,7 @@ public final class Scenarios {
     }
 
     static void start() {
-        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
+        if ("more".equals(STAGE) || "more2".equals(STAGE) || "scene".equals(STAGE) || "bench".equals(STAGE) || "extra".equals(STAGE) || "gui".equals(STAGE) || "terrain".equals(STAGE) || "backlog1".equals(STAGE) || "villager".equals(STAGE) || "elytra".equals(STAGE) || "group2".equals(STAGE) || "registry".equals(STAGE) || "sounds".equals(STAGE) || "idle".equals(STAGE) || "selectors".equals(STAGE) || "boats".equals(STAGE) || "gamerules".equals(STAGE) || "names".equals(STAGE) || "commands2".equals(STAGE) || "border".equals(STAGE) || "crafting".equals(STAGE) || "specchunks".equals(STAGE) || "dragon".equals(STAGE) || "food".equals(STAGE) || "armor".equals(STAGE) || "brewing".equals(STAGE) || "enchant".equals(STAGE) || "items19".equals(STAGE) || "visual".equals(STAGE) || "online".equals(STAGE) || "duo".equals(STAGE)) {
             FMLCommonHandler.instance().bus().register(new Scenarios());
         }
     }
@@ -658,6 +658,8 @@ public final class Scenarios {
             brewingStage();
         } else if ("enchant".equals(STAGE)) {
             enchantStage();
+        } else if ("items19".equals(STAGE)) {
+            items19Stage();
         } else if ("visual".equals(STAGE)) {
             visual();
         } else if ("online".equals(STAGE)) {
@@ -4849,6 +4851,114 @@ public final class Scenarios {
     }
 
     /** The brewing stand of 1.9 (BrewFuel112): blaze powder fuel for 20 brews, the fifth slot, the window. */
+    private int[] frameAt;
+
+    /** Item cooldowns of 1.9 (Cooldowns112) and item frames of 1.8 (Frames112). */
+    private void items19Stage() {
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                cmd("gamemode 0");
+                p().inventory.clearInventory(null, -1);
+                p().inventory.setInventorySlotContents(0, new ItemStack(Items.ender_pearl, 16));
+                p().inventory.setInventorySlotContents(1, new ItemStack(ru.codex.offhand1710.End112.chorusFruit, 4));
+                p().inventory.currentItem = 0;
+                net.minecraft.entity.item.EntityEnderPearl pearl = new net.minecraft.entity.item.EntityEnderPearl(w(), p());
+                pearl.setPosition(p().posX, p().posY + 300, p().posZ);
+                w().spawnEntityInWorld(pearl);
+                pearl.setDead();
+                net.minecraftforge.event.entity.player.PlayerInteractEvent air = new net.minecraftforge.event.entity.player.PlayerInteractEvent(p(),
+                    net.minecraftforge.event.entity.player.PlayerInteractEvent.Action.RIGHT_CLICK_AIR, 0, 0, 0, -1, w());
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(air);
+                result("a thrown pearl: 20 ticks of cooldown, the next right click is refused", ru.codex.offhand1710.Cooldowns112.has(p(), Items.ender_pearl)
+                    && air.isCanceled() && !ru.codex.offhand1710.Cooldowns112.has(p(), Items.snowball), "canceled=" + air.isCanceled());
+                ItemStack fruit = p().inventory.getStackInSlot(1);
+                fruit.getItem().onEaten(fruit, w(), p());
+                result("an eaten chorus fruit: 20 ticks of cooldown", ru.codex.offhand1710.Cooldowns112.has(p(), ru.codex.offhand1710.End112.chorusFruit), "");
+                // frames: a stone wall east of the player, frames on its west face
+                int x = (int) Math.floor(p().posX) + 3;
+                int y = (int) Math.floor(p().posY) + 1;
+                int z = (int) Math.floor(p().posZ);
+                frameAt = new int[] {x, y, z};
+                for (int dz = -3; dz <= 3; dz++) {
+                    for (int dy = -1; dy <= 2; dy++) {
+                        w().setBlock(x, y + dy, z + dz, net.minecraft.init.Blocks.stone);
+                        w().setBlockToAir(x - 1, y + dy, z + dz);
+                    }
+                }
+                for (int i = 0; i < 4; i++) {
+                    // direction 1 = west (Direction.offsetX = -1): on the west face of the stone at x
+                    net.minecraft.entity.item.EntityItemFrame f = new net.minecraft.entity.item.EntityItemFrame(w(), x, y, z - 2 + i, 1);
+                    f.setDisplayedItem(new ItemStack(i < 3 ? Items.diamond_sword : Items.compass));
+                    f.setItemRotation(i == 3 ? 1 : i);
+                    w().spawnEntityInWorld(f);
+                }
+                net.minecraft.entity.item.EntityItemFrame f = new net.minecraft.entity.item.EntityItemFrame(w(), x, y, z + 2, 1);
+                f.setDisplayedItem(new ItemStack(Items.stick));
+                f.setItemRotation(5);
+                int five = f.getRotation();
+                net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+                f.writeToNBT(tag);
+                net.minecraft.entity.item.EntityItemFrame g = new net.minecraft.entity.item.EntityItemFrame(w());
+                g.readFromNBT(tag);
+                f.setItemRotation(7);
+                p().inventory.currentItem = 8;
+                f.interactFirst(p());
+                result("a frame turns in 8 steps: 5 is kept and saved, 7 + a click is 0", five == 5 && g.getRotation() == 5 && f.getRotation() == 0,
+                    five + " " + g.getRotation() + " " + f.getRotation());
+                // a comparator two blocks west of a frame on the far side of a stone: comparator -> stone -> frame (facing west)
+                int cx = x - 3;
+                w().setBlock(cx, y - 1, z + 3, net.minecraft.init.Blocks.stone);
+                w().setBlock(cx + 1, y - 1, z + 3, net.minecraft.init.Blocks.stone);
+                w().setBlock(cx + 2, y - 1, z + 3, net.minecraft.init.Blocks.stone);
+                w().setBlock(cx, y, z + 3, net.minecraft.init.Blocks.unpowered_comparator, 3, 2);
+                w().setBlock(cx + 1, y, z + 3, net.minecraft.init.Blocks.stone);
+                w().setBlockToAir(cx + 2, y, z + 3);
+                net.minecraft.entity.item.EntityItemFrame h = new net.minecraft.entity.item.EntityItemFrame(w(), cx + 1, y, z + 3, 3);
+                h.setDisplayedItem(new ItemStack(Items.apple));
+                h.setItemRotation(5);
+                w().spawnEntityInWorld(h);
+                int in = -1;
+                try {
+                    java.lang.reflect.Method m = cpw.mods.fml.relauncher.ReflectionHelper.findMethod(net.minecraft.block.BlockRedstoneComparator.class,
+                        (net.minecraft.block.BlockRedstoneComparator) net.minecraft.init.Blocks.unpowered_comparator, new String[] {"getInputStrength", "func_149903_h"},
+                        net.minecraft.world.World.class, int.class, int.class, int.class, int.class);
+                    in = (Integer) m.invoke(net.minecraft.init.Blocks.unpowered_comparator, w(), cx, y, z + 3, 3);
+                } catch (Exception e) {
+                    log("comparator: " + e);
+                }
+                result("a comparator reads a frame behind a block: rotation 5 gives 6", in == 6, "in=" + in + " frameDir=" + h.hangingDirection);
+                p().rotationYaw = -90.0F;
+                p().rotationPitch = 0.0F;
+                p().playerNetServerHandler.setPlayerLocation(x - 3 + 0.5D, y - 1, z + 0.5D, -90.0F, 5.0F);
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                mc.thePlayer.inventory.currentItem = 0;
+                result("the client knows the cooldowns (SPacketCooldown)", ru.codex.offhand1710.Cooldowns112.has(mc.thePlayer, Items.ender_pearl)
+                    && ru.codex.offhand1710.Cooldowns112.has(mc.thePlayer, ru.codex.offhand1710.End112.chorusFruit), "");
+                shot("items19-cooldown");
+            }
+        });
+        server(40, new Runnable() {
+            @Override
+            public void run() {
+                result("20 ticks later the pearl and the fruit are free again", !ru.codex.offhand1710.Cooldowns112.has(p(), Items.ender_pearl)
+                    && !ru.codex.offhand1710.Cooldowns112.has(p(), ru.codex.offhand1710.End112.chorusFruit), "");
+            }
+        });
+        client(10, new Runnable() {
+            @Override
+            public void run() {
+                result("and on the client", !ru.codex.offhand1710.Cooldowns112.has(mc.thePlayer, Items.ender_pearl), "");
+                shot("items19-frames");
+            }
+        });
+        finish();
+    }
+
     private int[] enchAt;
 
     /** A table of 1.12.2 (Enchant112) on the server side, with the item and lapis given. */

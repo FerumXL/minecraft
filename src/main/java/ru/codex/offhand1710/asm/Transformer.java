@@ -791,6 +791,70 @@ public final class Transformer implements IClassTransformer {
             }
             return write(node);
         }
+        // CooldownTracker of 1.9: the white bar over an item on cooldown, in every slot
+        if ("net.minecraft.client.renderer.entity.RenderItem".equals(transformedName) && System.getProperty("mc112.cooldowns17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "renderItemOverlayIntoGUI", "func_94148_a")
+                    && "(Lnet/minecraft/client/gui/FontRenderer;Lnet/minecraft/client/renderer/texture/TextureManager;Lnet/minecraft/item/ItemStack;IILjava/lang/String;)V".equals(m.desc)) {
+                    InsnList call = new InsnList();
+                    call.add(new VarInsnNode(Opcodes.ALOAD, 3));
+                    call.add(new VarInsnNode(Opcodes.ILOAD, 4));
+                    call.add(new VarInsnNode(Opcodes.ILOAD, 5));
+                    call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/client/Cooldowns112Client", "overlay", "(Lnet/minecraft/item/ItemStack;II)V", false));
+                    beforeReturns(m, call);
+                    System.out.println("[mc112bridge] 1.9 item cooldown bar in RenderItem." + m.name);
+                }
+            }
+            return write(node);
+        }
+        // item frames of 1.8: eight rotations
+        if ("net.minecraft.entity.item.EntityItemFrame".equals(transformedName) && System.getProperty("mc112.frames17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "setItemRotation", "func_82336_g") && "(I)V".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n.getOpcode() == Opcodes.ICONST_4 && n.getNext() != null && n.getNext().getOpcode() == Opcodes.IREM) {
+                            m.instructions.set(n, new org.objectweb.asm.tree.IntInsnNode(Opcodes.BIPUSH, 8));
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
+        if ("net.minecraft.client.renderer.tileentity.RenderItemFrame".equals(transformedName) && System.getProperty("mc112.frames17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "func_82402_b", "func_82402_b")) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n instanceof MethodInsnNode && "net/minecraft/entity/item/EntityItemFrame".equals(((MethodInsnNode) n).owner)
+                            && ("getRotation".equals(((MethodInsnNode) n).name) || "func_82333_j".equals(((MethodInsnNode) n).name)) && "()I".equals(((MethodInsnNode) n).desc)) {
+                            m.instructions.set(n, new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Frames112", "renderRotation",
+                                "(Lnet/minecraft/entity/item/EntityItemFrame;)I", false));
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
+        if ("net.minecraft.block.BlockRedstoneComparator".equals(transformedName) && System.getProperty("mc112.frames17") == null) {
+            ClassNode node = read(bytes);
+            for (MethodNode m : node.methods) {
+                if (named(m, "getInputStrength", "func_149903_h") && "(Lnet/minecraft/world/World;IIII)I".equals(m.desc)) {
+                    for (AbstractInsnNode n : m.instructions.toArray()) {
+                        if (n.getOpcode() == Opcodes.IRETURN) {
+                            InsnList call = new InsnList();
+                            for (int i = 1; i <= 5; i++) {
+                                call.add(new VarInsnNode(i == 1 ? Opcodes.ALOAD : Opcodes.ILOAD, i));
+                            }
+                            call.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "ru/codex/offhand1710/Frames112", "comparator", "(ILnet/minecraft/world/World;IIII)I", false));
+                            m.instructions.insertBefore(n, call);
+                        }
+                    }
+                }
+            }
+            return write(node);
+        }
         return bytes;
     }
 }
